@@ -1,7 +1,7 @@
 from AppKit import *
 from Quartz import *
 
-from corridori import TimeRunners
+from corridori import TimeRunners, STILL, LEFT, RIGHT, TOP, BOTTOM, NO_RUNNING, RUNNING
 
 from PyObjCTools import AppHelper
 
@@ -64,40 +64,55 @@ class ImageView(NSView):
         return True
 
     def keyDown_(self, ev):
-        print ev.keyCode()
         code = ev.keyCode()
-
-        self.tr.input(code)
 
         if code == 49: # spacebar
             import sys
             sys.exit()
 
-        return
-
         if code == 123:
-            print "<"
+    		self.directions.add(LEFT)
 
         if code == 124:
-            print ">"
+    		self.directions.add(RIGHT)
 
         if code == 126:
-            print "^"
+            self.directions.add(TOP)
     
         if code == 125:
-            print "v"
+            self.directions.add(BOTTOM)
+
+    def keyUp_(self, ev):
+        code = ev.keyCode()
+
+        if code == 123:
+    		self.directions.remove(LEFT)
+
+        if code == 124:
+    		self.directions.remove(RIGHT)
+
+        if code == 126:
+            self.directions.remove(TOP)
+    
+        if code == 125:
+            self.directions.remove(BOTTOM)
 
 class ViewController(NSViewController):
     def loadView(self):
         iv = ImageView.alloc().initWithFrame_(NSRect(NSPoint(0, 0), NSSize(320 * 3, 200 * 3)))
         iv.tr = self.tr
+        iv.directions = set()
         self.setView_(iv)
 
         s = objc.selector(self.tick,signature='v@:')
-        self.timer = NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(1/5.0, self,s,None,True)
+        self.timer = NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(1/70.0, self,s,None,True)
 
     def tick(self):
-        self.tr.step()
+        X = RIGHT if RIGHT in self.view().directions else LEFT   if LEFT   in self.view().directions else STILL
+        Y = TOP   if TOP   in self.view().directions else BOTTOM if BOTTOM in self.view().directions else STILL
+
+        self.tr.step((X, Y, NO_RUNNING))
+
         self.view().setNeedsDisplay_(True)
 
 
