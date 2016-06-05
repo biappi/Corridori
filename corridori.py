@@ -1,9 +1,7 @@
-import pygame
-
 GAME_RESOLUTION = (320, 200)
 MULTIPLIER      = 3
 WINDOW_SIZE     = [i * MULTIPLIER for i in GAME_RESOLUTION]
-FPS             = 30
+FPS             = 10
 TILE_WIDTH      = 16
 TILE_HEIGTH     = 10
 TILE_SIZE       = (TILE_WIDTH, TILE_HEIGTH)
@@ -24,6 +22,8 @@ class ResourcesPaths(object):
     def tr_ele(self):                 return self.gamedir("AR1/IMG/TR.ELE")
     def ucc_ele(self, nr):            return self.gamedir("AR1/UCC/UCCI%d.ELE" % nr)
     def animjoy(self):                return self.gamedir("AR1/FIL/ANIMJOY.TAB")
+    def frames(self):                 return self.gamedir("AR1/FIL/FRAMES.TAB")
+    def animofs(self):                return self.gamedir("AR1/FIL/ANIMOFS.TAB")
 
 def load_file(path):
     return [ord(i) for i in open(path, 'rb').read()]
@@ -37,6 +37,9 @@ def oneoff(l):
 
 def word(l):
     return next(l) + (next(l) << 8)
+
+def wordbe(l):
+    return (next(l) << 8) + next(l)
 
 def dword(l):
     return word(l) + (word(l) << 16)
@@ -55,21 +58,27 @@ def load_palette(path):
         )
 
     return palette
-    
-def get_background_tiles(path, pal):
+
+class Renderer:
+	def __init__(self, width, height): pass
+	def set_at(self, pos, colori, transparent): pass
+	def image(self): pass
+
+def get_background_tiles(path, pal, renderer=Renderer):
     TILE_BYTE_SIZE = TILE_WIDTH * TILE_HEIGTH
 
     data  = load_file(path)
     tiles = []
 
     for tile_i in xrange((320 / TILE_WIDTH) * (200 / TILE_HEIGTH)):
-        tile = pygame.Surface(TILE_SIZE)
-        tiles.append(tile)
+        tile = renderer(TILE_SIZE)
 
         for y in xrange(TILE_HEIGTH):
             for x in xrange(TILE_WIDTH):
                 color = data[TILE_BYTE_SIZE * tile_i + TILE_WIDTH * y + x]
                 tile.set_at((x, y), pal[color])
+
+        tiles.append(tile.image())
 
     return tiles
 
@@ -100,7 +109,8 @@ def load_room_description(path):
 
     return rooms
 
-def blit_room(room, tilesets, surface, frame, show_grid):
+
+def blit_room(room, tilesets, frame, show_grid, blitter):
     def adjust_tile_for_frame(tile_id, frame):
         if ((tile_id & 0xf0) >> 4) != 9:
             return tile_id
@@ -117,8 +127,6 @@ def blit_room(room, tilesets, surface, frame, show_grid):
 
     tileset_ids, tile_ids, tile_types = room
 
-    surface.fill((100, 100, 100))
-
     for y in xrange(ROOM_TILEHEIGTH):
         for x in xrange(ROOM_TILEWIDTH):
             tile_id    = tile_ids[y][x]
@@ -131,11 +139,7 @@ def blit_room(room, tilesets, surface, frame, show_grid):
             bitmap     = tileset[tile_nr]
             topleft    = (x * TILE_WIDTH, y * TILE_HEIGTH)
 
-            if flip:
-                bitmap = pygame.transform.flip(bitmap, True, False)
-
-            area =  pygame.Rect((0, 0), TILE_SIZE).inflate(-1, -1) if show_grid else None
-            surface.blit(bitmap, topleft, area)
+            blitter(bitmap, topleft, flip)
 
 def load_ele_file(path):
     data        = load_file(path)
@@ -169,17 +173,13 @@ def load_ele_file(path):
 
     return images
 
-def render_ele_item(item, palette, col=-63):
+def render_ele_item(item, palette, col=-63, renderer=Renderer):
     width, heigth, lines = item
 
-    transparency   = (1, 1, 1) # should not be possible for the VGA palette
     the_ele        = iter(lines)
     consecutive_ff = 0
-    surface        = pygame.Surface((width, heigth))
+    surface        = renderer((width, heigth))
     cur_x, cur_y   = 0, 0
-
-    surface.set_colorkey(transparency)
-    surface.fill(transparency)
 
     while True:
         skip = next(the_ele)
@@ -211,14 +211,14 @@ def render_ele_item(item, palette, col=-63):
             else:
                 consecutive_ff += 1
                 if consecutive_ff == 3:
-                    return surface
+                    return surface.image()
         else:
             cur_x = 0
             cur_y += 1
 
             consecutive_ff += 1
             if consecutive_ff == 3:
-                return surface
+                return surface.image()
 
 # animjoy is a list of arrays, the inner arrays are indexed based
 # on user input using these indices.
@@ -260,78 +260,231 @@ def clamp(thing, interval):
     x = min(x, high)
     return x
 
-if __name__ == '__main__':
-    pygame.init()
-    pygame.display.set_mode(WINDOW_SIZE)
+def to_signed_byte(byte):
+    return byte if byte < 128 else (256 - byte) * -1
 
-    quit       = False
-    clock      = pygame.time.Clock()
-    screen     = pygame.Surface((320, 200))
+class Frame():
+    def __init__(self, frame, time, x_delta, y_delta, flip):
+    	self.time    = time
+    	self.frame   = frame
+    	self.x_delta = x_delta
+    	self.y_delta = y_delta
+    	self.flip    = flip
 
-    resources  = ResourcesPaths("episodes/ep1/")
-    palette    = load_palette(resources.arcade_palette())
-    tilesets   = {i: get_background_tiles(resources.background_tileset(i), palette) for i in (1, 2, 3, 4, 5, 6, 10, 11)}
-    rooms      = load_room_description(resources.room_roe())
-    kele       = [render_ele_item(i, palette) for i in load_ele_file(resources.k_ele())]
-    trele      = [render_ele_item(i, palette) for i in load_ele_file(resources.tr_ele())]
-    all_ucc    = [load_ele_file(resources.ucc_ele(i)) for i in xrange(2)]
-    all_ucc    = reduce(lambda a, b: a + b, all_ucc)
-    uccele     = [render_ele_item(i, palette) for i in all_ucc]
-    animjoy    = load_animjoy(resources.animjoy())
+    def __repr__(self):
+    	return ', '.join('%s: %04x' % i for i in self.__dict__.iteritems())
 
-    current_room             = 0
-    current_background_frame = 0
-    current_k_ele            = 0
-    current_tr_ele           = 0
-    current_ucc_ele          = 0
-    current_show_grid        = False
+def load_frames(path):
+    data    = load_file(path)
+    howmany = 106
+    index   = iter(data)
 
-    # lol 1992
-    background_frame_delay_init = 6
-    background_frame_delay      = background_frame_delay_init
+    offsets = [wordbe(index) for i in xrange(howmany)]
 
-    print "left/right arrow to change room"
+    anims   = []
 
+    for offset in offsets:
+    	f = iter(data[offset:])
+    	frames  = []
+    	anims.append(frames)
+
+    	frame_off = offset
+
+    	while True:
+    		_frame = next(f)
+    		_time = next(f)
+    		
+    		if _time == 0 and _frame == 0:
+    			break
+
+    		frame = Frame(_frame,
+    			      _time,
+    			      to_signed_byte(next(f)),
+    			      to_signed_byte(next(f)),
+    			      next(f))
+    		frame.offset = frame_off
+    		frame_off += 5 # 5 = sizeof frame
+    		frames.append(frame)
+
+    return anims
+
+def load_animofs(path):
+    data    = load_file(path)
+    animofs = iter(data)
+
+    offsets = []
     while True:
-        clock.tick(FPS)
+    	off = wordbe(animofs)
+    	if off == 0xf0f0:
+    		break
+    	offsets.append(off)
 
-        for event in pygame.event.get():
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_LEFT:
-                    current_room -= 1
-                if event.key == pygame.K_RIGHT:
-                    current_room += 1
-                if event.key == pygame.K_SPACE:
-                    current_show_grid = not current_show_grid
+    sorted_offs = sorted(offsets)
+    contents    = { start: [to_signed_byte(i) for i in data[start:end] ]
+                      for start, end in zip(sorted_offs[:-1],
+                                            sorted_offs[1:]) }
 
-                current_room = clamp(current_room, (0, len(rooms) - 1))
+    contents[sorted_offs[-1]] = data[sorted_offs[-1]:]
 
-            if event.type == pygame.QUIT:
-                quit = True
+    return [contents[i] for i in offsets]
 
-        background_frame_delay -= 1
-        if background_frame_delay == 0:
-            current_background_frame = (current_background_frame + 1) % 4
-            background_frame_delay = background_frame_delay_init
+class TimeRunners:
+    def __init__(self, renderer):
+    	self.renderer   = renderer
 
-            current_k_ele = (current_k_ele + 1) % len(kele)
-            current_tr_ele = (current_tr_ele + 1) % len(trele)
-            current_ucc_ele = (current_ucc_ele + 1) % len(uccele)
+    	resources  = ResourcesPaths("episodes/ep1/")
 
-        blit_room(
-            rooms[current_room],
-            tilesets,
-            screen,
-            current_background_frame,
-            current_show_grid,
-        )
+    	self.palette    = load_palette(resources.arcade_palette())
+    	self.tilesets   = {i: get_background_tiles(resources.background_tileset(i), self.palette, self.renderer) for i in (1, 2, 3, 4, 5, 6, 10, 11)}
+    	self.rooms      = load_room_description(resources.room_roe())
+    	self.kele       = [render_ele_item(i, self.palette, renderer=self.renderer) for i in load_ele_file(resources.k_ele())]
+    	self.trele      = [render_ele_item(i, self.palette, renderer=self.renderer) for i in load_ele_file(resources.tr_ele())]
+    	self.all_ucc    = [load_ele_file(resources.ucc_ele(i)) for i in xrange(2)]
+    	self.all_ucc    = reduce(lambda a, b: a + b, self.all_ucc)
+    	self.uccele     = [render_ele_item(i, self.palette, renderer=self.renderer) for i in self.all_ucc]
+    	self.animjoy    = load_animjoy(resources.animjoy())
+    	self.frames     = load_frames(resources.frames())
+    	self.animofs    = load_animofs(resources.animofs())
 
-        screen.blit(kele[current_k_ele], (10, 10))
-        screen.blit(trele[current_tr_ele], (40, 10))
-        screen.blit(uccele[current_ucc_ele], (100, 10))
+    	self.current_room             = 0
+    	self.current_background_frame = 0
+    	self.current_k_ele            = 0
+    	self.current_tr_ele           = 0
+    	self.current_ucc_ele          = 0
+    	self.current_show_grid        = False
 
-        pygame.transform.scale(screen, WINDOW_SIZE, pygame.display.get_surface())
-        pygame.display.flip()
+    	# lol 1992
+    	self.background_frame_delay_init = 1
+    	self.background_frame_delay      = self.background_frame_delay_init
 
-        if quit:
-            break
+    	self.current_ani_frame        = 0
+    	self.current_ani_counter      = 0
+
+    	self.current_tr_ele_frame     = 0
+    	self.dove_muovere             = 0
+
+    	# patches:
+    	# 1. remove check for tiles (mostly floor)
+    	# 2. remove check for tiles (mostly else)
+    	# 3. remove pupo_x changes when input
+    	# 4. no health for monster
+    	# 5. hide mouse ptr
+
+    	# iv 406c:3af8 pupo_bob_x
+    	# iv 406c:3b5c pupo_bob_y
+    	# iv 406c:2efb current_ani
+    	# iv 406c:2ef6 pupo_x
+    	# iv 406c:2ef8 pupo_y
+    	# iv 406c:2f04 vita
+    	# iv 406c:094f delta_x
+    	# iv 406c:0952 frame
+    	# iv 406c:094d pupo_tr_frame
+
+    	# sm 32a9:1823 eb 34
+    	# sm 32a9:1865 eb 3f
+    	# sm 32a9:1926 90 90 90 90
+    	# sm 32a9:19b7 90 90 90 90
+    	# sm 3aad:0211 90 90 90 90
+    	# sm 31b3:0626 90 90 90 90 90
+
+    	# bpm 406c:0952
+    	# bpm 406c:094f
+    	# bpm 406c:2efb
+    	# bpm 406c:3af8
+    	
+    	# 406c:42a6 -- left_pressed
+
+    	# taken from debugger
+    	self.current_ani              = 0x03
+    	self.pupo_x                   = 0xa8
+    	self.pupo_y                   = 0xa0
+
+    def step(self):
+    	self.background_frame_delay -= 1
+    	if self.background_frame_delay == 0:
+    		self.current_background_frame = (self.current_background_frame + 1) % 4
+    		self.background_frame_delay = self.background_frame_delay_init
+
+    	self.current_k_ele = (self.current_k_ele + 1) % len(self.kele)
+    	self.current_tr_ele = (self.current_tr_ele + 1) % len(self.trele)
+    	self.current_ucc_ele = (self.current_ucc_ele + 1) % len(self.uccele)
+
+    	self.current_tr_ele_frame = self.frames[self.current_ani][self.current_ani_frame].frame
+    	self.current_ani_frame += 1
+
+    	if self.current_ani_frame >= len(self.frames[self.current_ani]):
+
+    		self.pupo_x += self.animofs[2][self.current_ani]
+    		self.pupo_y += self.animofs[3][self.current_ani]
+
+    		# current ani done
+    		self.current_ani_frame = 0
+    		self.current_ani = self.animjoy[self.current_ani][self.dove_muovere]
+    		self.dove_muovere = 0
+
+    		self.pupo_x += self.animofs[0][self.current_ani]
+    		self.pupo_y += self.animofs[1][self.current_ani]
+
+    	# print "ani: ", self.current_ani, "frame: ", self.current_ani_frame
+    	
+    def blit(self, blitter):
+    	try:
+    		self.blit2(blitter)
+    	except Exception as e:
+    		import traceback
+    		traceback.print_exc()
+
+    def blit2(self, blitter):
+    	blit_room(
+    		self.rooms[self.current_room],
+    		self.tilesets,
+    		self.current_background_frame,
+    		self.current_show_grid,
+    		blitter,
+    	)
+
+    	#blitter(self.kele[self.current_k_ele], (10, 10))
+    	#blitter(self.trele[self.current_tr_ele], (40, 10))
+    	#blitter(self.uccele[self.current_ucc_ele], (100, 10))
+
+    	f = self.frames[self.current_ani][self.current_ani_frame]
+
+    	TR  = self.trele[f.frame]
+    	POS = self.pupo_x + f.x_delta - TR.size()[0] // 2, \
+    	      self.pupo_y + f.y_delta - TR.size()[1]
+
+    	blitter(
+    		TR,
+    		POS,
+    		bool(f.flip),
+    	)
+
+    def input(self, code):
+    	if code == 123: self.dove_muovere = 7
+    	if code == 124: self.dove_muovere = 3
+
+
+if __name__ == '__main__':
+    resources  = ResourcesPaths("episodes/ep1/")
+
+    class Suca:
+    	def __init__(self, size): self.s = size
+    	def set_at(self, pos, color): pass
+    	def image(self): return self
+
+    trele      = [render_ele_item(i, [None] * 0x300, renderer=Suca) for i in load_ele_file(resources.tr_ele())]
+    frames     = load_frames(resources.frames())
+    animofs    = load_animofs(resources.animofs())
+
+    offs = [(animofs[0][i], animofs[1][i]) for i in xrange(0x38)]
+
+    for i, f in enumerate(frames):
+    	for k in f:
+    		print i, k
+    
+    for i, s in enumerate(trele):
+    	print i, ','.join(map(hex, s.s))
+
+    for i, o in enumerate(offs):
+    	print hex(i), ' -- ', ','.join(map(hex, o))
+
