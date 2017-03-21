@@ -17,34 +17,6 @@ struct Color {
 
 struct Palette {
     let colors : [Color]
-    
-    init?(bytesIterator: inout Data.Iterator)
-    {
-        guard
-            let firstColor = bytesIterator.byte(),
-            let count      = bytesIterator.byte(),
-            let padding    = bytesIterator.array(count: 3, { (i : inout Data.Iterator) -> Int? in i.byte() }),
-            let colors     = bytesIterator.array(count: count, {
-                (it: inout Data.Iterator) -> Color? in
-                
-                guard
-                    let r = it.next(),
-                    let g = it.next(),
-                    let b = it.next()
-                else {
-                    return nil
-                }
-                
-                return Color(r: r << 2, g: g << 2, b: b << 2, a: 255)
-            })
-        else {
-            return nil
-        }
-        
-        _ = padding
-        
-        self.colors = [Color](repeating: Color(r: 0, g: 0, b: 0, a: 255), count: firstColor) + colors
-    }
 }
 
 //
@@ -81,22 +53,10 @@ struct Bitmap {
     let size: Size
     var data: [UInt8?]
     
-    init(size: Size) {
+    init(size: Size, data: [UInt8?]? = nil) {
         self.size = size
-        
-        data = [UInt8?](repeating: nil,
-                        count: size.area)
-    }
-    
-    init?(bytesIterator: inout Data.Iterator, size: Size) {
-        self.size = size
-        
-        if let data = bytesIterator.array(count: size.area, { $0.next() }) {
-            self.data = data
-        }
-        else {
-            return nil
-        }
+        self.data = data ?? [UInt8?](repeating: nil,
+                                     count: size.area)
     }
     
     mutating func put(_ color: UInt8, x: Int, y: Int) {
@@ -108,13 +68,6 @@ struct Bitmap {
 
 struct Tileset {
     let tiles : [Bitmap]
-    
-    init?(bytesIterator: inout Data.Iterator, tileSize: Size) {
-        tiles = bytesIterator.arrayUntilValid {
-            Bitmap(bytesIterator: &$0,
-                   size: tileSize)
-        }
-    }
 }
 
 //
@@ -156,45 +109,6 @@ struct Room {
     //
     
     static let tiles = Size(width: 0x14, height: 0x14)
-    
-    //
-    
-    init?<I:IteratorProtocol>(bytesIterator i: inout I)
-        where I.Element == UInt8
-    {
-        guard
-            let header     = i.array(count: 4,               { i in i.byte() }),
-            let tilesetsId = i.array(count: 0x10,            { i in i.be16() }),
-            let tileIds    = i.array(count: Room.tiles.area, { i in i.be16() }),
-            let padding    = i.array(count: 0x20,            { i in i.next() }),
-            let tileTypes  = i.array(count: Room.tiles.area, { i in i.byte() }),
-            header == [82, 79, 79, 77]
-        else {
-            return nil
-        }
-        
-        _ = padding
-        
-        tiles = zip(tileIds, tileTypes).map {
-            tileId, type in
-            
-            Tile(
-                tileDesc:  tileId,
-                tilesetId: tilesetsId[(tileId & 0xf000) >> 12],
-                type:      type
-            )
-        }
-    }
-    
-    init?(data: Data) {
-        var iterator = data.makeIterator()
-        self.init(bytesIterator: &iterator)
-    }
-    
-    static func fromFile(data: Data) throws -> [Room] {
-        var it = data.makeIterator()
-        return it.arrayUntilValid { Room(bytesIterator: &$0) }
-    }
 }
 
 //

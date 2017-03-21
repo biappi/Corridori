@@ -9,8 +9,8 @@
 import Cocoa
 
 func load(window: NSWindow) {
-    let gameUrl = Bundle.main.url(forResource: "Time Runners",
-                                     withExtension: nil)!
+    let gameUrl = Bundle.main.url(forResource:   "Time Runners",
+                                  withExtension: nil)!
     
     let episodeUrl  = gameUrl.appendingPathComponent("Ep. 1")
     let gameDirUrl  = episodeUrl.appendingPathComponent("GAME_DIR")
@@ -33,39 +33,38 @@ func load(window: NSWindow) {
     
     //
     
-    let paletteData = try! Data(contentsOf: paletteUrl)
-    var paletteIt   = paletteData.makeIterator()
-    let palette     = Palette(bytesIterator: &paletteIt)!
+    
+    var paletteData = try! Data(contentsOf: paletteUrl).makeIterator()
+    let palette     = paletteData.parsePaletteFile()!
     
     //
     
     let TILE_SIZE   = Size(width:  16, height:  10)
     
-    func TRTileset(url: URL) -> Tileset {
+    func TRTileset(url: URL) -> Tileset? {
         var bytes = try! Data(contentsOf: url).makeIterator()
-        return Tileset(bytesIterator: &bytes,
-                       tileSize:      TILE_SIZE)!
+        return bytes.parseTilesetFile(tileSize: TILE_SIZE)
     }
     
     let tilesets =  [
         nil,
-        TRTileset(url: bgTiles1Url),
-        TRTileset(url: bgTiles2Url),
-        TRTileset(url: bgTiles3Url),
-        TRTileset(url: bgTiles4Url),
-        TRTileset(url: bgTiles5Url),
-        TRTileset(url: bgTiles6Url),
+        TRTileset(url: bgTiles1Url)!,
+        TRTileset(url: bgTiles2Url)!,
+        TRTileset(url: bgTiles3Url)!,
+        TRTileset(url: bgTiles4Url)!,
+        TRTileset(url: bgTiles5Url)!,
+        TRTileset(url: bgTiles6Url)!,
         nil,
         nil,
         nil,
-        TRTileset(url: bgTilesAUrl),
-        TRTileset(url: bgTilesBUrl),
+        TRTileset(url: bgTilesAUrl)!,
+        TRTileset(url: bgTilesBUrl)!,
     ]
     
     //
     
-    let roomroeData = try! Data(contentsOf: roomRoeUrl)
-    let rooms       = try! Room.fromFile(data: roomroeData)
+    var roomroeData = try! Data(contentsOf: roomRoeUrl).makeIterator()
+    let rooms       = roomroeData.parseRoomFile()!
     
     //
     

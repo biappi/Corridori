@@ -15,6 +15,7 @@
 		3F35DF471E7F85F600A48893 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3F35DF431E7F85F600A48893 /* Assets.xcassets */; };
 		3F35DF481E7F85F600A48893 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 3F35DF441E7F85F600A48893 /* MainMenu.xib */; };
 		3F35DF4B1E7F86F400A48893 /* Time Runners in Resources */ = {isa = PBXBuildFile; fileRef = 3F35DF4A1E7F86F400A48893 /* Time Runners */; };
+		3F6637061E81C09D00C0D2FA /* FileParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F6637051E81C09D00C0D2FA /* FileParsing.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,6 +29,7 @@
 		3F35DF451E7F85F600A48893 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/MainMenu.xib; sourceTree = "<group>"; };
 		3F35DF461E7F85F600A48893 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		3F35DF4A1E7F86F400A48893 /* Time Runners */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "Time Runners"; sourceTree = "<group>"; };
+		3F6637051E81C09D00C0D2FA /* FileParsing.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FileParsing.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -66,6 +68,7 @@
 				3F35DF361E7EF3F200A48893 /* Simulmondo.swift */,
 				3F35DF381E7EF4B300A48893 /* TimeRunners.swift */,
 				3F35DF3C1E7F824F00A48893 /* DataParsing.swift */,
+				3F6637051E81C09D00C0D2FA /* FileParsing.swift */,
 				3F35DF401E7F82BE00A48893 /* CocoaUI.swift */,
 			);
 			path = Simulmondo;
@@ -155,6 +158,7 @@
 			files = (
 				3F35DF411E7F82BE00A48893 /* CocoaUI.swift in Sources */,
 				3F35DF371E7EF3F200A48893 /* Simulmondo.swift in Sources */,
+				3F6637061E81C09D00C0D2FA /* FileParsing.swift in Sources */,
 				3F35DF391E7EF4B300A48893 /* TimeRunners.swift in Sources */,
 				3F35DF3D1E7F824F00A48893 /* DataParsing.swift in Sources */,
 				3F35DF2A1E7EF2DD00A48893 /* AppDelegate.swift in Sources */,
@@ -310,6 +314,7 @@
 				3F35DF351E7EF2DD00A48893 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};

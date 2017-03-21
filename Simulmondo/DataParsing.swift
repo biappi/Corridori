@@ -16,10 +16,6 @@ extension Collection where Indices.Iterator.Element == Index {
 }
 
 extension IteratorProtocol where Element == UInt8 {
-    mutating func pluck <Result> (_ transform: (inout Self) -> (Result?)) -> Result? {
-        return transform(&self)
-    }
-    
     mutating func array
         <Result>
         (count: Int, _ transform: (inout Self) -> (Optional<Result>)) -> [Result]?
@@ -30,7 +26,6 @@ extension IteratorProtocol where Element == UInt8 {
             guard let transformed = transform(&self) else {
                 return nil
             }
-            
             result.append(transformed)
         }
         
@@ -43,7 +38,7 @@ extension IteratorProtocol where Element == UInt8 {
     {
         var result = [Result]()
         
-        repeat {
+        while true {
             guard let transformed = transform(&self) else {
                 return nil
             }
@@ -53,23 +48,25 @@ extension IteratorProtocol where Element == UInt8 {
             }
             
             result.append(transformed)
-        } while true
+        }
     }
     
     mutating func arrayUntilValid
         <Result>
-        (_ transform: (inout Self) -> (Optional<Result>)) -> [Result]
+        (_ transform: (inout Self) -> (Optional<Result>)) -> [Result]?
     {
-        var result = [Result]()
+        var result : [Result]? = nil
         
-        repeat {
+        while true {
             if let transformed = transform(&self) {
-                result.append(transformed)
+                result = result ?? [Result]()
+                result?.append(transformed)
             }
             else {
                 return result
             }
-        } while true
+            
+        }
     }
     
     mutating func byte() -> Int? {
