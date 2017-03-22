@@ -28,6 +28,10 @@ struct Point {
     func adding(by: Point) -> Point {
         return Point(x: self.x + by.x, y: self.y + by.y)
     }
+    
+    func multiplied(by: Int) -> Point {
+        return Point(x: x * by, y: y * by)
+    }
 }
 
 struct Size {
@@ -113,85 +117,64 @@ struct Room {
 
 //
 
-extension Bitmap {
-    init?<I:IteratorProtocol>(ele iterator: inout I)
-        where I.Element == UInt8
-    {
-        guard
-            let width  = iterator.le16(),
-            let height = iterator.le16(),
-            let pad    = iterator.byte(),
-            let lines  = iterator.array(count: height, {
-                (i : inout I) in
-                
-                i.arrayUntil(0xff) {
-                    (i: inout I) in
-                    
-                    return i.byte()
-                }
-            })
-        else {
-            return nil
-        }
-
-        _ = pad
-
-        size = Size(width: width, height: height)
-        data = [UInt8?](repeating: nil,
-                        count: size.area)
-
-        for (cur_y, line) in lines.enumerated() {
-            var i = line.makeIterator()
-            var cur_x = 0
-            
-            repeat {
-                guard
-                    let skip  = i.next(),
-                    let count = i.next()
-                else {
-                    break
-                }
-                
-                cur_x += skip
-                
-                for _ in 0 ..< count / 2 {
-                    let colors = i.next()!
-                    
-                    let color1 = UInt8( colors & 0x0f      )
-                    let color2 = UInt8((colors & 0xf0) >> 4)
-                    
-                    self.put(color1, x: cur_x, y: cur_y) ; cur_x += 1
-                    self.put(color2, x: cur_x, y: cur_y) ; cur_x += 1
-                }
-                
-                if count & 1 != 0 {
-                    let colors = i.next()!
-                    let color1 = UInt8(colors & 0x0f)
-                    
-                    self.put(color1, x: cur_x, y: cur_y) ; cur_x += 1
-                }
-            } while true
-        }
-    }
-    
-    static func fromEleFile(elefile: Data) -> [Bitmap]?
-    {
-        var iterator = elefile.makeIterator()
-        
-        guard
-            let count   = iterator.le16(),
-            let offsets = iterator.array(count: count, { $0.le32() })
-        else {
-            return nil
-        }
-        
-        let eles = offsets.map { (i: Int) -> Bitmap? in
-            var i2 = elefile[i + 2 ..< elefile.count].makeIterator()
-            return Bitmap(ele: &i2)
-        }
-        
-        return eles as? [Bitmap]
-    }
+struct Frame {
+    let frame : Int
+    let time  : Int
+    let delta : Point
+    let flip  : Bool
 }
 
+struct Animofs {
+    let pre:  [Point]
+    let post: [Point]
+}
 
+enum Horizontal {
+    case right
+    case still
+    case left
+}
+
+enum Vertical {
+    case top
+    case still
+    case bottom
+}
+
+enum Firing {
+    case nonFiring
+    case firing
+}
+
+typealias Input = (
+    horizontal: Horizontal,
+    vertical:   Vertical,
+    firing:     Firing
+)
+
+struct Animjoy {
+    let backingData : [Int]
+    
+    func nextAni(direction: Input) -> Int {
+        switch direction {
+        case (.still, .still,  .nonFiring): return backingData[ 0]
+        case (.still, .top,    .nonFiring): return backingData[ 1]
+        case (.right, .top,    .nonFiring): return backingData[ 2]
+        case (.right, .still,  .nonFiring): return backingData[ 3]
+        case (.right, .bottom, .nonFiring): return backingData[ 4]
+        case (.still, .bottom, .nonFiring): return backingData[ 5]
+        case (.left,  .bottom, .nonFiring): return backingData[ 6]
+        case (.left,  .still,  .nonFiring): return backingData[ 7]
+        case (.left,  .top,    .nonFiring): return backingData[ 8]
+        case (.still, .still,  .firing   ): return backingData[ 9]
+        case (.still, .top,    .firing   ): return backingData[10]
+        case (.right, .top,    .firing   ): return backingData[11]
+        case (.right, .still,  .firing   ): return backingData[12]
+        case (.right, .bottom, .firing   ): return backingData[13]
+        case (.still, .bottom, .firing   ): return backingData[14]
+        case (.left,  .bottom, .firing   ): return backingData[15]
+        case (.left,  .still,  .firing   ): return backingData[16]
+        case (.left,  .top,    .firing   ): return backingData[17]
+        }
+    }
+}

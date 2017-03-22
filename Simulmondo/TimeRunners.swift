@@ -17,6 +17,7 @@ func load(window: NSWindow) {
     let ar1Url      = gameDirUrl.appendingPathComponent("AR1")
     let staUrl      = ar1Url.appendingPathComponent("STA")
     let mapUrl      = ar1Url.appendingPathComponent("MAP")
+    let filUrl      = ar1Url.appendingPathComponent("FIL")
     let bgTiles1Url = staUrl.appendingPathComponent("BUFFER1.MAT")
     let bgTiles2Url = staUrl.appendingPathComponent("BUFFER2.MAT")
     let bgTiles3Url = staUrl.appendingPathComponent("BUFFER3.MAT")
@@ -30,6 +31,9 @@ func load(window: NSWindow) {
     let imgUrl      = ar1Url.appendingPathComponent("IMG")
     let keleUrl     = imgUrl.appendingPathComponent("K.ELE")
     let treleUrl    = imgUrl.appendingPathComponent("TR.ELE")
+    let framesUrl   = filUrl.appendingPathComponent("FRAMES.TAB")
+    let animofsUrl  = filUrl.appendingPathComponent("ANIMOFS.TAB")
+    let animjoyUrl  = filUrl.appendingPathComponent("ANIMJOY.TAB")
     
     //
     
@@ -68,25 +72,83 @@ func load(window: NSWindow) {
     
     //
     
-    let treleData = try! Data(contentsOf: treleUrl)
-    let eles      = Bitmap.fromEleFile(elefile: treleData)!
+    var treleData = try! Data(contentsOf: treleUrl).makeIterator()
+    let eles      = treleData.parseEleFile()!
     
     let trEleNSImages = eles.map {
-        $0.createNSImage(palette: palette, baseColor: 225)
+        (b: Bitmap) -> (NSImage, NSImage) in
+        
+        let i = b.createNSImage(palette: palette, baseColor: 225)
+        return (i, i.flippedCopy())
     }
 
     //
     
+    var framesData = try! Data(contentsOf: framesUrl).makeIterator()
+    let frames     = framesData.parseFramesFile()!
+    
+    //
+    
+    var animofsData = try! Data(contentsOf: animofsUrl).makeIterator()
+    let animofs     = animofsData.parseAnimofsFile()!
+
+    var animjoyData = try! Data(contentsOf: animjoyUrl).makeIterator()
+    let animjoy     = animjoyData.parseAnimjoyFile()!
+    
+    //
+    
+    let ROOM_TIMER = 4
+    
     struct Tr {
-        var pupoPos   = Point(x: 0xa8, y: 0xa0)
-        var pupoFrame = 0
-        var room      = 0
-        var roomFrame = 0
+        var pupoPos      = Point(x: 0xa8, y: 0xa0)
+        
+        var pupoAni      = 0x03
+        var pupoAniFrame = 0
+        var pupoAniTimer = 3
+        
+        var room         = 0
+        var roomFrame    = 0
+        var roomTimer    = 4
     }
+    
+    func tick(tr: inout Tr) {
+        if tr.roomTimer == 0 {
+            tr.roomFrame = (tr.roomFrame + 1) % 4
+            tr.roomTimer = ROOM_TIMER
+        } else {
+            tr.roomTimer -= 1
+        }
+        
+        if tr.pupoAniTimer == 0 {
+            tr.pupoAniFrame += 1
+            tr.pupoAniTimer = (frames[safe: tr.pupoAni]?[safe: tr.pupoAniFrame]?.time).map {
+                ($0 + 3) / 4
+            } ?? 3
+        }
+        else {
+            tr.pupoAniTimer -= 1
+        }
+        
+        if tr.pupoAniFrame >= frames[tr.pupoAni].count {
+            tr.pupoPos = tr.pupoPos.adding(by: animofs.pre[tr.pupoAni])
+            tr.pupoAniFrame = 0
+            tr.pupoAni = animjoy[tr.pupoAni].nextAni(direction: (.left, .still, .firing))
+            tr.pupoPos = tr.pupoPos.adding(by: animofs.post[tr.pupoAni])
+        }
+    }
+
     
     var tr = Tr()
     
-    let v = RoomView(tiles: Room.tiles, tileSize: TILE_SIZE, tilesetsImages: createTilesetsNSImages(tilesets: tilesets, palette: palette))
+    let v = RoomView(
+        tiles: Room.tiles,
+        tileSize: TILE_SIZE,
+        tilesetsImages: createTilesetsNSImages(
+            tilesets: tilesets,
+            palette: palette
+        )
+    )
+    
     v.frame = NSRect(x: 0, y: 0, width: 320 * 3, height: 200 * 3)
     
     window.setContentSize(v.frame.size)
@@ -97,36 +159,30 @@ func load(window: NSWindow) {
     t.imageScaling = .scaleProportionallyUpOrDown
     v.addSubview(t)
    
-    func changeFrame (_ delta : Int) {
-        tr.pupoFrame = (tr.pupoFrame  + delta) % eles.count
-        tr.pupoFrame = tr.pupoFrame < 0 ? eles.count - 1 : tr.pupoFrame
-        apply(tr: tr)
-    }
-    
-    v.next = { changeFrame(1)  }
-    v.prev = { changeFrame(-1) }
-    
-    func apply(tr: Tr) {
+    func apply(tr: inout Tr) {
         v.setRoom(room:  rooms[tr.room],
                   frame: tr.roomFrame)
         
-        let ele       = eles[tr.pupoFrame]
-        let eleOffset = Point(
+        let frame     = frames[tr.pupoAni][tr.pupoAniFrame]
+        let ele       = eles[frame.frame]
+        
+        let pupoPos   = tr.pupoPos.adding(by: frame.delta).adding(by: Point(
             x: -(ele.size.width / 2),
             y: -(ele.size.height)
-        )
+        ))
         
-        let image = trEleNSImages[tr.pupoFrame]
+        let image = frame.flip ? trEleNSImages[frame.frame].1 : trEleNSImages[frame.frame].0
+        
         if image !== t.image {
             t.image = image
         }
         
-        t.frame = ele.size.multiplied(by: 3).nsrect(origin: tr.pupoPos.adding(by: eleOffset))
+        t.frame = ele.size.multiplied(by: 3).nsrect(origin: pupoPos.multiplied(by: 3))
     }
     
-    Timer.scheduledTimer(withTimeInterval: 1 / 2.0, repeats: true) { _ in
-        tr.roomFrame = (tr.roomFrame + 1) % 4
-        apply(tr: tr)
+    Timer.scheduledTimer(withTimeInterval: 1 / 20.0, repeats: true) { _ in
+        tick(tr: &tr)
+        apply(tr: &tr)
     }
 }
 

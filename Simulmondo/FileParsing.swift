@@ -164,4 +164,134 @@ extension IteratorProtocol where Element == UInt8 {
         
         return bitmap
     }
+    
+    mutating func parseEleFile() -> [Bitmap]? {
+        let data = self.consume()
+        var iter = data.makeIterator()
+        
+        
+        guard
+            let count   = iter.le16(),
+            let offsets = iter.array(count: count, { $0.le32() })
+        else {
+            return nil
+        }
+        
+        let eles = offsets.map { (i: Int) -> Bitmap? in
+            var i2 = data[i + 2 ..< data.count].makeIterator()
+            return i2.parseEleItem()
+        }
+        
+        return eles as? [Bitmap]
+    }
+    
+    mutating func parseFramesFile() -> [[Frame]]? {
+        let data = self.consume()
+        var iter = data.makeIterator()
+        
+        guard let offsets = iter.array(count: 106, { $0.be16() }) else {
+            return nil
+        }
+        
+        return offsets.flatMap {
+            var i = data[$0 ..< data.count - 1].makeIterator()
+            
+            var frames = [Frame]()
+            
+            while true {
+                guard
+                    let frame = i.byte(),
+                    let time  = i.byte()
+                else {
+                    return nil
+                }
+                
+                if frame == 0 && time == 0 {
+                    break
+                }
+                
+                guard
+                    let x = i.next(),
+                    let y = i.next()
+                else {
+                    return nil
+                }
+                
+                frames.append(
+                    Frame(
+                        frame: frame,
+                        time:  time,
+                        delta: Point(
+                            x: Int(Int8(bitPattern: x)),
+                            y: Int(Int8(bitPattern: y))
+                        ),
+                        flip: i.byte() != 0
+                    )
+                )
+            }
+            
+            return frames
+        }
+    }
+
+    mutating func parseAnimofsFile() -> Animofs? {
+        let data = self.consume()
+        var iter = data.makeIterator()
+        
+        guard let offsets = iter.arrayUntil(0xf0f0, { $0.be16() })?.sorted() else {
+            return nil
+        }
+        
+        let allOffsets = offsets + [data.count]
+        
+        let lists =
+            zip(
+                allOffsets[0 ..< allOffsets.count - 1],
+                allOffsets[1 ..< allOffsets.count    ]
+            )
+            .map {
+                data[$0 ..< $1].map { Int(Int8(bitPattern: $0)) }
+            }
+
+        guard
+            let postX = lists[safe: 0],
+            let postY = lists[safe: 1],
+            let preX  = lists[safe: 2],
+            let preY  = lists[safe: 3],
+            postX.count == postY.count,
+            preX.count  == preY.count
+        else {
+            return nil
+        }
+        
+        return Animofs(
+            pre:  zip(preX,  preY).map  { Point(x: $0, y: $1) },
+            post: zip(postX, postY).map { Point(x: $0, y: $1) }
+        )
+    }
+
+    mutating func parseAnimjoyFile() -> [Animjoy]? {
+        let data = arrayUntilValid {
+            (i: inout Self) -> [Int]? in
+            return i.array(count: 18) {
+                (i: inout Self) -> Int? in
+                return i.byte()
+            }
+        }
+            
+        return data.map { allAnimjoys in allAnimjoys.map { Animjoy(backingData: $0) } }
+
+    }
+    
+    mutating func consume() -> [UInt8] {
+        var me = [UInt8]()
+        while true {
+            if let n = next() {
+                me.append(n)
+            }
+            else {
+                return me
+            }
+        }
+    }
 }
