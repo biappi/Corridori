@@ -64,9 +64,6 @@ class RoomView : NSView {
     
     var tileViews  : [TileView] = []
     
-    var next : ()->() = { }
-    var prev : ()->() = { }
-    
     init(tiles: Size, tileSize: Size, tilesetsImages: [[(NSImage, NSImage)]?]) {
         self.tilesetsImages = tilesetsImages
         
@@ -125,10 +122,38 @@ class RoomView : NSView {
         fatalError("init(coder:) has not been implemented")
     }
     
+    var input = Input(.still, .still, .nonFiring)
+    var inputDidChange : (Input) -> Void = { (_) in  }
+    
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 124 { next() }
-        if event.keyCode == 123 { prev() }
+        guard event.isARepeat == false else {
+            return
+        }
+        
+        if event.keyCode == 124 { input.horizontal = .right }
+        if event.keyCode == 123 { input.horizontal = .left  }
+        
+        inputDidChange(input)
     }
+
+    override func keyUp(with event: NSEvent) {
+        if event.keyCode == 124 {
+            input.horizontal =
+                (input.horizontal == .right)
+                    ? .still
+                    : input.horizontal
+        }
+        
+        if event.keyCode == 123 {
+            input.horizontal =
+                (input.horizontal == .left)
+                    ? .still
+                    : input.horizontal
+        }
+        
+        inputDidChange(input)
+    }
+
     
     override var canBecomeKeyView: Bool {
         return true

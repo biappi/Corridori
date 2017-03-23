@@ -111,7 +111,7 @@ func load(window: NSWindow) {
         var roomTimer    = 4
     }
     
-    func tick(tr: inout Tr) {
+    func tick(tr: inout Tr, input: inout Input) {
         if tr.roomTimer == 0 {
             tr.roomFrame = (tr.roomFrame + 1) % 4
             tr.roomTimer = ROOM_TIMER
@@ -132,13 +132,14 @@ func load(window: NSWindow) {
         if tr.pupoAniFrame >= frames[tr.pupoAni].count {
             tr.pupoPos = tr.pupoPos.adding(by: animofs.pre[tr.pupoAni])
             tr.pupoAniFrame = 0
-            tr.pupoAni = animjoy[tr.pupoAni].nextAni(direction: (.left, .still, .firing))
+            tr.pupoAni = animjoy[tr.pupoAni].nextAni(direction: input)
             tr.pupoPos = tr.pupoPos.adding(by: animofs.post[tr.pupoAni])
         }
     }
 
     
     var tr = Tr()
+    var input = Input(.still, .still, .nonFiring)
     
     let v = RoomView(
         tiles: Room.tiles,
@@ -159,6 +160,10 @@ func load(window: NSWindow) {
     t.imageScaling = .scaleProportionallyUpOrDown
     v.addSubview(t)
    
+    v.inputDidChange = {
+        input = $0
+    }
+    
     func apply(tr: inout Tr) {
         v.setRoom(room:  rooms[tr.room],
                   frame: tr.roomFrame)
@@ -181,7 +186,7 @@ func load(window: NSWindow) {
     }
     
     Timer.scheduledTimer(withTimeInterval: 1 / 20.0, repeats: true) { _ in
-        tick(tr: &tr)
+        tick(tr: &tr, input: &input)
         apply(tr: &tr)
     }
 }
