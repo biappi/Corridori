@@ -121,7 +121,11 @@ class RoomView : NSView {
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-    
+}
+
+class GameView : NSView {
+    override var isFlipped: Bool { return true }
+
     var left   = false
     var right  = false
     var top    = false
@@ -129,6 +133,68 @@ class RoomView : NSView {
     var fire   = false
     
     var inputDidChange : (Input) -> Void = { (_) in  }
+    
+    let episode    : Episode
+    let roomView   : RoomView
+    let pupoView   : NSImageView
+    let pupoImages : [(NSImage, NSImage)]
+    
+    init(episode: Episode) {
+        self.episode = episode
+        
+        self.pupoImages = episode.eles.map {
+            (b: Bitmap) -> (NSImage, NSImage) in
+            
+            let i = b.createNSImage(palette: episode.palette, baseColor: 225)
+            return (i, i.flippedCopy())
+        }
+        
+        
+        self.roomView = RoomView(
+            tiles: Room.tiles,
+            tileSize: Episode.TILE_SIZE,
+            tilesetsImages: createTilesetsNSImages(
+                tilesets: episode.tilesets,
+                palette:  episode.palette
+            )
+        )
+        
+        self.roomView.frame = NSRect(x: 0,
+                                     y: 0,
+                                     width: 320 * 3,
+                                     height: 200 * 3)
+        
+        self.pupoView = NSImageView(frame: NSRect.zero)
+        pupoView.imageScaling = .scaleProportionallyUpOrDown
+        
+        super.init(frame: self.roomView.frame)
+        
+        self.addSubview(roomView)
+        self.addSubview(pupoView)
+    }
+    
+    func apply(state: GameState) {
+        roomView.setRoom(room:  episode.rooms[state.room],
+                         frame: state.roomFrame)
+        
+        let frame     = episode.frames[state.pupoAni][state.pupoAniFrame]
+        let ele       = episode.eles[frame.frame]
+        
+        let pupoPos   = state.pupoPos.adding(by: frame.delta).adding(by: Point(
+            x: -(ele.size.width / 2),
+            y: -(ele.size.height)
+        ))
+        
+        let image = frame.flip
+                        ? pupoImages[frame.frame].1
+                        : pupoImages[frame.frame].0
+        
+        if image !== pupoView.image {
+            pupoView.image = image
+        }
+        
+        pupoView.frame = ele.size.multiplied(by: 3).nsrect(origin: pupoPos.multiplied(by: 3))
+    }
     
     override func keyDown(with event: NSEvent) {
         guard event.isARepeat == false else {
@@ -172,6 +238,10 @@ class RoomView : NSView {
     
     override var acceptsFirstResponder: Bool {
         return true
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
     }
 }
 
