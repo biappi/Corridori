@@ -51,6 +51,7 @@ extension Bitmap {
 
 class TileView : NSImageView {
     var block : ()->() = { }
+    var label : NSTextField?
     
     override func mouseDown(with event: NSEvent) {
         block()
@@ -64,6 +65,14 @@ class RoomView : NSView {
     
     var tileViews  : [TileView] = []
     
+    var showTypes = true {
+        didSet {
+            for t in tileViews {
+                t.label?.isHidden = !showTypes
+            }
+        }
+    }
+
     init(tiles: Size, tileSize: Size, tilesetsImages: [[(NSImage, NSImage)]?]) {
         self.tilesetsImages = tilesetsImages
         
@@ -97,6 +106,19 @@ class RoomView : NSView {
                 ]
                 
                 addSubview(imageView)
+                
+                imageView.label = NSTextField(string: "")
+                imageView.label?.frame = imageView.bounds
+                imageView.label?.textColor = NSColor.white
+                imageView.label?.backgroundColor = NSColor(white: 1, alpha: 0.4)
+                imageView.label?.font = NSFont.systemFont(ofSize: 15)
+                imageView.label?.drawsBackground = false
+                imageView.label?.isBezeled = false
+                imageView.label?.isEditable = false
+                imageView.label?.alignment = .center
+                
+                imageView.addSubview(imageView.label!)
+                
                 tileViews.append(imageView)
             }
         }
@@ -109,6 +131,9 @@ class RoomView : NSView {
             let image = roomTile.flip ? images?.1 : images?.0
             
             let tileView = tileViews[i]
+            
+            tileView.label?.stringValue = roomTile.type == 0 ? "" : "\(roomTile.type)"
+            tileView.label?.frame = tileView.bounds
             
             if tileView.image !== image {
                 tileView.image = image
@@ -126,14 +151,6 @@ class RoomView : NSView {
 class GameView : NSView {
     override var isFlipped: Bool { return true }
 
-    var left   = false
-    var right  = false
-    var top    = false
-    var bottom = false
-    var fire   = false
-    
-    var inputDidChange : (Input) -> Void = { (_) in  }
-    
     let episode    : Episode
     let roomView   : RoomView
     let pupoView   : NSImageView
@@ -196,6 +213,20 @@ class GameView : NSView {
         pupoView.frame = ele.size.multiplied(by: 3).nsrect(origin: pupoPos.multiplied(by: 3))
     }
     
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+}
+class Window : NSWindow {
+    var inputDidChange : (Input) -> Void = { (_) in  }
+
+    var left   = false
+    var right  = false
+    var top    = false
+    var bottom = false
+    var fire   = false
+    
     override func keyDown(with event: NSEvent) {
         guard event.isARepeat == false else {
             return
@@ -232,16 +263,8 @@ class GameView : NSView {
         ))
     }
     
-    override var canBecomeKeyView: Bool {
-        return true
-    }
-    
     override var acceptsFirstResponder: Bool {
         return true
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
     }
 }
 
