@@ -122,7 +122,12 @@ class RoomView : NSView {
         fatalError("init(coder:) has not been implemented")
     }
     
-    var input = Input(.still, .still, .nonFiring)
+    var left   = false
+    var right  = false
+    var top    = false
+    var bottom = false
+    var fire   = false
+    
     var inputDidChange : (Input) -> Void = { (_) in  }
     
     override func keyDown(with event: NSEvent) {
@@ -130,30 +135,36 @@ class RoomView : NSView {
             return
         }
         
-        if event.keyCode == 124 { input.horizontal = .right }
-        if event.keyCode == 123 { input.horizontal = .left  }
+        if event.keyCode ==  49 { fire   = true }
         
-        inputDidChange(input)
+        if event.keyCode == 124 { right  = true }
+        if event.keyCode == 123 { left   = true }
+
+        if event.keyCode == 126 { top    = true }
+        if event.keyCode == 125 { bottom = true }
+
+        inputDidChange((
+            left ? .left   : right      ? .right  : .still,
+            top  ? .top    : bottom     ? .bottom : .still,
+            fire ? .firing : .nonFiring
+        ))
     }
 
     override func keyUp(with event: NSEvent) {
-        if event.keyCode == 124 {
-            input.horizontal =
-                (input.horizontal == .right)
-                    ? .still
-                    : input.horizontal
-        }
+        if event.keyCode ==  49 { fire   = false }
         
-        if event.keyCode == 123 {
-            input.horizontal =
-                (input.horizontal == .left)
-                    ? .still
-                    : input.horizontal
-        }
-        
-        inputDidChange(input)
-    }
+        if event.keyCode == 124 { right  = false }
+        if event.keyCode == 123 { left   = false }
 
+        if event.keyCode == 126 { top    = false }
+        if event.keyCode == 125 { bottom = false }
+
+        inputDidChange((
+            left ? .left   : right      ? .right  : .still,
+            top  ? .top    : bottom     ? .bottom : .still,
+            fire ? .firing : .nonFiring
+        ))
+    }
     
     override var canBecomeKeyView: Bool {
         return true

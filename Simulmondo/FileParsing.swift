@@ -238,21 +238,16 @@ extension IteratorProtocol where Element == UInt8 {
         let data = self.consume()
         var iter = data.makeIterator()
         
-        guard let offsets = iter.arrayUntil(0xf0f0, { $0.be16() })?.sorted() else {
+        guard let offsets = iter.arrayUntil(0xf0f0, { $0.be16() }) else {
             return nil
         }
         
-        let allOffsets = offsets + [data.count]
-        
-        let lists =
-            zip(
-                allOffsets[0 ..< allOffsets.count - 1],
-                allOffsets[1 ..< allOffsets.count    ]
-            )
-            .map {
-                data[$0 ..< $1].map { Int(Int8(bitPattern: $0)) }
+        let lists = offsets.map {
+            data[$0 ..< $0 + 106].map {
+                Int(Int8(bitPattern: $0))
             }
-
+        }
+        
         guard
             let postX = lists[safe: 0],
             let postY = lists[safe: 1],
@@ -279,8 +274,7 @@ extension IteratorProtocol where Element == UInt8 {
             }
         }
             
-        return data.map { allAnimjoys in allAnimjoys.map { Animjoy(backingData: $0) } }
-
+        return data.map { $0.map { Animjoy(backingData: $0) } }
     }
     
     mutating func consume() -> [UInt8] {
