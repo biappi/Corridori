@@ -21,6 +21,9 @@ struct Episode {
     let animofs:  Animofs
     let animjoy:  [Animjoy]
     
+    let doors:    [Door]
+    let exits:    [Exit]
+    
     init?(url: URL) {
         let gameDirUrl  = url.appendingPathComponent("GAME_DIR")
         let ar1Url      = gameDirUrl.appendingPathComponent("AR1")
@@ -43,6 +46,8 @@ struct Episode {
         let framesUrl   = filUrl.appendingPathComponent("FRAMES.TAB")
         let animofsUrl  = filUrl.appendingPathComponent("ANIMOFS.TAB")
         let animjoyUrl  = filUrl.appendingPathComponent("ANIMJOY.TAB")
+        let prtUrl      = filUrl.appendingPathComponent("PRT")
+        let uscUrl      = filUrl.appendingPathComponent("USC")
         
         
         func TRTileset(url: URL) throws -> Tileset? {
@@ -74,6 +79,8 @@ struct Episode {
             var framesData  = try Data(contentsOf: framesUrl).makeIterator()
             var animofsData = try Data(contentsOf: animofsUrl).makeIterator()
             var animjoyData = try Data(contentsOf: animjoyUrl).makeIterator()
+            var doorsData   = try Data(contentsOf: prtUrl).makeIterator()
+            var exitsData   = try Data(contentsOf: uscUrl).makeIterator()
             
             palette = paletteData.parsePaletteFile()!
             rooms   = roomroeData.parseRoomFile()!
@@ -81,6 +88,11 @@ struct Episode {
             frames  = framesData.parseFramesFile()!
             animofs = animofsData.parseAnimofsFile()!
             animjoy = animjoyData.parseAnimjoyFile()!
+            doors   = doorsData.parsePrtFile()!
+            exits   = exitsData.parseUscFile()!
+            
+            dump(doors)
+            dump(exits)
         }
         catch {
             return nil
@@ -89,7 +101,7 @@ struct Episode {
 }
 
 struct GameState {
-    static let ROOM_TIMER = 4
+    static let ROOM_TIMER = 3
 
     var pupoPos      = Point(x: 0xa8, y: 0xa0)
     
@@ -99,7 +111,7 @@ struct GameState {
     
     var room         = 0
     var roomFrame    = 0
-    var roomTimer    = 4
+    var roomTimer    = GameState.ROOM_TIMER
     
     mutating func tick(input: Input, episode: Episode) {
         if roomTimer == 0 {
@@ -126,6 +138,17 @@ struct GameState {
             pupoAni = episode.animjoy[pupoAni].nextAni(direction: input)
             
             pupoPos = pupoPos.adding(by: episode.animofs.post[pupoAni])
+            
+            if  (pupoPos.x <   0 && pupoAni < 0x35) ||
+                (pupoPos.x > 320 && pupoAni > 0x35)
+            {
+                let x = Int(pupoPos.x / Episode.TILE_SIZE.width )
+                let y = Int(pupoPos.y / Episode.TILE_SIZE.height) - 1
+                
+                room = episode.rooms[room].tiles[Room.tiles.width * y + x].type
+                
+                pupoPos.x = pupoPos.x > 320 ? 8 : 320 - 8
+            }
         }
     }
 }

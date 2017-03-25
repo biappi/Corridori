@@ -42,11 +42,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             input = $0
         }
 
-        Timer.scheduledTimer(withTimeInterval: 1 / 20.0, repeats: true) { _ in
+        Timer.scheduledTimer(withTimeInterval: 1 / 30.0, repeats: true) { _ in
             self.gameState.tick(input: input, episode: self.episode)
             self.gameView.apply(state: self.gameState)
             
-            //self.textView.string = "\(self.gameState)"
+            self.textView.string = "\(self.gameState)"
         }
     }
     

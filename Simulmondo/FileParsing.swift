@@ -107,6 +107,54 @@ extension IteratorProtocol where Element == UInt8 {
         return self.arrayUntilValid { $0.parseRoom() }
     }
     
+    mutating func parseExit() -> Exit? {
+        guard
+            let roomFrom = self.byte(),
+            let roomTo   = self.byte(),
+            let fromY    = self.be16(),
+            let toY      = self.be16()
+        else {
+                return nil
+        }
+        
+        return Exit(
+            roomFrom: roomFrom,
+            roomTo:   roomTo,
+            fromY:    fromY,
+            toY:      toY
+        )
+    }
+    
+    mutating func parseUscFile() -> [Exit]? {
+        return self.arrayUntilValid { $0.parseExit() }
+    }
+
+    mutating func parseDoor() -> Door? {
+        guard
+            let roomFrom = self.byte(),
+            let roomTo   = self.byte(),
+            let fromY    = self.be16(),
+            let toY      = self.be16(),
+            let unk1     = self.be16(),
+            let unk2     = self.be16()
+        else {
+            return nil
+        }
+        
+        return Door(
+            roomFrom: roomFrom,
+            roomTo:   roomTo,
+            fromY:    fromY,
+            toY:      toY,
+            unk1:     unk1,
+            unk2:     unk2
+        )
+    }
+
+    mutating func parsePrtFile() -> [Door]? {
+        return self.arrayUntilValid { $0.parseDoor() }
+    }
+    
     mutating func parseEleItem() -> Bitmap? {
         guard
             let width  = self.le16(),

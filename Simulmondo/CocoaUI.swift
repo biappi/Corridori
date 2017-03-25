@@ -132,7 +132,7 @@ class RoomView : NSView {
             
             let tileView = tileViews[i]
             
-            tileView.label?.stringValue = roomTile.type == 0 ? "" : "\(roomTile.type)"
+            tileView.label?.stringValue = roomTile.type == 0 ? "" : "\(String(format: "%02x", roomTile.type))"
             tileView.label?.frame = tileView.bounds
             
             if tileView.image !== image {
