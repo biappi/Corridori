@@ -21,7 +21,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var episode   : Episode!
     var gameView  : GameView!
 
-    
+
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         let gameUrl = Bundle.main.url(forResource:   "Time Runners",
                                       withExtension: nil)!
@@ -42,11 +42,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             input = $0
         }
 
+        var previousAni = -10
+        
         Timer.scheduledTimer(withTimeInterval: 1 / 30.0, repeats: true) { _ in
             self.gameState.tick(input: input, episode: self.episode)
             self.gameView.apply(state: self.gameState)
             
-            self.textView.string = "\(self.gameState)"
+            if self.gameState.pupoAni != previousAni {
+                previousAni = self.gameState.pupoAni
+                
+                let a = String(format: "%02x", previousAni)
+                self.textView.string = "\(self.textView.string ?? "")\nchanged to \(a)"
+            }
+            //self.textView.string = "\(self.gameState)"
         }
     }
     

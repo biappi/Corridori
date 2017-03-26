@@ -23,6 +23,7 @@ struct Episode {
     
     let doors:    [Door]
     let exits:    [Exit]
+    let sostani:  Sostani
     
     init?(url: URL) {
         let gameDirUrl  = url.appendingPathComponent("GAME_DIR")
@@ -48,6 +49,7 @@ struct Episode {
         let animjoyUrl  = filUrl.appendingPathComponent("ANIMJOY.TAB")
         let prtUrl      = filUrl.appendingPathComponent("PRT")
         let uscUrl      = filUrl.appendingPathComponent("USC")
+        let sostaniUrl  = filUrl.appendingPathComponent("SOSTANI.TAB")
         
         
         func TRTileset(url: URL) throws -> Tileset? {
@@ -81,6 +83,7 @@ struct Episode {
             var animjoyData = try Data(contentsOf: animjoyUrl).makeIterator()
             var doorsData   = try Data(contentsOf: prtUrl).makeIterator()
             var exitsData   = try Data(contentsOf: uscUrl).makeIterator()
+            var sostaniData = try Data(contentsOf: sostaniUrl).makeIterator()
             
             palette = paletteData.parsePaletteFile()!
             rooms   = roomroeData.parseRoomFile()!
@@ -90,9 +93,9 @@ struct Episode {
             animjoy = animjoyData.parseAnimjoyFile()!
             doors   = doorsData.parsePrtFile()!
             exits   = exitsData.parseUscFile()!
-            
-            dump(doors)
-            dump(exits)
+            sostani = sostaniData.parseSostaniFile()!
+
+            dump(sostani)
         }
         catch {
             return nil

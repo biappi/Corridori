@@ -325,6 +325,54 @@ extension IteratorProtocol where Element == UInt8 {
         return data.map { $0.map { Animjoy(backingData: $0) } }
     }
     
+    mutating func parseSostaniItem() -> Sostani.Item? {
+        guard
+            let oldAni = self.byte(),
+            oldAni != 0xff
+        else {
+            return nil
+        }
+        
+        guard
+            let newAni = self.byte(),
+            let logitabIndex = self.byte(),
+            let xOffset = self.byte()
+        else {
+                return nil
+        }
+        
+        return Sostani.Item(
+            oldAni: oldAni,
+            newAni: newAni,
+            logitabIndex: logitabIndex,
+            xOffset: xOffset
+        )
+    }
+    
+    mutating func parseSostaniFile() -> Sostani? {
+        let data = self.consume()
+        
+        var i = data.makeIterator()
+        guard
+            let off1 = i.be16(),
+            let off2 = i.be16()
+        else {
+            return nil
+        }
+        
+        var data1 = data[off1 ..< data.count].makeIterator()
+        var data2 = data[off2 ..< data.count].makeIterator()
+        
+        guard
+            let boh1 = data1.arrayUntilValid({ $0.parseSostaniItem() }),
+            let boh2 = data2.arrayUntilValid({ $0.parseSostaniItem() })
+        else {
+            return nil
+        }
+        
+        return Sostani(items1: boh1, items2: boh2)
+    }
+    
     mutating func consume() -> [UInt8] {
         var me = [UInt8]()
         while true {

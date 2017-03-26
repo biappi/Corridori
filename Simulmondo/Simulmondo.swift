@@ -196,3 +196,15 @@ struct Animjoy {
         }
     }
 }
+
+struct Sostani {
+    struct Item {
+        let oldAni:       Int
+        let newAni:       Int
+        let logitabIndex: Int
+        let xOffset:      Int
+    }
+    
+    let items1: [Item]
+    let items2: [Item]
+}
