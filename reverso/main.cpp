@@ -1,9 +1,12 @@
 #include <algorithm>
 #include <stdint.h>
 #include <string.h>
+#include <stdio.h>
 
+#include "error.h"
 #include "keyboard_state.h"
 #include "placeholders.h"
+#include "pascal/string.h"
 
 uint8_t some_global_1;
 uint8_t some_global_2;
@@ -127,10 +130,13 @@ void init_mouse_click() {
 }
 
 const char *aGame_dir = "GAME_DIR";
-char game_dir_path[70];
+const char *aSimulmondo = "SIMULMONDO";
+const char *empty_string = "";
+char* game_dir_path;
 
 void init_game_dir_path() {
-  memcpy(game_dir_path, aGame_dir, std::min(sizeof(aGame_dir), sizeof(game_dir_path)));
+  // memcpy(game_dir_path, aGame_dir, std::min(sizeof(aGame_dir), sizeof(game_dir_path)));
+  PStringOperatorEquals(aGame_dir, game_dir_path, 0x45);
 }
 
 uint8_t byte_22CDD;
@@ -268,21 +274,105 @@ void sub_16B60(void (*atexit)(), void(*reset_keyboard_and_sound_and_boh)()) {
   deinit(reset_keyboard_and_sound_and_boh, &send_things_back_to_manager);
 }
 
-void pointer_string_to_value(char *string) {
+// Converts a 4 character hex string to a value
+uint16_t pointer_string_to_value(char *string) {
+  // char local_var1[4];
+  char tmp;
+  uint16_t ret = 0;
+  // PStringOperatorEquals(string, local_var1, 4);
 
+  for (int i = 0; i < 4; i++) {
+    tmp = string[i];
+    if (tmp >= '0' && tmp <= '9') {
+      ret += (tmp - '0') << (4 * i);
+    }
+    else if (tmp >= 'a' && tmp <= 'f') {
+      ret += (tmp - 'a' + 10) << (4 * i);
+    }
+    else if (tmp >= 'A' && tmp <= 'F') {
+      ret += (tmp - 'A' + 10) << (4 * i);
+    }
+  }
+
+  return ret;
 }
 
+
+
+void halt_with_error(const char* message, int retval, int error_string_id) {
+  char* string_local;
+  char* final_error_msg;
+
+  PStringOperatorEquals(message, string_local, 0x45);
+  if (error_string_id == 0) PStringOperatorEquals(string_local, byte_22A1C, 0x45);
+  else {
+    PStringOperatorEquals(final_error_msg, error_strings[error_string_id-1]);
+    PStringConcat(final_error_msg, string_local);
+    PStringOperatorEquals(final_error_msg, byte_22A1C, 0x45);
+  }
+  byte_22CDE = 1;
+  deinit_1();
+  deinit_2();
+  Halt(retval);
+}
+
+typedef struct {
+  char header[11];
+  char interface_version_string[4];
+  char language[3];
+} __attribute__((packed)) linkage_area_t;
+
+uint16_t linkage_area_in_manager_seg, linkage_area_in_manager_off;
 uint8_t parse_linkage_area(int argc, char** argv) {
   uint8_t ret = 0;
-  char *temp;
-  char linkage_point_as_string[255];
-  if (argc == 1) {
-    temp = argv[1];
-    memcpy(linkage_point_as_string, temp, std::min(strlen(temp), (size_t)0xff) * sizeof(char));
+  const char *sColon = ":";
+  char *temp = NULL;
+  char *linkage_point_as_string = NULL;
+  uint16_t link_segment_from_str, link_offset_from_str;
+  uint16_t link_seg, link_off;
+  uint32_t link;
+  uint8_t idx;
+  uint8_t interface_version_string;
+  char header[10];
+  linkage_area_t linkage_header;
+
+  if (argc == 2) {
+    temp = (char*)malloc((strlen(argv[1]) + 1) * sizeof(char));
+    memset(temp, 0, (strlen(argv[1]) + 1) * sizeof(char));
+    strcpy(temp, argv[1]);
+    // Source, destination, truncate
+    PStringOperatorEquals(temp, linkage_point_as_string, 0xFF);
     if (strlen(linkage_point_as_string) != 9) return ret;
-    if (strchr(linkage_point_as_string, ':') != linkage_point_as_string + 5) return ret;
+    // substr, str
+    if (PStringPos(sColon, linkage_point_as_string) != 5) return ret;
+    // destination, source, index, count
+    PStringCopy(temp, linkage_point_as_string, 1, 4);
     memcpy(temp, linkage_point_as_string, 4 * sizeof(char));
-    pointer_string_to_value(temp);
+    link_segment_from_str = pointer_string_to_value(temp);
+    PStringCopy(temp, linkage_point_as_string, 6, 4);
+    link_offset_from_str = pointer_string_to_value(temp);
+    linkage_area_in_manager_seg = link_segment_from_str;
+    linkage_area_in_manager_off = link_offset_from_str;
+    link_seg = linkage_area_in_manager_seg;
+    link_off = linkage_area_in_manager_off;
+    link = (link_seg << 16) + link_off;
+    // header = 0x0A;
+
+
+    idx = 0x00;
+
+    memcpy(&linkage_header, (void*)link, sizeof(linkage_area_t));
+    printf("%s\n", (char*)((&linkage_header.header) + 1));
+    printf("%s\n", (char*)((&linkage_header.interface_version_string) + 1));
+    printf("%s\n", (char*)((&linkage_header.language) + 1));
+
+    // This is a check for MANAGER <-> ARCADE correct linkage
+    // It won't work of course
+    if (!PStringOperatorMinus(header, aSimulmondo)) {
+      halt_with_error(empty_string, 1, interface_header_error);
+    }
+
+    interface_version_string = 3;
   }
   return ret;
 }
