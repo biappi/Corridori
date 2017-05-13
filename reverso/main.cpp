@@ -1,15 +1,15 @@
-// #include <algorithm>
-//#include <stdint.h>
 #include <string.h>
 #include <stdio.h>
 
 #include "common.h"
 #include "error.h"
-#include "keyboard_state.h"
+#include "keyboard.h"
 #include "placeholders.h"
 #include "linkage.h"
 #include "pascal/string.h"
 #include "lzr.h"
+#include "mouse.h"
+#include "video.h"
 
 uint8_t some_global_1;
 uint8_t some_global_2;
@@ -17,15 +17,10 @@ uint8_t some_global_3;
 uint8_t some_global_4;
 uint8_t some_global_5;
 
-void (*old_keyboard_ISR)();
-
-uint8_t byte_22E32;
-uint8_t is_old_keyboard_ISR;
-void* read_from_keyboard_ISR;
-
 uint8_t byte_22CDC;
 uint8_t esc_pressed_flag;
 uint8_t byte_22CE0;
+uint8_t byte_22CE1;
 uint16_t loaded_font_buffer_size;
 char loaded_font_filename[0x100];
 
@@ -42,14 +37,6 @@ void reset_some_globals() {
   some_global_3 = 0;
   some_global_4 = 0;
   some_global_5 = 255;
-}
-
-void get_old_keyboard_ISR() {
-  // Gets the function pointer of the n-th ISR from the ISR vector
-  GetIntVec(0x09, old_keyboard_ISR);
-  byte_22E32 = 0;
-  is_old_keyboard_ISR = 1;
-  reset_keyboard();
 }
 
 void reset_some_globals_2() {
@@ -249,9 +236,52 @@ void deinit(void(*reset_keyboard_and_sound_and_boh)(), void(*send_things_back_to
   deinit_2 = reset_keyboard_and_sound_and_boh;
 }
 
-void sub_16B60(void (*atexit)(), void(*reset_keyboard_and_sound_and_boh)()) {
-  atexit_ptr = atexit_ptr;
+void sub_16B60(void (*atexit_func)(), void(*reset_keyboard_and_sound_and_boh)()) {
+  atexit_ptr = atexit_func;
   deinit(reset_keyboard_and_sound_and_boh, &send_things_back_to_manager);
+}
+
+uint16_t sub_1A446(char* ptr) {
+  uint16_t ret;
+  ret = ((long)ptr % 0x10000) >> 4;
+  ret += 0xf;
+  ret += (long)ptr >> 16;
+  return ret;
+}
+
+void sub_1A45F() {
+  background_buffer = sub_1A446((char*)read_from_keyboard_ISR);
+}
+
+void* swivar_block_1_ptr;
+void* swivar_block_2_ptr;
+
+void second_pass_initialization() {
+  uint8_t vmode;
+  uint8_t active_disp_page;
+
+  swivar_block_1_ptr = NULL;
+  swivar_block_2_ptr = NULL;
+
+  // Get current video mode
+  asm {
+    mov ah, 0x0f;
+    int 0x10;
+    mov vmode, al;
+    mov active_disp_page, bh;
+  }
+
+  if (vmode != 0x13) {
+    asm {
+      mov ah, 0x13;
+      int 0x10;
+    }
+  }
+
+  set_atexit(atexit_func);
+  sub_1A45F();
+  init_video_area(0, 0, 319, 199);
+  install_keyboard_ISR();
 }
 
 int main(int argc, char** argv) {
@@ -260,10 +290,12 @@ int main(int argc, char** argv) {
     mov   ah, 0x00
     int   0x10
   };
+
   printf("argc: %d\n", argc);
   for (int i = 0; i < argc; i++) {
     printf("argv[%d]: %s\n", i, argv[i]);
   }
+
   reset_some_globals();
   get_old_keyboard_ISR();
   sub_1B60C();
@@ -271,39 +303,23 @@ int main(int argc, char** argv) {
   initialize_room_irm_and_buffer_mat();
   sub_195F8();
   init_ucci_pu();
-  printf("a \n");
-  getchar();
   init_mouse_click();
-  printf("b \n");
-  getchar();
   init_game_dir_path();
-  printf("c \n");
-  getchar();
   init_function_pointers();
-  printf("d \n");
-  getchar();
   sub_146D8();
-  printf("e \n");
-  getchar();
   sub_144D7();
-  printf("f \n");
-  getchar();
   init_mouse_pointer();
-  printf("g \n");
-  getchar();
   init_pupo();
-  printf("h \n");
-  getchar();
   byte_21858 = 0;
   byte_22CDC = 0;
   disable_pupo_anim_decrement = 0;
   set_arc_lzr_handling_funcs(save_arc_lzr, load_arc_lzr, close_arc_lzr);
-  printf("i \n");
-  getchar();
-  // sub_16B60(atexit, reset_keyboard_and_sound_and_boh);
-  printf("j \n");
-  getchar();
+  sub_16B60(atexit_func, reset_keyboard_and_sound_and_boh);
   if(parse_linkage_area(argc, argv) == 0) Halt(0x64);
+
+  byte_22CE1 = 1;
+  init_mouse();
+  second_pass_initialization();
 
   return 0;
 }

@@ -67,6 +67,7 @@ const pstring_t error_strings[0x19] = {
   pstring_t("different dimension of palette")
 };
 
+// Here the order of the stuff put on the stack is reversed wrt the order of the params
 void halt_with_error(const pstring_t message, int retval, int error_string_id);
 
 #endif

@@ -1,4 +1,4 @@
-#include "keyboard_state.h"
+#include "keyboard.h"
 
 void reset_keyboard() {
   keyboard_state.up_pressed = 0;
@@ -30,4 +30,22 @@ void reset_keyboard() {
   keyboard_state.pressed_unk_6 = 1;
   keyboard_state.pressed_unk_7 = 1;
   keyboard_state.pressed_unk_8 = 0;
+}
+
+void get_old_keyboard_ISR() {
+  // Gets the function pointer of the n-th ISR from the ISR vector
+  GetIntVec(0x09, old_keyboard_ISR);
+  byte_22E32 = 0;
+  is_old_keyboard_ISR = 1;
+  reset_keyboard();
+}
+
+void install_keyboard_ISR() {
+  SetIntVec(0x09, keyboard_ISR);
+  is_old_keyboard_ISR = 0;
+  reset_keyboard();
+}
+
+void keyboard_ISR() {
+
 }

@@ -38,7 +38,15 @@ typedef struct keyboard_state_struct {
 } keyboard_state_t;
 
 static keyboard_state_t keyboard_state;
+static void (*old_keyboard_ISR)();
+static uint8_t byte_22E32;
 
 void reset_keyboard();
+void get_old_keyboard_ISR();
+void install_keyboard_ISR();
+void keyboard_ISR();
+
+static uint8_t is_old_keyboard_ISR;
+static void* read_from_keyboard_ISR;
 
 #endif

@@ -2,6 +2,7 @@
 #define CORR_LINKAGE_H
 
 #include "common.h"
+#include "keyboard.h"
 #include "pascal/string.h"
 
 static uint16_t linkage_area_in_manager_seg;
@@ -25,7 +26,7 @@ static pstring_t game_dir_path;
 static uint8_t byte_21859;
 static pstring_t byte_229D6;
 static pstring_t byte_2294A;
-static void* settings;
+static char* settings;
 
 static pstring_t ucc_path;
 static pstring_t img_path;
@@ -42,7 +43,7 @@ typedef struct linkage_area_t {
   char language[2]; // 0x0D - 0x0E
   char boh1[4]; // 0x0F - 0x12
   uint16_t conf_data_size; // 0x13 - 0x14
-  void* settings; // 0x15 - 0x18
+  char* settings; // 0x15 - 0x18
   uint16_t sec_vbuf_size; // 0x19 - 0x1A
   void* read_from_keyboard_ISR; // 0x1B - 0x1E
   uint16_t palette_size; // 0x1F - 0x20
@@ -67,7 +68,7 @@ typedef struct linkage_area_t {
   char c_val(uint16_t idx);
 } linkage_area_t;
 
-struct some_pointers_t {
+typedef struct some_pointers_t {
   void* ptr1;
   void* ptr2;
   void* ptr3;

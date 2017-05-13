@@ -227,20 +227,20 @@ uint8_t parse_linkage_area(int argc, char** argv) {
       halt_with_error(EMPTY_STRING, 1, different_dimension_of_secondary_video_buf);
     }
 
-    read_from_keyboard_ISR = link->read_from_keyboard_ISR;
+    read_from_keyboard_ISR = linkage_header->read_from_keyboard_ISR;
     if (linkage_header->palette_size != 0x0305) {
       halt_with_error(EMPTY_STRING, 1, different_dimension_of_palette);
     }
 
-    some_pointers.ptr1 = link->mah1;
-    some_pointers.ptr2 = link->mah2;
-    some_pointers.ptr3 = link->mah3;
-    some_pointers.ptr4 = link->mah4;
-    some_pointers.ptr5 = link->mah5;
-    some_pointers.ptr6 = link->mah6;
-    some_pointers.ptr7 = link->mah7;
-    some_pointers.ptr8 = link->mah8;
-    some_pointers.ptr9 = link->mah9;
+    some_pointers.ptr1 = linkage_header->mah1;
+    some_pointers.ptr2 = linkage_header->mah2;
+    some_pointers.ptr3 = linkage_header->mah3;
+    some_pointers.ptr4 = linkage_header->mah4;
+    some_pointers.ptr5 = linkage_header->mah5;
+    some_pointers.ptr6 = linkage_header->mah6;
+    some_pointers.ptr7 = linkage_header->mah7;
+    some_pointers.ptr8 = linkage_header->mah8;
+    some_pointers.ptr9 = linkage_header->mah9;
 
     ret = 1;
   }
