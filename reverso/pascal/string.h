@@ -1,34 +1,55 @@
 #ifndef CORR_PASCAL_STRING_H
 #define CORR_PASCAL_STRING_H
 
-#include <stdlib.h>
-#include <algorithm>
+#include "common.h"
 
-/* typedef struct pstring_t {
+#include <string.h>
+
+struct pstring_t {
   uint8_t size;
-  char* buffer;
+  char buffer[255];
 
-  struct pstring_t(const char* str) {
-    this->size = strlen(str);
-    buffer = (char*)malloc(this->size + 1);
-    memset(buffer, 0, this->size + 1);
-    memcpy(buffer, str, this->size);
+  pstring_t(const pstring_t &copy) {
+    this->size = copy.size;
+    memset(this->buffer, 0, 255);
+    memcpy(this->buffer, copy.buffer, this->size);
   }
 
-  static struct pstring_t operator_minus() {
-    return pstring_t("x");
-  };
+  pstring_t(const char* str) {
+    this->size = strlen(str);
+    memset(this->buffer, 0, 255);
+    memcpy(this->buffer, str, this->size);
+  }
 
-  static struct pstring_t operator_equals(const pstring_t)
+  pstring_t(const char* str, uint8_t sz) {
+    this->size = sz;
+    memset(this->buffer, 0, 255);
+    memcpy(this->buffer, str, sz);
+  }
 
-} pstring_t; */
+  pstring_t() {
+    this->size = 0;
+  }
 
+  char* c_ptr() {
+    return (char*)this;
+  }
 
-char* PStringConcat(char* &dst, char* &src);
-void PStringOperatorEquals(char* &dst, const char* src);
-void PStringOperatorEquals(const char* src, char* &dst, size_t truncate);
-bool PStringOperatorMinus(const char* op1, const char* op2);
-int8_t PStringPos(const char* substr, char* str);
-void PStringCopy(char* &dst, char* &src, uint8_t index, size_t count);
+  char c_val(uint8_t idx) {
+    return ((char*)this)[idx];
+  }
+};
 
+const pstring_t EMPTY_STRING;
+
+void PStringConcat(struct pstring_t &dst, struct pstring_t &src);
+void PStringOperatorEquals(struct pstring_t &dst, const struct pstring_t src);
+void PStringOperatorEquals(const struct pstring_t src, struct pstring_t &dst, size_t truncate);
+bool PStringOperatorMinus(const struct pstring_t op1, const struct pstring_t op2);
+uint8_t PStringPos(const struct pstring_t substr, const struct pstring_t str);
+void PStringCopy(struct pstring_t &dst, const struct pstring_t &src, uint8_t index, uint8_t count);
+void PStringPrint(const struct pstring_t str);
+void PStringPrintln(const struct pstring_t str);
+
+char PCharUpCase(char c);
 #endif

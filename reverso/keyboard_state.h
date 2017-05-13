@@ -1,7 +1,7 @@
 #ifndef CORR_KEYBOARD_STATE_H
 #define CORR_KEYBOARD_STATE_H
 
-#include <stdint.h>
+typedef unsigned char uint8_t;
 
 #include "placeholders.h"
 

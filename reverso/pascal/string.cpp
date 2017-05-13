@@ -1,55 +1,80 @@
+#include "common.h"
+#include "pascal/string.h"
+
+#include <algorithm>
 #include <string.h>
 #include <stdlib.h>
-#include <stdint.h>
+#include <stdio.h>
 
-#include "string.h"
-
-char* PStringConcat(char* &dst, char* &src) {
-  char* tmp = (char*)realloc(dst, strlen(dst) + strlen(src) + 1);
-  strcpy(tmp + strlen(dst), src);
-  return tmp;
+void PStringConcat(struct pstring_t &dst, struct pstring_t &src) {
+  memcpy(dst.buffer + dst.size, src.buffer, std::min(255, dst.size + src.size));
+  dst.size = std::min(255, dst.size + src.size);
 }
 
-void PStringOperatorEquals(char* &dst, const char* src) {
-  size_t sz = (strlen(src) + 1) * sizeof(char);
-
-  dst = (char*)realloc(dst, sz);
-  memcpy(dst, src, sz);
+void PStringOperatorEquals(struct pstring_t &dst, const struct pstring_t src) {
+  memset(&dst, 0, sizeof(struct pstring_t));
+  memcpy(&dst, &src, dst.size + 1);
 }
 
-void PStringOperatorEquals(const char* src, char* &dst, size_t truncate) {
-  char* tmp;
-  size_t sz = std::min(truncate + 1, strlen(src) + 1) * sizeof(char);
-  dst = (char*)realloc(dst, sz);
-  memset(dst, 0, sz);
-  memcpy(dst, src, sz-1);
+void PStringOperatorEquals(const struct pstring_t src, struct pstring_t &dst, size_t truncate) {
+  size_t sz = std::min(truncate, (size_t)src.size);
+  memset(&dst, 0, sizeof(struct pstring_t));
+  memcpy(&dst, &src, sz + 1);
+  dst.size = sz;
 }
 
-int8_t PStringPos(const char* substr, char* str) {
-  char* pos = strstr(str, substr);
+uint8_t PStringPos(const struct pstring_t substr, const struct pstring_t str) {
+  const char* pos = strstr(str.buffer, substr.buffer);
   if (pos == NULL) return 0;
-  return pos - str + 1;
+  return pos - str.buffer + 1;
 }
 
-void PStringCopy(char* &dst, char* &src, uint8_t index, size_t count) {
-  size_t new_size = std::min(count + 1, strlen(src) - index + 1);
-  char *tmp = (char*)realloc(dst, new_size);
-  strncpy(tmp, src + index, new_size);
-  tmp[new_size-1] = 0;
-  dst = tmp;
+void PStringCopy(struct pstring_t &dst, const struct pstring_t &src, uint8_t index, uint8_t count) {
+  if (index == 0) index = 1;
+  if (src.size < index) dst.size = 0;
+
+  size_t cnt = std::min((int)count, src.size - index + 1);
+  memcpy(dst.buffer, src.buffer + index - 1, cnt);
+  dst.size = cnt;
 }
 
 // return value a bit misleading but kept this way for compatibility with the asm
-// false -> the two strings are equal
-// true -> the two strings are different
+// false . the two strings are equal
+// true . the two strings are different
 // Probably should replace everything with a strcmp but not sure yet about the semantics of this func
-bool PStringOperatorMinus(const char* op1, const char* op2) {
-  size_t sz = std::min(strlen(op1+1), strlen(op2+1));
+bool PStringOperatorMinus(const struct pstring_t op1, const struct pstring_t op2) {
+  printf("pstringoperatorminus\n");
+  PStringPrintln(op1);
+  PStringPrintln(op2);
+  printf("%d %d\n", op1.size, op2.size);
+
+  size_t sz = std::min((int)op1.size, (int)op2.size);
   unsigned int i = 1;
-  while (i < sz && op1[i] == op2[i]) i++;
+  while (i < sz && op1.buffer[i-1] == op2.buffer[i-1]) i++;
+
+  printf("i: %d\n", i);
+  printf("ritorno %d\n", i >= sz || (op1.size == op2.size));
 
   if (i < sz)
-    return true;
+    return false;
   else
-    return strlen(op1) != strlen(op2);
+    return op1.size == op2.size;
+}
+
+void PStringPrint(struct pstring_t str) {
+  fwrite(str.buffer, str.size, 1, stdout);
+  fflush(stdout);
+}
+
+void PStringPrintln(struct pstring_t str) {
+  const char* newline = "\n";
+  fwrite(str.buffer, str.size, 1, stdout);
+  fwrite(newline, 1, 1, stdout);
+  fflush(stdout);
+}
+
+char PCharUpCase(char c) {
+  if (c >= 'a' && c <= 'z')
+    return c - 'a' + 'A';
+  return c;
 }

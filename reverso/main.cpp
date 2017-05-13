@@ -1,12 +1,15 @@
-#include <algorithm>
-#include <stdint.h>
+// #include <algorithm>
+//#include <stdint.h>
 #include <string.h>
 #include <stdio.h>
 
+#include "common.h"
 #include "error.h"
 #include "keyboard_state.h"
 #include "placeholders.h"
+#include "linkage.h"
 #include "pascal/string.h"
+#include "lzr.h"
 
 uint8_t some_global_1;
 uint8_t some_global_2;
@@ -18,10 +21,9 @@ void (*old_keyboard_ISR)();
 
 uint8_t byte_22E32;
 uint8_t is_old_keyboard_ISR;
-uint16_t read_from_keyboard_ISR[2];
+void* read_from_keyboard_ISR;
 
 uint8_t byte_22CDC;
-uint8_t byte_22CDE;
 uint8_t esc_pressed_flag;
 uint8_t byte_22CE0;
 uint16_t loaded_font_buffer_size;
@@ -64,7 +66,7 @@ void reset_some_globals_3() {
 void sub_1B60C() {
   byte_22CDC = 0;
   loaded_font_filename[0] = 0;
-  read_from_keyboard_ISR[0] = read_from_keyboard_ISR[1] = 0;
+  read_from_keyboard_ISR = NULL;
   byte_22CDE = 0;
   esc_pressed_flag = 0;
   byte_22CE0 = 0;
@@ -129,13 +131,7 @@ void init_mouse_click() {
   prev_button_status = 0;
 }
 
-const char *aGame_dir = "GAME_DIR";
-const char *aSimulmondo = "SIMULMONDO";
-const char *empty_string = "";
-char* game_dir_path;
-
 void init_game_dir_path() {
-  // memcpy(game_dir_path, aGame_dir, std::min(sizeof(aGame_dir), sizeof(game_dir_path)));
   PStringOperatorEquals(aGame_dir, game_dir_path, 0x45);
 }
 
@@ -240,26 +236,10 @@ void init_pupo() {
   current_funcptr_2 = funcptr_2;
 }
 
-void(*save_arc_lzr_ptr)();
-void(*load_arc_lzr_ptr)();
-void(*close_arc_lzr_ptr)();
-
-void save_arc_lzr() {}
-void load_arc_lzr() {}
-void close_arc_lzr() {}
-
-void set_arc_lzr_handling_funcs(void (*save)(), void (*load)(), void (*close)()) {
-  save_arc_lzr_ptr = save_arc_lzr;
-  load_arc_lzr_ptr = load_arc_lzr;
-  close_arc_lzr_ptr = close_arc_lzr;
-}
-
 uint8_t byte_21858;
 uint8_t disable_pupo_anim_decrement;
 
 void(*atexit_ptr)();
-void(*deinit_1)();
-void(*deinit_2)();
 
 void send_things_back_to_manager() {}
 void reset_keyboard_and_sound_and_boh() {}
@@ -274,110 +254,16 @@ void sub_16B60(void (*atexit)(), void(*reset_keyboard_and_sound_and_boh)()) {
   deinit(reset_keyboard_and_sound_and_boh, &send_things_back_to_manager);
 }
 
-// Converts a 4 character hex string to a value
-uint16_t pointer_string_to_value(char *string) {
-  // char local_var1[4];
-  char tmp;
-  uint16_t ret = 0;
-  // PStringOperatorEquals(string, local_var1, 4);
-
-  for (int i = 0; i < 4; i++) {
-    tmp = string[i];
-    if (tmp >= '0' && tmp <= '9') {
-      ret += (tmp - '0') << (4 * i);
-    }
-    else if (tmp >= 'a' && tmp <= 'f') {
-      ret += (tmp - 'a' + 10) << (4 * i);
-    }
-    else if (tmp >= 'A' && tmp <= 'F') {
-      ret += (tmp - 'A' + 10) << (4 * i);
-    }
-  }
-
-  return ret;
-}
-
-
-
-void halt_with_error(const char* message, int retval, int error_string_id) {
-  char* string_local;
-  char* final_error_msg;
-
-  PStringOperatorEquals(message, string_local, 0x45);
-  if (error_string_id == 0) PStringOperatorEquals(string_local, byte_22A1C, 0x45);
-  else {
-    PStringOperatorEquals(final_error_msg, error_strings[error_string_id-1]);
-    PStringConcat(final_error_msg, string_local);
-    PStringOperatorEquals(final_error_msg, byte_22A1C, 0x45);
-  }
-  byte_22CDE = 1;
-  deinit_1();
-  deinit_2();
-  Halt(retval);
-}
-
-typedef struct {
-  char header[11];
-  char interface_version_string[4];
-  char language[3];
-} __attribute__((packed)) linkage_area_t;
-
-uint16_t linkage_area_in_manager_seg, linkage_area_in_manager_off;
-uint8_t parse_linkage_area(int argc, char** argv) {
-  uint8_t ret = 0;
-  const char *sColon = ":";
-  char *temp = NULL;
-  char *linkage_point_as_string = NULL;
-  uint16_t link_segment_from_str, link_offset_from_str;
-  uint16_t link_seg, link_off;
-  uint32_t link;
-  uint8_t idx;
-  uint8_t interface_version_string;
-  char header[10];
-  linkage_area_t linkage_header;
-
-  if (argc == 2) {
-    temp = (char*)malloc((strlen(argv[1]) + 1) * sizeof(char));
-    memset(temp, 0, (strlen(argv[1]) + 1) * sizeof(char));
-    strcpy(temp, argv[1]);
-    // Source, destination, truncate
-    PStringOperatorEquals(temp, linkage_point_as_string, 0xFF);
-    if (strlen(linkage_point_as_string) != 9) return ret;
-    // substr, str
-    if (PStringPos(sColon, linkage_point_as_string) != 5) return ret;
-    // destination, source, index, count
-    PStringCopy(temp, linkage_point_as_string, 1, 4);
-    memcpy(temp, linkage_point_as_string, 4 * sizeof(char));
-    link_segment_from_str = pointer_string_to_value(temp);
-    PStringCopy(temp, linkage_point_as_string, 6, 4);
-    link_offset_from_str = pointer_string_to_value(temp);
-    linkage_area_in_manager_seg = link_segment_from_str;
-    linkage_area_in_manager_off = link_offset_from_str;
-    link_seg = linkage_area_in_manager_seg;
-    link_off = linkage_area_in_manager_off;
-    link = (link_seg << 16) + link_off;
-    // header = 0x0A;
-
-
-    idx = 0x00;
-
-    memcpy(&linkage_header, (void*)link, sizeof(linkage_area_t));
-    printf("%s\n", (char*)((&linkage_header.header) + 1));
-    printf("%s\n", (char*)((&linkage_header.interface_version_string) + 1));
-    printf("%s\n", (char*)((&linkage_header.language) + 1));
-
-    // This is a check for MANAGER <-> ARCADE correct linkage
-    // It won't work of course
-    if (!PStringOperatorMinus(header, aSimulmondo)) {
-      halt_with_error(empty_string, 1, interface_header_error);
-    }
-
-    interface_version_string = 3;
-  }
-  return ret;
-}
-
 int main(int argc, char** argv) {
+  asm {
+    mov   al, 0x03
+    mov   ah, 0x00
+    int   0x10
+  };
+  printf("argc: %d\n", argc);
+  for (int i = 0; i < argc; i++) {
+    printf("argv[%d]: %s\n", i, argv[i]);
+  }
   reset_some_globals();
   get_old_keyboard_ISR();
   sub_1B60C();
@@ -385,19 +271,39 @@ int main(int argc, char** argv) {
   initialize_room_irm_and_buffer_mat();
   sub_195F8();
   init_ucci_pu();
+  printf("a \n");
+  getchar();
   init_mouse_click();
+  printf("b \n");
+  getchar();
   init_game_dir_path();
+  printf("c \n");
+  getchar();
   init_function_pointers();
+  printf("d \n");
+  getchar();
   sub_146D8();
+  printf("e \n");
+  getchar();
   sub_144D7();
+  printf("f \n");
+  getchar();
   init_mouse_pointer();
+  printf("g \n");
+  getchar();
   init_pupo();
+  printf("h \n");
+  getchar();
   byte_21858 = 0;
   byte_22CDC = 0;
   disable_pupo_anim_decrement = 0;
   set_arc_lzr_handling_funcs(save_arc_lzr, load_arc_lzr, close_arc_lzr);
-  sub_16B60(atexit, reset_keyboard_and_sound_and_boh);
-  if(parse_linkage_area(argc, argv) != 0) Halt(0x64);
+  printf("i \n");
+  getchar();
+  // sub_16B60(atexit, reset_keyboard_and_sound_and_boh);
+  printf("j \n");
+  getchar();
+  if(parse_linkage_area(argc, argv) == 0) Halt(0x64);
 
   return 0;
 }
