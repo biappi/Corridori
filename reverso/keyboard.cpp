@@ -1,4 +1,7 @@
 #include "keyboard.h"
+#include "linkage.h"
+
+#include <stdio.h>
 
 void reset_keyboard() {
   keyboard_state.up_pressed = 0;
@@ -47,5 +50,27 @@ void install_keyboard_ISR() {
 }
 
 void keyboard_ISR() {
+  printf("TODO: implement\n");
+}
 
+uint8_t is_keyboard_or_joystick() {
+  if (settings->keyboard_or_joystick != 1) return 0;
+  return settings->keyboard_or_joystick;
+}
+
+uint8_t read_from_joystick_ISR() {
+  printf("TODO: implement\n");
+  return 0;
+}
+
+void sub_16540() {
+  joystick_setting_1 = settings->joystick1;
+  joystick_setting_2 = settings->joystick2;
+  joystick_setting_3 = settings->joystick3;
+  joystick_setting_4 = settings->joystick4;
+  joystick_calibration();
+}
+
+void joystick_calibration() {
+  printf("TODO: implement\n");
 }

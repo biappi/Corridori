@@ -10,6 +10,7 @@
 #include "lzr.h"
 #include "mouse.h"
 #include "video.h"
+#include "player.h"
 
 uint8_t some_global_1;
 uint8_t some_global_2;
@@ -166,10 +167,6 @@ void sub_146D8() {
   pn_file_size = 0;
   ele_filename = 0;
 }
-
-uint8_t byte_21602;
-uint8_t byte_1F528;
-uint8_t byte_21606;
 
 void sub_144D7() {
   byte_21602 = 0;

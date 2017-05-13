@@ -3,7 +3,7 @@
 
 void init_mouse() {
   mouse_initialized = 0;
-  if (settings[1] != 0x01) return;
+  if (settings->mouse != 0x01) return;
   if (reset_mouse() == 0) {
     halt_with_error(mouse_empty_string, 0x17, mouse_init_error);
   }

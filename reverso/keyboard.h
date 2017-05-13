@@ -3,6 +3,7 @@
 
 typedef unsigned char uint8_t;
 
+#include "common.h"
 #include "placeholders.h"
 
 typedef struct keyboard_state_struct {
@@ -45,6 +46,18 @@ void reset_keyboard();
 void get_old_keyboard_ISR();
 void install_keyboard_ISR();
 void keyboard_ISR();
+
+uint8_t read_from_joystick_ISR();
+
+uint8_t is_keyboard_or_joystick();
+
+static uint16_t joystick_setting_1;
+static uint16_t joystick_setting_2;
+static uint16_t joystick_setting_3;
+static uint16_t joystick_setting_4;
+
+void sub_16540();
+void joystick_calibration();
 
 static uint8_t is_old_keyboard_ISR;
 static void* read_from_keyboard_ISR;

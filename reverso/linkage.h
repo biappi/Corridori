@@ -26,7 +26,6 @@ static pstring_t game_dir_path;
 static uint8_t byte_21859;
 static pstring_t byte_229D6;
 static pstring_t byte_2294A;
-static char* settings;
 
 static pstring_t ucc_path;
 static pstring_t img_path;
@@ -37,13 +36,26 @@ static pstring_t sta_path;
 static pstring_t fnt_path;
 static pstring_t lnp_path;
 
+typedef struct settings_t {
+  uint8_t unk1;
+  uint8_t mouse;
+  uint8_t keyboard_or_joystick;
+  uint8_t dunno[13];
+  uint16_t joystick1;
+  uint16_t joystick2;
+  uint16_t joystick3;
+  uint16_t joystick4;
+} settings_t;
+
+static settings_t* settings;
+
 typedef struct linkage_area_t {
   char header[10]; // 0x00 - 0x09
   char interface_version_string[3]; // 0x0A - 0x0C
   char language[2]; // 0x0D - 0x0E
   char boh1[4]; // 0x0F - 0x12
   uint16_t conf_data_size; // 0x13 - 0x14
-  char* settings; // 0x15 - 0x18
+  settings_t* settings; // 0x15 - 0x18
   uint16_t sec_vbuf_size; // 0x19 - 0x1A
   void* read_from_keyboard_ISR; // 0x1B - 0x1E
   uint16_t palette_size; // 0x1F - 0x20
