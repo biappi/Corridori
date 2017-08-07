@@ -92,9 +92,9 @@ extension IteratorProtocol where Element == UInt8 {
         
         return Room(
             tiles: zip(tileIds, tileTypes).map {
-                tileId, type in
+                let (tileId, type) = $0
                 
-                Room.Tile(
+                return Room.Tile(
                     tileDesc:  tileId,
                     tilesetId: tilesetsId[(tileId & 0xf000) >> 12],
                     type:      type
@@ -105,6 +105,54 @@ extension IteratorProtocol where Element == UInt8 {
     
     mutating func parseRoomFile() -> [Room]? {
         return self.arrayUntilValid { $0.parseRoom() }
+    }
+    
+    mutating func parseExit() -> Exit? {
+        guard
+            let roomFrom = self.byte(),
+            let roomTo   = self.byte(),
+            let fromY    = self.be16(),
+            let toY      = self.be16()
+        else {
+                return nil
+        }
+        
+        return Exit(
+            roomFrom: roomFrom,
+            roomTo:   roomTo,
+            fromY:    fromY,
+            toY:      toY
+        )
+    }
+    
+    mutating func parseUscFile() -> [Exit]? {
+        return self.arrayUntilValid { $0.parseExit() }
+    }
+
+    mutating func parseDoor() -> Door? {
+        guard
+            let roomFrom = self.byte(),
+            let roomTo   = self.byte(),
+            let fromY    = self.be16(),
+            let toY      = self.be16(),
+            let unk1     = self.be16(),
+            let unk2     = self.be16()
+        else {
+            return nil
+        }
+        
+        return Door(
+            roomFrom: roomFrom,
+            roomTo:   roomTo,
+            fromY:    fromY,
+            toY:      toY,
+            unk1:     unk1,
+            unk2:     unk2
+        )
+    }
+
+    mutating func parsePrtFile() -> [Door]? {
+        return self.arrayUntilValid { $0.parseDoor() }
     }
     
     mutating func parseEleItem() -> Bitmap? {
@@ -260,8 +308,8 @@ extension IteratorProtocol where Element == UInt8 {
         }
         
         return Animofs(
-            pre:  zip(preX,  preY).map  { Point(x: $0, y: $1) },
-            post: zip(postX, postY).map { Point(x: $0, y: $1) }
+            pre:  zip(preX,  preY).map  { Point(x: $0.0, y: $0.1) },
+            post: zip(postX, postY).map { Point(x: $0.0, y: $0.1) }
         )
     }
 
@@ -275,6 +323,90 @@ extension IteratorProtocol where Element == UInt8 {
         }
             
         return data.map { $0.map { Animjoy(backingData: $0) } }
+    }
+    
+    mutating func parseSostaniItem1() -> Sostani.Item1? {
+        guard
+            let oldAni = self.byte(),
+            oldAni != 0xff
+            else {
+                return nil
+        }
+        
+        guard
+            let logitabIndex = self.byte(),
+            let newAni       = self.byte()
+        else {
+            return nil
+        }
+        
+        return Sostani.Item1(
+            oldAni:       oldAni,
+            newAni:       newAni,
+            logitabIndex: logitabIndex
+        )
+    }
+    
+    mutating func parseSostaniItem2() -> Sostani.Item2? {
+        guard
+            let oldAni = self.byte(),
+            oldAni != 0xff
+        else {
+            return nil
+        }
+        
+        guard
+            let newAni       = self.byte(),
+            let logitabIndex = self.byte(),
+            let xOffset      = self.next().map({Int(Int8(bitPattern: $0))})
+        else {
+            return nil
+        }
+        
+        return Sostani.Item2(
+            oldAni:       oldAni,
+            newAni:       newAni,
+            logitabIndex: logitabIndex,
+            xOffset:      xOffset
+        )
+    }
+    
+    mutating func parseSostaniFile() -> Sostani? {
+        let data = self.consume()
+        
+        var i = data.makeIterator()
+        guard
+            let off1 = i.be16(),
+            let off2 = i.be16()
+        else {
+            return nil
+        }
+        
+        var data1 = data[off1 ..< data.count].makeIterator()
+        var data2 = data[off2 ..< data.count].makeIterator()
+        
+        guard
+            let boh1 = data1.arrayUntilValid({ $0.parseSostaniItem1() }),
+            let boh2 = data2.arrayUntilValid({ $0.parseSostaniItem2() })
+        else {
+            return nil
+        }
+        
+        return Sostani(items1: boh1, items2: boh2)
+    }
+    
+    mutating func parseLogitabFile() -> [[Int]]? {
+        let data = self.consume()
+        
+        var it = data.makeIterator()
+        guard let offsets = it.arrayUntil(0, { $0.be16() }) else {
+            return nil
+        }
+        
+        return offsets.map { (a: Int) -> [Int]? in
+            var it = data[a ..< data.count].makeIterator()
+            return it.arrayUntil(0xff) { $0.byte() }
+        } as? [[Int]]
     }
     
     mutating func consume() -> [UInt8] {

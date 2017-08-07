@@ -51,6 +51,7 @@ extension Bitmap {
 
 class TileView : NSImageView {
     var block : ()->() = { }
+    var label : NSTextField?
     
     override func mouseDown(with event: NSEvent) {
         block()
@@ -64,6 +65,14 @@ class RoomView : NSView {
     
     var tileViews  : [TileView] = []
     
+    var showTypes = true {
+        didSet {
+            for t in tileViews {
+                t.label?.isHidden = !showTypes
+            }
+        }
+    }
+
     init(tiles: Size, tileSize: Size, tilesetsImages: [[(NSImage, NSImage)]?]) {
         self.tilesetsImages = tilesetsImages
         
@@ -88,15 +97,28 @@ class RoomView : NSView {
                 imageView.imageScaling = .scaleProportionallyUpOrDown
                 
                 imageView.autoresizingMask = [
-                    .viewWidthSizable,
-                    .viewHeightSizable,
-                    .viewMinXMargin,
-                    .viewMaxXMargin,
-                    .viewMinYMargin,
-                    .viewMaxYMargin,
+                    .width,
+                    .height,
+                    .minXMargin,
+                    .maxXMargin,
+                    .minYMargin,
+                    .maxYMargin,
                 ]
                 
                 addSubview(imageView)
+                
+                imageView.label = NSTextField(string: "")
+                imageView.label?.frame = imageView.bounds
+                imageView.label?.textColor = NSColor.white
+                imageView.label?.backgroundColor = NSColor(white: 1, alpha: 0.4)
+                imageView.label?.font = NSFont.systemFont(ofSize: 15)
+                imageView.label?.drawsBackground = false
+                imageView.label?.isBezeled = false
+                imageView.label?.isEditable = false
+                imageView.label?.alignment = .center
+                
+                imageView.addSubview(imageView.label!)
+                
                 tileViews.append(imageView)
             }
         }
@@ -110,6 +132,9 @@ class RoomView : NSView {
             
             let tileView = tileViews[i]
             
+            tileView.label?.stringValue = roomTile.type == 0 ? "" : "\(String(format: "%02x", roomTile.type))"
+            tileView.label?.frame = tileView.bounds
+            
             if tileView.image !== image {
                 tileView.image = image
             }
@@ -121,14 +146,94 @@ class RoomView : NSView {
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
+}
+
+class GameView : NSView {
+    override var isFlipped: Bool { return true }
+
+    let episode    : Episode
+    let roomView   : RoomView
+    let pupoView   : NSImageView
+    let pupoImages : [(NSImage, NSImage)]
     
+    init(episode: Episode) {
+        self.episode = episode
+        
+        self.pupoImages = episode.eles.map {
+            (b: Bitmap) -> (NSImage, NSImage) in
+            
+            let i = b.createNSImage(palette: episode.palette, baseColor: 225)
+            return (i, i.flippedCopy())
+        }
+        
+        
+        self.roomView = RoomView(
+            tiles: Room.tiles,
+            tileSize: Episode.TILE_SIZE,
+            tilesetsImages: createTilesetsNSImages(
+                tilesets: episode.tilesets,
+                palette:  episode.palette
+            )
+        )
+        
+        self.roomView.frame = NSRect(x: 0,
+                                     y: 0,
+                                     width: 320 * 3,
+                                     height: 200 * 3)
+        
+        self.pupoView = NSImageView(frame: NSRect.zero)
+        pupoView.imageScaling = .scaleProportionallyUpOrDown
+        
+        super.init(frame: self.roomView.frame)
+        
+        self.addSubview(roomView)
+        self.addSubview(pupoView)
+    }
+    
+    func apply(state: GameState) {
+        roomView.setRoom(room:  episode.rooms[state.room],
+                         frame: state.roomFrame)
+        
+        let frame     = episode.frames[state.pupoAni][state.pupoAniFrame]
+        let ele       = episode.eles[frame.frame]
+        
+        let pupoPos   = state.pupoPos.adding(by: frame.delta).adding(by: Point(
+            x: -(ele.size.width / 2),
+            y: -(ele.size.height)
+        ))
+        
+        let image = frame.flip
+                        ? pupoImages[frame.frame].1
+                        : pupoImages[frame.frame].0
+        
+        if image !== pupoView.image {
+            pupoView.image = image
+        }
+        
+        pupoView.frame = ele.size.multiplied(by: 3).nsrect(origin: pupoPos.multiplied(by: 3))
+        
+        let tileposx = state.pupoPos.x / Episode.TILE_SIZE.width
+        let tileposy = (state.pupoPos.y - 0xa) / Episode.TILE_SIZE.height
+        
+        
+        for i in roomView.tileViews { i.alphaValue = 1 }
+        roomView.tileViews[tileposy * Room.tiles.width + tileposx].alphaValue = 0.5
+        
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+}
+class Window : NSWindow {
+    var inputDidChange : (Input) -> Void = { (_) in  }
+
     var left   = false
     var right  = false
     var top    = false
     var bottom = false
     var fire   = false
-    
-    var inputDidChange : (Input) -> Void = { (_) in  }
     
     override func keyDown(with event: NSEvent) {
         guard event.isARepeat == false else {
@@ -164,10 +269,6 @@ class RoomView : NSView {
             top  ? .top    : bottom     ? .bottom : .still,
             fire ? .firing : .nonFiring
         ))
-    }
-    
-    override var canBecomeKeyView: Bool {
-        return true
     }
     
     override var acceptsFirstResponder: Bool {

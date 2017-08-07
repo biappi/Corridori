@@ -22,8 +22,8 @@ struct Palette {
 //
 
 struct Point {
-    let x : Int
-    let y : Int
+    var x : Int
+    var y : Int
     
     func adding(by: Point) -> Point {
         return Point(x: self.x + by.x, y: self.y + by.y)
@@ -115,6 +115,24 @@ struct Room {
     static let tiles = Size(width: 0x14, height: 0x14)
 }
 
+struct Exit {
+    let roomFrom: Int
+    let roomTo:   Int
+    let fromY:    Int
+    let toY:      Int
+    
+}
+
+struct Door {
+    let roomFrom: Int
+    let roomTo:   Int
+    let fromY:    Int
+    let toY:      Int
+    let unk1:     Int
+    let unk2:     Int
+}
+
+
 //
 
 struct Frame {
@@ -177,4 +195,23 @@ struct Animjoy {
         case (.left,  .top,    .firing   ): return backingData[17]
         }
     }
+}
+
+struct Sostani {
+    
+    struct Item1 {
+        let oldAni:       Int
+        let newAni:       Int
+        let logitabIndex: Int
+    }
+    
+    struct Item2 {
+        let oldAni:       Int
+        let newAni:       Int
+        let logitabIndex: Int
+        let xOffset:      Int
+    }
+    
+    let items1: [Item1]
+    let items2: [Item2]
 }

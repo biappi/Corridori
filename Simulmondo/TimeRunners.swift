@@ -11,15 +11,20 @@ import Cocoa
 struct Episode {
     static let TILE_SIZE = Size(width:  16, height:  10)
     
-    let palette: Palette
-    let tilesets : [Tileset?]
-    let rooms : [Room]
+    let palette:  Palette
+    let tilesets: [Tileset?]
+    let rooms:    [Room]
     
-    let eles: [Bitmap]
+    let eles:     [Bitmap]
     
-    let frames: [[Frame]]
-    let animofs: Animofs
-    let animjoy: [Animjoy]
+    let frames:   [[Frame]]
+    let animofs:  Animofs
+    let animjoy:  [Animjoy]
+    
+    let doors:    [Door]
+    let exits:    [Exit]
+    let sostani:  Sostani
+    let logitab:  [[Int]]
     
     init?(url: URL) {
         let gameDirUrl  = url.appendingPathComponent("GAME_DIR")
@@ -43,12 +48,17 @@ struct Episode {
         let framesUrl   = filUrl.appendingPathComponent("FRAMES.TAB")
         let animofsUrl  = filUrl.appendingPathComponent("ANIMOFS.TAB")
         let animjoyUrl  = filUrl.appendingPathComponent("ANIMJOY.TAB")
+        let prtUrl      = filUrl.appendingPathComponent("PRT")
+        let uscUrl      = filUrl.appendingPathComponent("USC")
+        let sostaniUrl  = filUrl.appendingPathComponent("SOSTANI.TAB")
+        let logitabUrl  = filUrl.appendingPathComponent("LOGITAB.TAB")
         
         
         func TRTileset(url: URL) throws -> Tileset? {
             var bytes = try Data(contentsOf: url).makeIterator()
             return bytes.parseTilesetFile(tileSize: Episode.TILE_SIZE)
         }
+        
         
         do {
             tilesets = [
@@ -74,6 +84,10 @@ struct Episode {
             var framesData  = try Data(contentsOf: framesUrl).makeIterator()
             var animofsData = try Data(contentsOf: animofsUrl).makeIterator()
             var animjoyData = try Data(contentsOf: animjoyUrl).makeIterator()
+            var doorsData   = try Data(contentsOf: prtUrl).makeIterator()
+            var exitsData   = try Data(contentsOf: uscUrl).makeIterator()
+            var sostaniData = try Data(contentsOf: sostaniUrl).makeIterator()
+            var logitabData = try Data(contentsOf: logitabUrl).makeIterator()
             
             palette = paletteData.parsePaletteFile()!
             rooms   = roomroeData.parseRoomFile()!
@@ -81,6 +95,10 @@ struct Episode {
             frames  = framesData.parseFramesFile()!
             animofs = animofsData.parseAnimofsFile()!
             animjoy = animjoyData.parseAnimjoyFile()!
+            doors   = doorsData.parsePrtFile()!
+            exits   = exitsData.parseUscFile()!
+            sostani = sostaniData.parseSostaniFile()!
+            logitab = logitabData.parseLogitabFile()!
         }
         catch {
             return nil
@@ -88,120 +106,154 @@ struct Episode {
     }
 }
 
-func load(window: NSWindow) {
-    let gameUrl = Bundle.main.url(forResource:   "Time Runners",
-                                  withExtension: nil)!
+// cosa cho di fronte
+func cosa(episode: Episode,
+          room: Int,
+          pupoAni: Int,
+          currentPos: Point,
+          tentativePos: Point) -> Int
+{
+    var returnAni: Int   = pupoAni
     
-    let episodeUrl  = gameUrl.appendingPathComponent("Ep. 1")
-    let episode = Episode(url: episodeUrl)!
-    
-    let trEleNSImages = episode.eles.map {
-        (b: Bitmap) -> (NSImage, NSImage) in
+    var changed = false
+    repeat {
+        changed = false
         
-        let i = b.createNSImage(palette: episode.palette, baseColor: 225)
-        return (i, i.flippedCopy())
-    }
-
-    //
-    
-    let ROOM_TIMER = 4
-    
-    struct Tr {
-        var pupoPos      = Point(x: 0xa8, y: 0xa0)
-        
-        var pupoAni      = 0x03
-        var pupoAniFrame = 0
-        var pupoAniTimer = 3
-        
-        var room         = 0
-        var roomFrame    = 0
-        var roomTimer    = 4
-    }
-    
-    func tick(tr: inout Tr, input: inout Input) {
-        if tr.roomTimer == 0 {
-            tr.roomFrame = (tr.roomFrame + 1) % 4
-            tr.roomTimer = ROOM_TIMER
-        } else {
-            tr.roomTimer -= 1
+        guard
+            let s = episode.sostani.items2.filter( { $0.oldAni == returnAni }).first
+        else {
+            continue
         }
         
-        if tr.pupoAniTimer == 0 {
-            tr.pupoAniFrame += 1
-            tr.pupoAniTimer = (episode.frames[safe: tr.pupoAni]?[safe: tr.pupoAniFrame]?.time).map {
+        var xoff = tentativePos.x - currentPos.x + s.xOffset
+        xoff = xoff >  0x40 ? xoff + 0x10 : xoff
+        xoff = xoff < -0x40 ? xoff - 0x10 : xoff
+        
+        for i in stride(from: xoff, to: 0, by: xoff < 0 ? 0x10 : -0x10) {
+            let tileposx = (currentPos.x + i) / Episode.TILE_SIZE.width
+            let tileposy = currentPos.y / Episode.TILE_SIZE.height
+            
+            let tile = episode.rooms[room].tiles[tileposy * Room.tiles.width + tileposx]
+            
+            let logitabEntry = episode.logitab[s.logitabIndex]
+            
+            if logitabEntry.contains(tile.type) {
+                returnAni = s.newAni
+                changed = true
+                break
+            }
+        }
+    } while changed == true
+    
+    return returnAni
+}
+
+
+struct GameState {
+    static let ROOM_TIMER = 3
+
+    var pupoPos      = Point(x: 0xa8, y: 0xa0)
+    
+    var pupoAni      = 0x03
+    var pupoAniFrame = 0
+    var pupoAniTimer = 3
+    
+    var room         = 0
+    var roomFrame    = 0
+    var roomTimer    = GameState.ROOM_TIMER
+    
+    mutating func tick(input: Input, episode: Episode) {
+        if roomTimer == 0 {
+            roomFrame = (roomFrame + 1) % 4
+            roomTimer = GameState.ROOM_TIMER
+        } else {
+            roomTimer -= 1
+        }
+        
+        if pupoAniTimer == 0 {
+            pupoAniFrame += 1
+            pupoAniTimer = (episode.frames[safe: pupoAni]?[safe: pupoAniFrame]?.time).map {
                 ($0 + 3) / 4
-            } ?? 3
+                } ?? 3
         }
         else {
-            tr.pupoAniTimer -= 1
+            pupoAniTimer -= 1
         }
         
-        if tr.pupoAniFrame >= episode.frames[tr.pupoAni].count {
-            tr.pupoPos = tr.pupoPos.adding(by: episode.animofs.pre[tr.pupoAni])
+        if pupoAniFrame >= episode.frames[pupoAni].count {
+            pupoPos = pupoPos.adding(by: episode.animofs.pre[pupoAni])
             
-            tr.pupoAniFrame = 0
-            tr.pupoAni = episode.animjoy[tr.pupoAni].nextAni(direction: input)
+            pupoAniFrame = 0
+            pupoAni = episode.animjoy[pupoAni].nextAni(direction: input)
             
-            tr.pupoPos = tr.pupoPos.adding(by: episode.animofs.post[tr.pupoAni])
+            // --
+            
+            if let s = episode.sostani.items1.filter( { $0.oldAni == pupoAni }).first {
+                
+                let tileposx = pupoPos.x / Episode.TILE_SIZE.width
+                let tileposy = (pupoPos.y + 0xa) / Episode.TILE_SIZE.height
+                
+                let tile = episode.rooms[room].tiles[tileposy * Room.tiles.width + tileposx]
+                
+                let logitabEntry = episode.logitab[pupoAni]
+                
+                if logitabEntry.contains(tile.type) {
+                    pupoAni = s.newAni
+                }
+            }
+            
+            // --
+            // controlla ostacoli nel camminare
+            // --
+            
+            var ani = pupoAni
+            while true {
+                let newAni = cosa(
+                    episode: episode,
+                    room: room,
+                    pupoAni: ani,
+                    currentPos: pupoPos,
+                    tentativePos: pupoPos.adding(by: episode.animofs.post[ani])
+                )
+                
+                if newAni == ani {
+                    break
+                }
+                
+                ani = newAni
+            }
+            
+            pupoPos = pupoPos.adding(by: episode.animofs.post[ani])
+            pupoAni = ani
+            
+           /*
+//            let facingRight = pupoAni >= 0x35
+//            
+//            if tile.type == 0 {
+//                pupoAni = facingRight ? 0x67 : 0x32
+//            }
+            */
+            
+            if  (pupoPos.x <   0 && pupoAni < 0x35) ||
+                (pupoPos.x > 320 && pupoAni > 0x35)
+            {
+                let x = Int(pupoPos.x / Episode.TILE_SIZE.width )
+                let y = Int(pupoPos.y / Episode.TILE_SIZE.height) - 1
+                
+                room = episode.rooms[room].tiles[Room.tiles.width * y + x].type
+                
+                pupoPos.x = pupoPos.x > 320 ? 8 : 320 - 8
+            }
         }
-    }
-
-    
-    var tr = Tr()
-    var input = Input(.still, .still, .nonFiring)
-    
-    let v = RoomView(
-        tiles: Room.tiles,
-        tileSize: Episode.TILE_SIZE,
-        tilesetsImages: createTilesetsNSImages(
-            tilesets: episode.tilesets,
-            palette: episode.palette
-        )
-    )
-    
-    v.frame = NSRect(x: 0, y: 0, width: 320 * 3, height: 200 * 3)
-    
-    window.setContentSize(v.frame.size)
-    window.contentView = v
-    window.makeFirstResponder(v)
-    
-    let t = NSImageView(frame: NSRect.zero)
-    t.imageScaling = .scaleProportionallyUpOrDown
-    v.addSubview(t)
-   
-    var canSetInput = true
-    v.inputDidChange = {
-        if canSetInput {
-            input = $0
-            canSetInput = false
-        }
-    }
-    
-    func apply(tr: inout Tr) {
-        v.setRoom(room:  episode.rooms[tr.room],
-                  frame: tr.roomFrame)
-        
-        let frame     = episode.frames[tr.pupoAni][tr.pupoAniFrame]
-        let ele       = episode.eles[frame.frame]
-        
-        let pupoPos   = tr.pupoPos.adding(by: frame.delta).adding(by: Point(
-            x: -(ele.size.width / 2),
-            y: -(ele.size.height)
-        ))
-        
-        let image = frame.flip ? trEleNSImages[frame.frame].1 : trEleNSImages[frame.frame].0
-        
-        if image !== t.image {
-            t.image = image
-        }
-        
-        t.frame = ele.size.multiplied(by: 3).nsrect(origin: pupoPos.multiplied(by: 3))
-    }
-    
-    Timer.scheduledTimer(withTimeInterval: 1 / 20.0, repeats: true) { _ in
-        tick(tr: &tr, input: &input)
-        apply(tr: &tr)
-        canSetInput = true
     }
 }
 
+let initialState = GameState(
+    pupoPos: Point(x:184, y:160),
+    pupoAni: 0,
+    pupoAniFrame: 0,
+    pupoAniTimer: 0,
+    room: 1,
+    roomFrame: 0,
+    roomTimer: 0
+)
