@@ -31,11 +31,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         var input = Input(.still, .still, .nonFiring)
 
-        gameState = initialState
+        gameState = GameState()
         episode   = Episode(url: episodeUrl)!
         gameView  = GameView(episode: episode)
 
-//        setupEmulation(episodeURL: episodeUrl)
         
         gameWrapper.addSubview(gameView)
         window.makeFirstResponder(gameView)
@@ -44,20 +43,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             input = $0
         }
         
-        
-        for (i, view) in self.gameView.roomView.tileViews.enumerated() {
-            let tileType = self.episode.rooms[self.gameState.room].tiles[i].type
-            
-            let logitabs =
-                self.episode.logitab
-                    .enumerated()
-                    .filter { $0.element.contains(tileType) }
-                    .map { String(format: "%02x", arguments: [$0.offset]) }
-                    .joined(separator: ",")
-            
-            let x = tileType == 0 ? "" : "\(String(format: "%02x", tileType))"
-            view.label?.stringValue =  "\(x)\n\(logitabs)"
-        }
         
         var previousAni = -10
         
@@ -73,7 +58,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self.textView.scrollToEndOfDocument(nil)
             }
             
-            self.state.stringValue = "\(self.gameState)"
+//            self.state.stringValue = "\(self.gameState)"
+            
+            for (i, view) in self.gameView.roomView.tileViews.enumerated() {
+                let tileType = self.gameState.theRoom.tiles[i].type
+//
+//                let logitabs =
+//                    self.episode.logitab
+//                        .enumerated()
+//                        .filter { $0.element.contains(tileType) }
+//                        .map { String(format: "%02x", arguments: [$0.offset]) }
+//                        .joined(separator: ",")
+//
+                let x = tileType == 0 ? "" : "\(String(format: "%02x", tileType))"
+                view.label?.stringValue =  "\(x)"
+                // \n \(logitabs)"
+            }
+            
             // let a = String(format: "%02x", self.gameState.pupoAni)
             // self.textView.string = "ani: \(a)"
 

@@ -25,6 +25,7 @@ struct Episode {
     let exits:    [Exit]
     let sostani:  Sostani
     let logitab:  [[Int]]
+    let swi:      [SwiItem]
     
     init?(url: URL) {
         let gameDirUrl  = url.appendingPathComponent("GAME_DIR")
@@ -52,6 +53,7 @@ struct Episode {
         let uscUrl      = filUrl.appendingPathComponent("USC")
         let sostaniUrl  = filUrl.appendingPathComponent("SOSTANI.TAB")
         let logitabUrl  = filUrl.appendingPathComponent("LOGITAB.TAB")
+        let swiUrl      = filUrl.appendingPathComponent("SWI")
         
         
         func TRTileset(url: URL) throws -> Tileset? {
@@ -88,6 +90,7 @@ struct Episode {
             var exitsData   = try Data(contentsOf: uscUrl).makeIterator()
             var sostaniData = try Data(contentsOf: sostaniUrl).makeIterator()
             var logitabData = try Data(contentsOf: logitabUrl).makeIterator()
+            var swiData     = try Data(contentsOf: swiUrl).makeIterator()
             
             palette = paletteData.parsePaletteFile()!
             rooms   = roomroeData.parseRoomFile()!
@@ -99,10 +102,9 @@ struct Episode {
             exits   = exitsData.parseUscFile()!
             sostani = sostaniData.parseSostaniFile()!
             logitab = logitabData.parseLogitabFile()!
+            swi     = swiData.parseSwiFile()!
             
-            dump(sostani)
-//            dump(doors)
-//            dump(exits)
+            dump(swi)
         }
         catch {
             return nil
@@ -112,7 +114,7 @@ struct Episode {
 
 // cosa cho di fronte
 func cosa(episode: Episode,
-          room: Int,
+          room: Room,
           pupoAni: Int,
           currentPos: Point,
           tentativePos: Point) -> Int
@@ -137,7 +139,7 @@ func cosa(episode: Episode,
             let tileposx = (currentPos.x + i) / Episode.TILE_SIZE.width
             let tileposy = currentPos.y / Episode.TILE_SIZE.height
             
-            let tile = episode.rooms[room].tiles[tileposy * Room.tiles.width + tileposx]
+            let tile = room.tiles[tileposy * Room.tiles.width + tileposx]
             
             let logitabEntry = episode.logitab[s.logitabIndex]
             
@@ -145,9 +147,9 @@ func cosa(episode: Episode,
                 print(s)
                 print("  \(tileposx), \(tileposy) -- \(tile.type)")
                 print("  " +
-                                            episode.logitab[s.logitabIndex]
-                                                .map { String(format: "%02x", arguments: [$0]) }
-                                                .joined(separator: ",")
+                    episode.logitab[s.logitabIndex]
+                        .map { String(format: "%02x", arguments: [$0]) }
+                        .joined(separator: ",")
                     
                 )
                 
@@ -161,21 +163,57 @@ func cosa(episode: Episode,
     return returnAni
 }
 
+func adjustRoomTilesFromSwi(swi: [SwiItem], swivars2: [Bool], roomNr: Int, room: inout Room) {
+    let swiItems = swivars2
+        .enumerated()
+        .filter { $0.element }
+        .map { swi[$0.offset] }
+    
+    for item in swiItems {
+        switch item {
+        case .Unk(let type, let data):
+            print("Unk \(type) \(data)")
+            
+        case .Otto(let idsOverride, let typesOverride):
+            for item in idsOverride.filter ({ $0.roomNr == roomNr }) {
+                room.tiles[Room.tiles.height * item.y + item.x].tileDesc = item.newValue
+            }
+                
+            for item in typesOverride.filter ({ $0.roomNr == roomNr }) {
+                room.tiles[Room.tiles.height * item.y + item.x].type = item.newValue
+            }
+        }
+    }
+}
+
+
 
 struct GameState {
     static let ROOM_TIMER = 3
 
-    var pupoPos      = Point(x: 0xa8, y: 0xa0)
+    var pupoPos      = Point(x:312, y:160) // Point(x: 0xa8, y: 0xa0)
     
-    var pupoAni      = 0x03
+    var pupoAni      = 56 // 0x03
     var pupoAniFrame = 0
     var pupoAniTimer = 3
     
-    var room         = 0
+    var room         = 1
     var roomFrame    = 0
     var roomTimer    = GameState.ROOM_TIMER
     
+    var swivars2     = [Bool](repeatElement(false, count: 0x40))
+    var theRoom      = Room(tiles: []) // bogus
+    
     mutating func tick(input: Input, episode: Episode) {
+        theRoom = episode.rooms[room]
+        
+        adjustRoomTilesFromSwi(
+            swi: episode.swi,
+            swivars2: swivars2,
+            roomNr: room,
+            room: &theRoom
+        )
+        
         if roomTimer == 0 {
             roomFrame = (roomFrame + 1) % 4
             roomTimer = GameState.ROOM_TIMER
@@ -205,25 +243,9 @@ struct GameState {
                 let tileposx = pupoPos.x / Episode.TILE_SIZE.width
                 let tileposy = (pupoPos.y) / Episode.TILE_SIZE.height
                 
-                let tile = episode.rooms[room].tiles[tileposy * Room.tiles.width + tileposx]
+                let tile = theRoom.tiles[tileposy * Room.tiles.width + tileposx]
                 
                 let logitabEntry = episode.logitab[s.logitabIndex]
-                
-                if s.logitabIndex == 4 {
-                    print(s)
-                    print("--")
-                    
-                }
-//
-                if s.logitabIndex == 4 {
-                    print("  \(tileposx), \(tileposy) -- \(tile.type)")
-                    print("  " +
-                        episode.logitab[s.logitabIndex]
-                            .map { String(format: "%02x", arguments: [$0]) }
-                            .joined(separator: ",")
-                        
-                    )
-                }
                 
                 if logitabEntry.contains(tile.type) {
                     print(s)
@@ -240,6 +262,27 @@ struct GameState {
                 }
             }
             
+            //
+            
+                let x = Int(pupoPos.x / Episode.TILE_SIZE.width )
+                let y = Int(pupoPos.y / Episode.TILE_SIZE.height)
+                
+                let type = theRoom.tiles[Room.tiles.width * y + x].type
+                
+                if type & 0xF0 == 0xD0 {
+                    let swivarIdx = type - 0xD0 + 0xC
+                    swivars2[swivarIdx] = true
+                    
+                    adjustRoomTilesFromSwi(
+                        swi: episode.swi,
+                        swivars2: swivars2,
+                        roomNr: room,
+                        room: &theRoom
+                    )
+                }
+            
+            //
+            
             // --
             // controlla ostacoli nel camminare
             // --
@@ -248,7 +291,7 @@ struct GameState {
             while true {
                 let newAni = cosa(
                     episode: episode,
-                    room: room,
+                    room: theRoom,
                     pupoAni: ani,
                     currentPos: pupoPos,
                     tentativePos: pupoPos.adding(by: episode.animofs.post[ani])
@@ -264,35 +307,34 @@ struct GameState {
             pupoPos = pupoPos.adding(by: episode.animofs.post[ani])
             pupoAni = ani
             
-           /*
-//            let facingRight = pupoAni >= 0x35
-//            
-//            if tile.type == 0 {
-//                pupoAni = facingRight ? 0x67 : 0x32
-//            }
-            */
             
             if  (pupoPos.x <   0 && pupoAni < 0x35) ||
                 (pupoPos.x > 320 && pupoAni > 0x35)
             {
-                let x = Int(pupoPos.x / Episode.TILE_SIZE.width )
+                let dx = pupoPos.x > 320
+                
+                let x = Int(dx ? Room.tiles.width - 1 : 0)
                 let y = Int(pupoPos.y / Episode.TILE_SIZE.height) - 1
                 
-                room = episode.rooms[room].tiles[Room.tiles.width * y + x].type
+                room = theRoom.tiles[Room.tiles.width * y + x].type
+                theRoom = episode.rooms[room]
+                
+                adjustRoomTilesFromSwi(
+                    swi: episode.swi,
+                    swivars2: swivars2,
+                    roomNr: room,
+                    room: &theRoom
+                )
                 
                 pupoPos.x = pupoPos.x > 320 ? 8 : 320 - 8
+            }
+            else {
+                if type == 0 {
+                    let facingRight = pupoAni >= 0x35
+                    pupoAni = facingRight ? 0x67 : 0x32
+                }
             }
         }
     }
 }
-
-let initialState = GameState(
-    pupoPos: Point(x:152, y:160),
-    pupoAni: 56,
-    pupoAniFrame: 0,
-    pupoAniTimer: 0,
-    room: 1,
-    roomFrame: 0,
-    roomTimer: 0
-)
 

@@ -219,14 +219,13 @@ class GameView : NSView {
         
         for i in roomView.tileViews { i.alphaValue = 1 }
         roomView.tileViews[tileposy * Room.tiles.width + tileposx].alphaValue = 0.5
-        
     }
     
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-
 }
+
 class Window : NSWindow {
     var inputDidChange : (Input) -> Void = { (_) in  }
 

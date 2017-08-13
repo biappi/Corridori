@@ -78,9 +78,9 @@ struct Tileset {
 
 struct Room {
     struct Tile {
-        let tileDesc  : Int
-        let tilesetId : Int
-        let type      : Int
+        var tileDesc  : Int
+        var tilesetId : Int
+        var type      : Int
         
         var flip      : Bool {
             return (tileDesc & 0x0200) != 0
@@ -108,7 +108,7 @@ struct Room {
         }
     }
     
-    let tiles : [Tile]
+    var tiles : [Tile]
     
     //
     
@@ -146,6 +146,8 @@ struct Animofs {
     let pre:  [Point]
     let post: [Point]
 }
+
+//
 
 enum Horizontal {
     case right
@@ -197,6 +199,8 @@ struct Animjoy {
     }
 }
 
+//
+
 struct Sostani {
     
     struct Item1 {
@@ -214,4 +218,25 @@ struct Sostani {
     
     let items1: [Item1]
     let items2: [Item2]
+}
+
+//
+
+enum SwiItem {
+    struct TileOverride {
+        let x:        Int
+        let y:        Int
+        let roomNr:   Int
+        let newValue: Int
+        
+        init(xy: Int, roomNr: Int, newValue: Int) {
+            self.x = xy % 20
+            self.y = xy / 20
+            self.roomNr = roomNr
+            self.newValue = newValue
+        }
+    }
+    
+    case Unk(type: Int, data:[UInt8])
+    case Otto(idsOverride: [TileOverride], typesOverride: [TileOverride])
 }

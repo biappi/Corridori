@@ -409,6 +409,64 @@ extension IteratorProtocol where Element == UInt8 {
         } as? [[Int]]
     }
     
+    mutating func parseSwiTileIdsOverride() -> SwiItem.TileOverride? {
+        if
+            let xy     = self.be16(),
+            let roomNr = self.be16(),
+            let newId  = self.be16()
+        {
+            return SwiItem.TileOverride(xy: xy, roomNr: roomNr, newValue: newId)
+        }
+        else {
+            return nil
+        }
+    }
+    
+    mutating func parseSwiTileTypesOverride() -> SwiItem.TileOverride? {
+        if
+            let xy     = self.be16(),
+            let roomNr = self.byte(),
+            let newId  = self.byte()
+        {
+            return SwiItem.TileOverride(xy: xy, roomNr: roomNr, newValue: newId)
+        }
+        else {
+            return nil
+        }
+    }
+    
+    
+    mutating func parseSwiFile() -> [SwiItem]? {
+        return self.arrayUntilValid { it in
+            guard let type  = it.be16() else { return nil }
+            guard let count = it.be16() else { return nil }
+            
+            switch type {
+            case 0x0008:
+                if
+                    let idsCount       = it.be16(),
+                    let idsOverrides   = it.array(count: idsCount, { $0.parseSwiTileIdsOverride() }),
+                    let typesCount     = it.be16(),
+                    let typesOverrides = it.array(count: typesCount, { $0.parseSwiTileTypesOverride() })
+                {
+                    return SwiItem.Otto(idsOverride: idsOverrides, typesOverride: typesOverrides)
+                }
+                else {
+                    return nil
+                }
+                
+            case 0xffff:
+                return nil
+                
+            default:
+                return it.array(count: count - 4, { $0.next() }).map { data in
+                    SwiItem.Unk(type: type, data: data)
+                }
+            }
+            
+        }
+    }
+    
     mutating func consume() -> [UInt8] {
         var me = [UInt8]()
         while true {
