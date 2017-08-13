@@ -111,11 +111,13 @@ class RoomView : NSView {
                 imageView.label?.frame = imageView.bounds
                 imageView.label?.textColor = NSColor.white
                 imageView.label?.backgroundColor = NSColor(white: 1, alpha: 0.4)
-                imageView.label?.font = NSFont.systemFont(ofSize: 15)
+                imageView.label?.font = NSFont.systemFont(ofSize: 7)
                 imageView.label?.drawsBackground = false
                 imageView.label?.isBezeled = false
                 imageView.label?.isEditable = false
                 imageView.label?.alignment = .center
+                imageView.label?.maximumNumberOfLines = 2
+                
                 
                 imageView.addSubview(imageView.label!)
                 
@@ -126,13 +128,12 @@ class RoomView : NSView {
     
     func setRoom(room: Room, frame: Int) {
         for (i, roomTile) in room.tiles.enumerated() {
-            let images =
-                tilesetsImages[roomTile.tilesetId]?[safe: roomTile.tileId(frame: frame)]
-            let image = roomTile.flip ? images?.1 : images?.0
+            let images = tilesetsImages[roomTile.tilesetId]?[safe: roomTile.tileId(frame: frame)]
+            let image  = roomTile.flip ? images?.1 : images?.0
             
             let tileView = tileViews[i]
             
-            tileView.label?.stringValue = roomTile.type == 0 ? "" : "\(String(format: "%02x", roomTile.type))"
+//            tileView.label?.stringValue = roomTile.type == 0 ? "" : "\(String(format: "%02x", roomTile.type))"
             tileView.label?.frame = tileView.bounds
             
             if tileView.image !== image {

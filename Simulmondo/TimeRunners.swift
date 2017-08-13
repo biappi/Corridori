@@ -99,6 +99,10 @@ struct Episode {
             exits   = exitsData.parseUscFile()!
             sostani = sostaniData.parseSostaniFile()!
             logitab = logitabData.parseLogitabFile()!
+            
+            dump(sostani)
+//            dump(doors)
+//            dump(exits)
         }
         catch {
             return nil
@@ -138,6 +142,15 @@ func cosa(episode: Episode,
             let logitabEntry = episode.logitab[s.logitabIndex]
             
             if logitabEntry.contains(tile.type) {
+                print(s)
+                print("  \(tileposx), \(tileposy) -- \(tile.type)")
+                print("  " +
+                                            episode.logitab[s.logitabIndex]
+                                                .map { String(format: "%02x", arguments: [$0]) }
+                                                .joined(separator: ",")
+                    
+                )
+                
                 returnAni = s.newAni
                 changed = true
                 break
@@ -188,17 +201,42 @@ struct GameState {
             
             // --
             
-            if let s = episode.sostani.items1.filter( { $0.oldAni == pupoAni }).first {
-                
+            for s in episode.sostani.items1.filter( { $0.oldAni == pupoAni }) {
                 let tileposx = pupoPos.x / Episode.TILE_SIZE.width
-                let tileposy = (pupoPos.y + 0xa) / Episode.TILE_SIZE.height
+                let tileposy = (pupoPos.y) / Episode.TILE_SIZE.height
                 
                 let tile = episode.rooms[room].tiles[tileposy * Room.tiles.width + tileposx]
                 
-                let logitabEntry = episode.logitab[pupoAni]
+                let logitabEntry = episode.logitab[s.logitabIndex]
+                
+                if s.logitabIndex == 4 {
+                    print(s)
+                    print("--")
+                    
+                }
+//
+                if s.logitabIndex == 4 {
+                    print("  \(tileposx), \(tileposy) -- \(tile.type)")
+                    print("  " +
+                        episode.logitab[s.logitabIndex]
+                            .map { String(format: "%02x", arguments: [$0]) }
+                            .joined(separator: ",")
+                        
+                    )
+                }
                 
                 if logitabEntry.contains(tile.type) {
+                    print(s)
+                    print("  \(tile.type)")
+                    print("  " +
+                        episode.logitab[s.logitabIndex]
+                            .map { String(format: "%02x", arguments: [$0]) }
+                            .joined(separator: ",")
+                    )
+                    
+                    
                     pupoAni = s.newAni
+                    continue
                 }
             }
             
@@ -249,11 +287,12 @@ struct GameState {
 }
 
 let initialState = GameState(
-    pupoPos: Point(x:184, y:160),
-    pupoAni: 0,
+    pupoPos: Point(x:152, y:160),
+    pupoAni: 56,
     pupoAniFrame: 0,
     pupoAniTimer: 0,
     room: 1,
     roomFrame: 0,
     roomTimer: 0
 )
+
