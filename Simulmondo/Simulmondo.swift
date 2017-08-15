@@ -25,6 +25,8 @@ struct Point {
     var x : Int
     var y : Int
     
+    var cg : CGPoint { return CGPoint(x: x, y: y) }
+    
     func adding(by: Point) -> Point {
         return Point(x: self.x + by.x, y: self.y + by.y)
     }
@@ -39,6 +41,8 @@ struct Size {
     let height : Int
     
     var ns : NSSize { return NSSize(width: width, height: height) }
+    var cg : CGSize { return CGSize(width: width, height: height) }
+    
     var area : Int { return width * height }
     
     func multiplied(by: Int) -> Size {

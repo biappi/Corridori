@@ -191,13 +191,17 @@ func adjustRoomTilesFromSwi(swi: [SwiItem], swivars2: [Bool], roomNr: Int, room:
 struct GameState {
     static let ROOM_TIMER = 3
 
-    var pupoPos      = Point(x:312, y:160) // Point(x: 0xa8, y: 0xa0)
+//    var pupoPos      = Point(x:312, y:160) // Point(x: 0xa8, y: 0xa0)
+//    var room         = 1
+//    var pupoAni      = 56 // 0x03
+//
+    var pupoPos      = Point(x: 0xa8, y: 0xa0)
+    var pupoAni      = 0x03
     
-    var pupoAni      = 56 // 0x03
     var pupoAniFrame = 0
     var pupoAniTimer = 3
     
-    var room         = 1
+    var room         = 0
     var roomFrame    = 0
     var roomTimer    = GameState.ROOM_TIMER
     
@@ -361,6 +365,7 @@ struct GameState {
                 
                 let oldRoom  = room
                 room = theRoom.tiles[Room.tiles.width * y + x].type
+                
                 theRoom = episode.rooms[room]
                 
                 adjustRoomTilesFromSwi(

@@ -3,37 +3,63 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 46;
+	objectVersion = 48;
 	objects = {
 
 /* Begin PBXBuildFile section */
-		3F35DF2A1E7EF2DD00A48893 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F35DF291E7EF2DD00A48893 /* AppDelegate.swift */; };
-		3F35DF371E7EF3F200A48893 /* Simulmondo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F35DF361E7EF3F200A48893 /* Simulmondo.swift */; };
-		3F35DF391E7EF4B300A48893 /* TimeRunners.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F35DF381E7EF4B300A48893 /* TimeRunners.swift */; };
-		3F35DF3D1E7F824F00A48893 /* DataParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F35DF3C1E7F824F00A48893 /* DataParsing.swift */; };
-		3F35DF411E7F82BE00A48893 /* CocoaUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F35DF401E7F82BE00A48893 /* CocoaUI.swift */; };
-		3F35DF471E7F85F600A48893 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3F35DF431E7F85F600A48893 /* Assets.xcassets */; };
-		3F35DF481E7F85F600A48893 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 3F35DF441E7F85F600A48893 /* MainMenu.xib */; };
-		3F35DF4B1E7F86F400A48893 /* Time Runners in Resources */ = {isa = PBXBuildFile; fileRef = 3F35DF4A1E7F86F400A48893 /* Time Runners */; };
-		3F6637061E81C09D00C0D2FA /* FileParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F6637051E81C09D00C0D2FA /* FileParsing.swift */; };
+		3F72ADB41F428F45009A6EEF /* Time Runners in Resources */ = {isa = PBXBuildFile; fileRef = 3F72ADB31F428EEC009A6EEF /* Time Runners */; };
+		3F8CB05B1F428C4C00743FC0 /* GameScene.sks in Resources */ = {isa = PBXBuildFile; fileRef = 3F8CB05A1F428C4C00743FC0 /* GameScene.sks */; };
+		3F8CB0631F428C4C00743FC0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3F8CB0621F428C4C00743FC0 /* Assets.xcassets */; };
+		3F8CB0661F428C4C00743FC0 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 3F8CB0641F428C4C00743FC0 /* Main.storyboard */; };
+		3F8CB0721F428C4C00743FC0 /* SimulmondoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8CB0711F428C4C00743FC0 /* SimulmondoTests.swift */; };
+		3F9240551F428D99003D3057 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8CB0581F428C4C00743FC0 /* AppDelegate.swift */; };
+		3F9240561F428D99003D3057 /* GameScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8CB05E1F428C4C00743FC0 /* GameScene.swift */; };
+		3F9240571F428D99003D3057 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8CB0601F428C4C00743FC0 /* ViewController.swift */; };
+		3F9240581F428D99003D3057 /* DataParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F92404C1F428D24003D3057 /* DataParsing.swift */; };
+		3F9240591F428D99003D3057 /* FileParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F92404F1F428D24003D3057 /* FileParsing.swift */; };
+		3F92405A1F428D99003D3057 /* Simulmondo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F92404E1F428D24003D3057 /* Simulmondo.swift */; };
+		3F92405B1F428D99003D3057 /* TimeRunners.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F9240501F428D8A003D3057 /* TimeRunners.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		3F8CB06E1F428C4C00743FC0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 3F8CB04D1F428C4C00743FC0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 3F8CB0541F428C4C00743FC0;
+			remoteInfo = Simulmondo;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
-		3F35DF261E7EF2DD00A48893 /* Simulmondo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Simulmondo.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		3F35DF291E7EF2DD00A48893 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		3F35DF361E7EF3F200A48893 /* Simulmondo.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Simulmondo.swift; sourceTree = "<group>"; };
-		3F35DF381E7EF4B300A48893 /* TimeRunners.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TimeRunners.swift; sourceTree = "<group>"; };
-		3F35DF3C1E7F824F00A48893 /* DataParsing.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DataParsing.swift; sourceTree = "<group>"; };
-		3F35DF401E7F82BE00A48893 /* CocoaUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CocoaUI.swift; sourceTree = "<group>"; };
-		3F35DF431E7F85F600A48893 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		3F35DF451E7F85F600A48893 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/MainMenu.xib; sourceTree = "<group>"; };
-		3F35DF461E7F85F600A48893 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		3F35DF4A1E7F86F400A48893 /* Time Runners */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "Time Runners"; sourceTree = "<group>"; };
-		3F6637051E81C09D00C0D2FA /* FileParsing.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FileParsing.swift; sourceTree = "<group>"; };
+		3F72ADB31F428EEC009A6EEF /* Time Runners */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Time Runners"; sourceTree = SOURCE_ROOT; };
+		3F8CB0551F428C4C00743FC0 /* Simulmondo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Simulmondo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		3F8CB0581F428C4C00743FC0 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		3F8CB05A1F428C4C00743FC0 /* GameScene.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = GameScene.sks; sourceTree = "<group>"; };
+		3F8CB05E1F428C4C00743FC0 /* GameScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameScene.swift; sourceTree = "<group>"; };
+		3F8CB0601F428C4C00743FC0 /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
+		3F8CB0621F428C4C00743FC0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		3F8CB0651F428C4C00743FC0 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
+		3F8CB0671F428C4C00743FC0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		3F8CB0681F428C4C00743FC0 /* Simulmondo.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Simulmondo.entitlements; sourceTree = "<group>"; };
+		3F8CB06D1F428C4C00743FC0 /* SimulmondoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SimulmondoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		3F8CB0711F428C4C00743FC0 /* SimulmondoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulmondoTests.swift; sourceTree = "<group>"; };
+		3F8CB0731F428C4C00743FC0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		3F92404C1F428D24003D3057 /* DataParsing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DataParsing.swift; path = Simulmondo/DataParsing.swift; sourceTree = SOURCE_ROOT; };
+		3F92404E1F428D24003D3057 /* Simulmondo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Simulmondo.swift; path = Simulmondo/Simulmondo.swift; sourceTree = SOURCE_ROOT; };
+		3F92404F1F428D24003D3057 /* FileParsing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FileParsing.swift; path = Simulmondo/FileParsing.swift; sourceTree = SOURCE_ROOT; };
+		3F9240501F428D8A003D3057 /* TimeRunners.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeRunners.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		3F35DF231E7EF2DD00A48893 /* Frameworks */ = {
+		3F8CB0521F428C4C00743FC0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3F8CB06A1F428C4C00743FC0 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -43,43 +69,57 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		3F35DF1D1E7EF2DD00A48893 = {
+		3F8CB04C1F428C4C00743FC0 = {
 			isa = PBXGroup;
 			children = (
-				3F35DF4A1E7F86F400A48893 /* Time Runners */,
-				3F35DF281E7EF2DD00A48893 /* Simulmondo */,
-				3F35DF271E7EF2DD00A48893 /* Products */,
+				3F8CB0571F428C4C00743FC0 /* Simulmondo */,
+				3F8CB0701F428C4C00743FC0 /* SimulmondoTests */,
+				3F72ADB31F428EEC009A6EEF /* Time Runners */,
+				3F8CB0561F428C4C00743FC0 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		3F35DF271E7EF2DD00A48893 /* Products */ = {
+		3F8CB0561F428C4C00743FC0 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				3F35DF261E7EF2DD00A48893 /* Simulmondo.app */,
+				3F8CB0551F428C4C00743FC0 /* Simulmondo.app */,
+				3F8CB06D1F428C4C00743FC0 /* SimulmondoTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		3F35DF281E7EF2DD00A48893 /* Simulmondo */ = {
+		3F8CB0571F428C4C00743FC0 /* Simulmondo */ = {
 			isa = PBXGroup;
 			children = (
-				3F35DF421E7F85F600A48893 /* Boilerplate */,
-				3F35DF291E7EF2DD00A48893 /* AppDelegate.swift */,
-				3F35DF361E7EF3F200A48893 /* Simulmondo.swift */,
-				3F35DF381E7EF4B300A48893 /* TimeRunners.swift */,
-				3F35DF3C1E7F824F00A48893 /* DataParsing.swift */,
-				3F6637051E81C09D00C0D2FA /* FileParsing.swift */,
-				3F35DF401E7F82BE00A48893 /* CocoaUI.swift */,
+				3F92404B1F428C9C003D3057 /* Boilerplate */,
+				3F8CB0581F428C4C00743FC0 /* AppDelegate.swift */,
+				3F8CB05E1F428C4C00743FC0 /* GameScene.swift */,
+				3F8CB0601F428C4C00743FC0 /* ViewController.swift */,
+				3F92404C1F428D24003D3057 /* DataParsing.swift */,
+				3F92404F1F428D24003D3057 /* FileParsing.swift */,
+				3F92404E1F428D24003D3057 /* Simulmondo.swift */,
+				3F9240501F428D8A003D3057 /* TimeRunners.swift */,
 			);
 			path = Simulmondo;
 			sourceTree = "<group>";
 		};
-		3F35DF421E7F85F600A48893 /* Boilerplate */ = {
+		3F8CB0701F428C4C00743FC0 /* SimulmondoTests */ = {
 			isa = PBXGroup;
 			children = (
-				3F35DF431E7F85F600A48893 /* Assets.xcassets */,
-				3F35DF441E7F85F600A48893 /* MainMenu.xib */,
-				3F35DF461E7F85F600A48893 /* Info.plist */,
+				3F8CB0711F428C4C00743FC0 /* SimulmondoTests.swift */,
+				3F8CB0731F428C4C00743FC0 /* Info.plist */,
+			);
+			path = SimulmondoTests;
+			sourceTree = "<group>";
+		};
+		3F92404B1F428C9C003D3057 /* Boilerplate */ = {
+			isa = PBXGroup;
+			children = (
+				3F8CB0621F428C4C00743FC0 /* Assets.xcassets */,
+				3F8CB05A1F428C4C00743FC0 /* GameScene.sks */,
+				3F8CB0671F428C4C00743FC0 /* Info.plist */,
+				3F8CB0641F428C4C00743FC0 /* Main.storyboard */,
+				3F8CB0681F428C4C00743FC0 /* Simulmondo.entitlements */,
 			);
 			path = Boilerplate;
 			sourceTree = "<group>";
@@ -87,13 +127,13 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		3F35DF251E7EF2DD00A48893 /* Simulmondo */ = {
+		3F8CB0541F428C4C00743FC0 /* Simulmondo */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 3F35DF331E7EF2DD00A48893 /* Build configuration list for PBXNativeTarget "Simulmondo" */;
+			buildConfigurationList = 3F8CB0761F428C4C00743FC0 /* Build configuration list for PBXNativeTarget "Simulmondo" */;
 			buildPhases = (
-				3F35DF221E7EF2DD00A48893 /* Sources */,
-				3F35DF231E7EF2DD00A48893 /* Frameworks */,
-				3F35DF241E7EF2DD00A48893 /* Resources */,
+				3F8CB0511F428C4C00743FC0 /* Sources */,
+				3F8CB0521F428C4C00743FC0 /* Frameworks */,
+				3F8CB0531F428C4C00743FC0 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -101,91 +141,139 @@
 			);
 			name = Simulmondo;
 			productName = Simulmondo;
-			productReference = 3F35DF261E7EF2DD00A48893 /* Simulmondo.app */;
+			productReference = 3F8CB0551F428C4C00743FC0 /* Simulmondo.app */;
 			productType = "com.apple.product-type.application";
+		};
+		3F8CB06C1F428C4C00743FC0 /* SimulmondoTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3F8CB0791F428C4C00743FC0 /* Build configuration list for PBXNativeTarget "SimulmondoTests" */;
+			buildPhases = (
+				3F8CB0691F428C4C00743FC0 /* Sources */,
+				3F8CB06A1F428C4C00743FC0 /* Frameworks */,
+				3F8CB06B1F428C4C00743FC0 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				3F8CB06F1F428C4C00743FC0 /* PBXTargetDependency */,
+			);
+			name = SimulmondoTests;
+			productName = SimulmondoTests;
+			productReference = 3F8CB06D1F428C4C00743FC0 /* SimulmondoTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		3F35DF1E1E7EF2DD00A48893 /* Project object */ = {
+		3F8CB04D1F428C4C00743FC0 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastSwiftUpdateCheck = 0820;
+				LastSwiftUpdateCheck = 0900;
 				LastUpgradeCheck = 0900;
 				ORGANIZATIONNAME = "Antonio Malara";
 				TargetAttributes = {
-					3F35DF251E7EF2DD00A48893 = {
-						CreatedOnToolsVersion = 8.2.1;
-						LastSwiftMigration = 0900;
-						ProvisioningStyle = Automatic;
+					3F8CB0541F428C4C00743FC0 = {
+						CreatedOnToolsVersion = 9.0;
+					};
+					3F8CB06C1F428C4C00743FC0 = {
+						CreatedOnToolsVersion = 9.0;
+						TestTargetID = 3F8CB0541F428C4C00743FC0;
 					};
 				};
 			};
-			buildConfigurationList = 3F35DF211E7EF2DD00A48893 /* Build configuration list for PBXProject "Simulmondo" */;
-			compatibilityVersion = "Xcode 3.2";
-			developmentRegion = English;
+			buildConfigurationList = 3F8CB0501F428C4C00743FC0 /* Build configuration list for PBXProject "Simulmondo" */;
+			compatibilityVersion = "Xcode 8.0";
+			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
 				Base,
 			);
-			mainGroup = 3F35DF1D1E7EF2DD00A48893;
-			productRefGroup = 3F35DF271E7EF2DD00A48893 /* Products */;
+			mainGroup = 3F8CB04C1F428C4C00743FC0;
+			productRefGroup = 3F8CB0561F428C4C00743FC0 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				3F35DF251E7EF2DD00A48893 /* Simulmondo */,
+				3F8CB0541F428C4C00743FC0 /* Simulmondo */,
+				3F8CB06C1F428C4C00743FC0 /* SimulmondoTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		3F35DF241E7EF2DD00A48893 /* Resources */ = {
+		3F8CB0531F428C4C00743FC0 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				3F35DF4B1E7F86F400A48893 /* Time Runners in Resources */,
-				3F35DF471E7F85F600A48893 /* Assets.xcassets in Resources */,
-				3F35DF481E7F85F600A48893 /* MainMenu.xib in Resources */,
+				3F72ADB41F428F45009A6EEF /* Time Runners in Resources */,
+				3F8CB05B1F428C4C00743FC0 /* GameScene.sks in Resources */,
+				3F8CB0631F428C4C00743FC0 /* Assets.xcassets in Resources */,
+				3F8CB0661F428C4C00743FC0 /* Main.storyboard in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3F8CB06B1F428C4C00743FC0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		3F35DF221E7EF2DD00A48893 /* Sources */ = {
+		3F8CB0511F428C4C00743FC0 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				3F35DF411E7F82BE00A48893 /* CocoaUI.swift in Sources */,
-				3F35DF371E7EF3F200A48893 /* Simulmondo.swift in Sources */,
-				3F6637061E81C09D00C0D2FA /* FileParsing.swift in Sources */,
-				3F35DF391E7EF4B300A48893 /* TimeRunners.swift in Sources */,
-				3F35DF3D1E7F824F00A48893 /* DataParsing.swift in Sources */,
-				3F35DF2A1E7EF2DD00A48893 /* AppDelegate.swift in Sources */,
+				3F9240571F428D99003D3057 /* ViewController.swift in Sources */,
+				3F9240561F428D99003D3057 /* GameScene.swift in Sources */,
+				3F9240581F428D99003D3057 /* DataParsing.swift in Sources */,
+				3F9240591F428D99003D3057 /* FileParsing.swift in Sources */,
+				3F92405B1F428D99003D3057 /* TimeRunners.swift in Sources */,
+				3F92405A1F428D99003D3057 /* Simulmondo.swift in Sources */,
+				3F9240551F428D99003D3057 /* AppDelegate.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3F8CB0691F428C4C00743FC0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3F8CB0721F428C4C00743FC0 /* SimulmondoTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		3F8CB06F1F428C4C00743FC0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 3F8CB0541F428C4C00743FC0 /* Simulmondo */;
+			targetProxy = 3F8CB06E1F428C4C00743FC0 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin PBXVariantGroup section */
-		3F35DF441E7F85F600A48893 /* MainMenu.xib */ = {
+		3F8CB0641F428C4C00743FC0 /* Main.storyboard */ = {
 			isa = PBXVariantGroup;
 			children = (
-				3F35DF451E7F85F600A48893 /* Base */,
+				3F8CB0651F428C4C00743FC0 /* Base */,
 			);
-			name = MainMenu.xib;
+			name = Main.storyboard;
+			path = ..;
 			sourceTree = "<group>";
 		};
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
-		3F35DF311E7EF2DD00A48893 /* Debug */ = {
+		3F8CB0741F428C4C00743FC0 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
@@ -199,12 +287,11 @@
 				CLANG_WARN_ENUM_CONVERSION = YES;
 				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
-				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
-				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_IDENTITY = "-";
@@ -212,7 +299,7 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
@@ -232,16 +319,16 @@
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_SWIFT3_OBJC_INFERENCE = Off;
 			};
 			name = Debug;
 		};
-		3F35DF321E7EF2DD00A48893 /* Release */ = {
+		3F8CB0751F428C4C00743FC0 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
@@ -255,12 +342,11 @@
 				CLANG_WARN_ENUM_CONVERSION = YES;
 				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
-				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
-				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_IDENTITY = "-";
@@ -268,7 +354,7 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
@@ -280,60 +366,98 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = macosx;
 				SWIFT_OPTIMIZATION_LEVEL = "-Owholemodule";
-				SWIFT_SWIFT3_OBJC_INFERENCE = Off;
 			};
 			name = Release;
 		};
-		3F35DF341E7EF2DD00A48893 /* Debug */ = {
+		3F8CB0771F428C4C00743FC0 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Simulmondo/Boilerplate/Simulmondo.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				INFOPLIST_FILE = "$(SRCROOT)/Simulmondo/Boilerplate/Info.plist";
+				INFOPLIST_FILE = Simulmondo/Boilerplate/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = name.malara.antonio.Simulmondo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_SWIFT3_OBJC_INFERENCE = On;
 				SWIFT_VERSION = 4.0;
 			};
 			name = Debug;
 		};
-		3F35DF351E7EF2DD00A48893 /* Release */ = {
+		3F8CB0781F428C4C00743FC0 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Simulmondo/Boilerplate/Simulmondo.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				INFOPLIST_FILE = "$(SRCROOT)/Simulmondo/Boilerplate/Info.plist";
+				INFOPLIST_FILE = Simulmondo/Boilerplate/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = name.malara.antonio.Simulmondo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_SWIFT3_OBJC_INFERENCE = On;
 				SWIFT_VERSION = 4.0;
+			};
+			name = Release;
+		};
+		3F8CB07A1F428C4C00743FC0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = SimulmondoTests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = name.malara.antonio.SimulmondoTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 4.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Simulmondo.app/Contents/MacOS/Simulmondo";
+			};
+			name = Debug;
+		};
+		3F8CB07B1F428C4C00743FC0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = SimulmondoTests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = name.malara.antonio.SimulmondoTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 4.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Simulmondo.app/Contents/MacOS/Simulmondo";
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		3F35DF211E7EF2DD00A48893 /* Build configuration list for PBXProject "Simulmondo" */ = {
+		3F8CB0501F428C4C00743FC0 /* Build configuration list for PBXProject "Simulmondo" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				3F35DF311E7EF2DD00A48893 /* Debug */,
-				3F35DF321E7EF2DD00A48893 /* Release */,
+				3F8CB0741F428C4C00743FC0 /* Debug */,
+				3F8CB0751F428C4C00743FC0 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		3F35DF331E7EF2DD00A48893 /* Build configuration list for PBXNativeTarget "Simulmondo" */ = {
+		3F8CB0761F428C4C00743FC0 /* Build configuration list for PBXNativeTarget "Simulmondo" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				3F35DF341E7EF2DD00A48893 /* Debug */,
-				3F35DF351E7EF2DD00A48893 /* Release */,
+				3F8CB0771F428C4C00743FC0 /* Debug */,
+				3F8CB0781F428C4C00743FC0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		3F8CB0791F428C4C00743FC0 /* Build configuration list for PBXNativeTarget "SimulmondoTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3F8CB07A1F428C4C00743FC0 /* Debug */,
+				3F8CB07B1F428C4C00743FC0 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
-	rootObject = 3F35DF1E1E7EF2DD00A48893 /* Project object */;
+	rootObject = 3F8CB04D1F428C4C00743FC0 /* Project object */;
 }
