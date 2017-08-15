@@ -111,8 +111,8 @@ extension IteratorProtocol where Element == UInt8 {
         guard
             let roomFrom = self.byte(),
             let roomTo   = self.byte(),
-            let fromY    = self.be16(),
-            let toY      = self.be16()
+            let toY      = self.be16(),
+            let fromY    = self.be16()
         else {
                 return nil
         }
@@ -120,8 +120,8 @@ extension IteratorProtocol where Element == UInt8 {
         return Exit(
             roomFrom: roomFrom,
             roomTo:   roomTo,
-            fromY:    fromY,
-            toY:      toY
+            toY:      toY,
+            fromY:    fromY
         )
     }
     

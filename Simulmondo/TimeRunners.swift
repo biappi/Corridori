@@ -264,14 +264,56 @@ struct GameState {
             
             //
             
-                let x = Int(pupoPos.x / Episode.TILE_SIZE.width )
-                let y = Int(pupoPos.y / Episode.TILE_SIZE.height)
+            let x = Int(pupoPos.x / Episode.TILE_SIZE.width )
+            let y = Int(pupoPos.y / Episode.TILE_SIZE.height)
+            
+            let type       = theRoom.tiles[Room.tiles.width * y + x].type
+            let type_other = theRoom.tiles[Room.tiles.width * (y - 1) + x].type
+            
+            
+            if type & 0xF0 == 0xD0 {
+                let swivarIdx = type - 0xD0 + 0xC
+                swivars2[swivarIdx] = true
                 
-                let type = theRoom.tiles[Room.tiles.width * y + x].type
-                
-                if type & 0xF0 == 0xD0 {
-                    let swivarIdx = type - 0xD0 + 0xC
-                    swivars2[swivarIdx] = true
+                adjustRoomTilesFromSwi(
+                    swi: episode.swi,
+                    swivars2: swivars2,
+                    roomNr: room,
+                    room: &theRoom
+                )
+            }
+            
+            if pupoAni == 0x10 && episode.logitab[0x26].contains(type) {
+                pupoAni = 0x1D
+            }
+            
+            if pupoAni == 0x10 && episode.logitab[0x28].contains(type) {
+                pupoAni = 0x1D
+            }
+            
+            if pupoAni == 0x1f ||
+               pupoAni == 0x20 ||
+               pupoAni == 0x54
+            {
+                if episode.logitab[0x28].contains(type) {
+                    print("boh")
+                }
+                else {
+                    if type == 0xa8 {
+                        pupoAni = 0x20
+                    }
+                    else {
+                        print("boh2")
+                    }
+                }
+            }
+            
+            if pupoAni == 0x55 {
+                if episode.logitab[0x25].contains(type) ||
+                   episode.logitab[0x27].contains(type)
+                {
+                    room = type_other
+                    theRoom = episode.rooms[room]
                     
                     adjustRoomTilesFromSwi(
                         swi: episode.swi,
@@ -280,6 +322,7 @@ struct GameState {
                         room: &theRoom
                     )
                 }
+            }
             
             //
             
@@ -316,6 +359,7 @@ struct GameState {
                 let x = Int(dx ? Room.tiles.width - 1 : 0)
                 let y = Int(pupoPos.y / Episode.TILE_SIZE.height) - 1
                 
+                let oldRoom  = room
                 room = theRoom.tiles[Room.tiles.width * y + x].type
                 theRoom = episode.rooms[room]
                 
@@ -325,6 +369,18 @@ struct GameState {
                     roomNr: room,
                     room: &theRoom
                 )
+                
+                episode
+                    .exits
+                    .filter {
+                        $0.roomFrom == oldRoom &&
+                        $0.roomTo   == room &&
+                        $0.fromY    == pupoPos.y
+                    }
+                    .first
+                    .map {
+                        pupoPos.y = $0.toY
+                    }
                 
                 pupoPos.x = pupoPos.x > 320 ? 8 : 320 - 8
             }

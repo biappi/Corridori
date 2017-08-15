@@ -118,9 +118,8 @@ struct Room {
 struct Exit {
     let roomFrom: Int
     let roomTo:   Int
-    let fromY:    Int
     let toY:      Int
-    
+    let fromY:    Int
 }
 
 struct Door {
