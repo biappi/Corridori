@@ -22,12 +22,12 @@ class GameScene: SKScene {
     var gameState : GameState!
     var episode   : Episode!
     
-    var input     = Input(.still, .still, .nonFiring)
-    
     var eleTextures   : [SKTexture]!
     var tileMapsNodes : [SKTileMapNode?]!
     
     var pupoNode : SKSpriteNode!
+    
+    var input = KeyboardInput()
     
     override func sceneDidLoad() {
         let gameUrl = Bundle.main.url(forResource:   "Time Runners",
@@ -76,49 +76,25 @@ class GameScene: SKScene {
         }
     }
     
-    var left   = false
-    var right  = false
-    var top    = false
-    var bottom = false
-    var fire   = false
-    
     override func keyDown(with event: NSEvent) {
-        guard event.isARepeat == false else {
-            return
+        if let code = KeyboardInput.Keycodes(rawValue: event.keyCode),
+           event.isARepeat == false
+        {
+            input.keyDown(code)
         }
-        
-        if event.keyCode ==  49 { fire   = true }
-        if event.keyCode == 124 { right  = true }
-        if event.keyCode == 123 { left   = true }
-        if event.keyCode == 126 { top    = true }
-        if event.keyCode == 125 { bottom = true }
-        
-        input = (
-            left ? .left   : right      ? .right  : .still,
-            top  ? .top    : bottom     ? .bottom : .still,
-            fire ? .firing : .nonFiring
-        )
     }
     
     override func keyUp(with event: NSEvent) {
-        if event.keyCode ==  49 { fire   = false }
-        if event.keyCode == 124 { right  = false }
-        if event.keyCode == 123 { left   = false }
-        if event.keyCode == 126 { top    = false }
-        if event.keyCode == 125 { bottom = false }
-        
-        input = (
-            left ? .left   : right      ? .right  : .still,
-            top  ? .top    : bottom     ? .bottom : .still,
-            fire ? .firing : .nonFiring
-        )
+        if let code = KeyboardInput.Keycodes(rawValue: event.keyCode) {
+            input.keyUp(code)
+        }
     }
     
     var currentRoom = [Int](repeating: -1, count: Room.tiles.area)
     
     override func update(_ currentTime: TimeInterval) {
         // Called before each frame is rendered
-        gameState.tick(input: input, episode: episode)
+        gameState.tick(input: input.input, episode: episode)
         
         for row in 0 ..< Room.tiles.height {
             for col in 0 ..< Room.tiles.width {

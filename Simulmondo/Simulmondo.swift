@@ -202,6 +202,56 @@ struct Animjoy {
     }
 }
 
+struct KeyboardInput {
+    enum Keycodes : UInt16 {
+        case left   = 123
+        case right  = 124
+        case bottom = 125
+        case top    = 126
+        case fire   =  49
+    }
+    
+    var input     = Input(.still, .still, .nonFiring)
+    
+    private var left   = false
+    private var right  = false
+    private var top    = false
+    private var bottom = false
+    private var fire   = false
+    
+    mutating func keyDown(_ code: Keycodes) {
+        switch code {
+        case .fire:   fire   = true
+        case .left:   left   = true
+        case .right:  right  = true
+        case .bottom: bottom = true
+        case .top:    top    = true
+        }
+        
+        input = (
+            left ? .left   : right      ? .right  : .still,
+            top  ? .top    : bottom     ? .bottom : .still,
+            fire ? .firing : .nonFiring
+        )
+    }
+    
+    mutating func keyUp(_ code: Keycodes) {
+        switch code {
+        case .fire:   fire   = false
+        case .left:   left   = false
+        case .right:  right  = false
+        case .bottom: bottom = false
+        case .top:    top    = false
+        }
+        
+        input = (
+            left ? .left   : right      ? .right  : .still,
+            top  ? .top    : bottom     ? .bottom : .still,
+            fire ? .firing : .nonFiring
+        )
+    }
+    
+}
 //
 
 struct Sostani {
