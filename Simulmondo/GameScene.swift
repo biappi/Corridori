@@ -26,6 +26,7 @@ class GameScene: SKScene {
     var tileMapsNodes : [SKTileMapNode?]!
     
     var pupoNode : SKSpriteNode!
+    var tileLabels : [SKLabelNode] = []
     
     var input = KeyboardInput()
     
@@ -69,6 +70,21 @@ class GameScene: SKScene {
     override func didMove(to view: SKView) {
         pupoNode = self.childNode(withName: "//pupo") as! SKSpriteNode
         
+        for row in 0 ..< Room.tiles.height {
+            for col in 0 ..< Room.tiles.width {
+                let label = SKLabelNode(text: "a")
+                label.position = CGPoint(
+                    x:   Double(col * Episode.TILE_SIZE.width ) - (320.0 / 2.0) + (Double(Episode.TILE_SIZE.width)  * 0.5),
+                    y: -(Double(row * Episode.TILE_SIZE.height) - (200.0 / 2.0) + (Double(Episode.TILE_SIZE.height) * 0.5))
+                )
+                label.fontName = "Helvetica"
+                label.fontSize = 5
+                
+                self.addChild(label)
+                tileLabels.append(label)
+            }
+        }
+        
         for i in tileMapsNodes {
             if let i = i {
                 self.addChild(i)
@@ -95,6 +111,15 @@ class GameScene: SKScene {
     override func update(_ currentTime: TimeInterval) {
         // Called before each frame is rendered
         gameState.tick(input: input.input, episode: episode)
+        
+        for row in 0 ..< Room.tiles.height {
+            for col in 0 ..< Room.tiles.width {
+                let i    = row * Room.tiles.height + col
+                let tile = gameState.theRoom.tiles[i]
+                
+                tileLabels[i].text = tile.type == 0 ? nil : String(format: "%02x", arguments: [tile.type])
+            }
+        }
         
         for row in 0 ..< Room.tiles.height {
             for col in 0 ..< Room.tiles.width {
