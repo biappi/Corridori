@@ -340,30 +340,25 @@ struct GameState {
             // controlla ostacoli nel camminare
             // --
             
-            var ani = pupoAni
-            while true {
-                let newAni = cosa(
-                    episode: episode,
-                    room: theRoom,
-                    pupoAni: ani,
-                    currentPos: pupoPos,
-                    tentativePos: pupoPos.adding(by: episode.animofs.post[ani])
-                )
+            do {
+                var prev   = pupoAni
+                var newAni = pupoAni
                 
-                if newAni == ani {
-                    break
-                }
+                repeat {
+                    newAni = cosa(
+                        episode: episode,
+                        room: theRoom,
+                        pupoAni: prev,
+                        currentPos: pupoPos,
+                        tentativePos: pupoPos.adding(by: episode.animofs.post[prev])
+                    )
+                    
+                    prev = newAni
+                } while (newAni != prev)
                 
-                ani = newAni
+                pupoPos = pupoPos.adding(by: episode.animofs.post[newAni])
+                pupoAni = newAni
             }
-            
-            if pupoPos.y != pupoPos.adding(by: episode.animofs.post[ani]).y {
-                print("ani \(ani)")
-            }
-            
-            pupoPos = pupoPos.adding(by: episode.animofs.post[ani])
-            pupoAni = ani
-            
             
             if  (pupoPos.x <  0  && pupoAni <  0x35) ||
                 (pupoPos.x >= 320 && pupoAni >= 0x35)
