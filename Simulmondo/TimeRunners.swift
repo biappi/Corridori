@@ -236,6 +236,10 @@ struct GameState {
         }
         
         if pupoAniFrame >= episode.frames[pupoAni].count {
+            if pupoPos.y != pupoPos.adding(by: episode.animofs.pre[pupoAni]).y {
+                print("ani \(pupoAni)")
+            }
+            
             pupoPos = pupoPos.adding(by: episode.animofs.pre[pupoAni])
             
             pupoAniFrame = 0
@@ -278,6 +282,8 @@ struct GameState {
             if type & 0xF0 == 0xD0 {
                 let swivarIdx = type - 0xD0 + 0xC
                 swivars2[swivarIdx] = true
+                
+                print("SWIVAR CHANGE \(swivarIdx) = true")
                 
                 adjustRoomTilesFromSwi(
                     swi: episode.swi,
@@ -351,12 +357,16 @@ struct GameState {
                 ani = newAni
             }
             
+            if pupoPos.y != pupoPos.adding(by: episode.animofs.post[ani]).y {
+                print("ani \(ani)")
+            }
+            
             pupoPos = pupoPos.adding(by: episode.animofs.post[ani])
             pupoAni = ani
             
             
-            if  (pupoPos.x <   0 && pupoAni < 0x35) ||
-                (pupoPos.x > 320 && pupoAni > 0x35)
+            if  (pupoPos.x <  0  && pupoAni <  0x35) ||
+                (pupoPos.x >= 320 && pupoAni >= 0x35)
             {
                 let dx = pupoPos.x > 320
                 
@@ -366,6 +376,7 @@ struct GameState {
                 let oldRoom  = room
                 room = theRoom.tiles[Room.tiles.width * y + x].type
                 
+                print("\(x) \(pupoPos.y)")
                 theRoom = episode.rooms[room]
                 
                 adjustRoomTilesFromSwi(

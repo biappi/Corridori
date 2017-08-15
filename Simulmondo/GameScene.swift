@@ -25,7 +25,8 @@ class GameScene: SKScene {
     var eleTextures   : [SKTexture]!
     var tileMapsNodes : [SKTileMapNode?]!
     
-    var pupoNode : SKSpriteNode!
+    var playfield  : SKNode!
+    var pupoNode   : SKSpriteNode!
     var tileLabels : [SKLabelNode] = []
     
     var input = KeyboardInput()
@@ -68,17 +69,18 @@ class GameScene: SKScene {
     }
     
     override func didMove(to view: SKView) {
-        pupoNode = self.childNode(withName: "//pupo") as! SKSpriteNode
+        playfield = self.childNode(withName: "playfield")
+        pupoNode = self.childNode(withName: "//playfield/pupo") as! SKSpriteNode
         
         for row in 0 ..< Room.tiles.height {
             for col in 0 ..< Room.tiles.width {
                 let label = SKLabelNode(text: "a")
                 label.position = CGPoint(
-                    x:   Double(col * Episode.TILE_SIZE.width ) - (320.0 / 2.0) + (Double(Episode.TILE_SIZE.width)  * 0.5),
-                    y: -(Double(row * Episode.TILE_SIZE.height) - (200.0 / 2.0) + (Double(Episode.TILE_SIZE.height) * 0.5))
+                    x:  (CGFloat(col * Episode.TILE_SIZE.width ) - (320.0 / 2.0) + (CGFloat(Episode.TILE_SIZE.width)  * 0.5)) * playfield.xScale,
+                    y: -(CGFloat(row * Episode.TILE_SIZE.height) - (200.0 / 2.0) + (CGFloat(Episode.TILE_SIZE.height) * 0.5)) * playfield.yScale
                 )
                 label.fontName = "Helvetica"
-                label.fontSize = 5
+                label.fontSize = 20
                 
                 self.addChild(label)
                 tileLabels.append(label)
@@ -87,7 +89,7 @@ class GameScene: SKScene {
         
         for i in tileMapsNodes {
             if let i = i {
-                self.addChild(i)
+                playfield.addChild(i)
             }
         }
     }
@@ -128,11 +130,13 @@ class GameScene: SKScene {
                 let tile   = gameState.theRoom.tiles[i]
                 let tileId = tile.tileId(frame: gameState.roomFrame)
                 
-                if currentRoom[i] == (tileId << 12 + tile.tilesetId) {
+                let hash = (tileId << 24 + tile.tilesetId) * (tile.flip ? -1 : 1)
+                
+                if currentRoom[i] == hash {
                     continue
                 }
-                
-                currentRoom[i] = (tileId << 12 + tile.tilesetId)
+
+                currentRoom[i] = hash
                 
                 for (i, node) in tileMapsNodes.lazy.enumerated() {
                     if i == tile.tilesetId, let tileGroup = node?.tileSet.tileGroups[tileId] {
