@@ -4,6 +4,7 @@
 
     public csip
     public outpsp
+    public cmdline
 
     envptr      dw 0
     params      dd 0
@@ -12,7 +13,7 @@
     sssp        dd 0
     csip        dd 0
 
-    cmdline     db 0
+    cmdline     db 100h dup (0)
     fcb1        db 38 dup (0)
     fcb2        db 38 dup (0)
     outpsp      dw 0
@@ -78,8 +79,8 @@ start_program proc
     mov ss, word ptr sssp+2
     mov sp, word ptr sssp
 
-    mov ds, outpsp
     mov es, outpsp
+    mov ds, outpsp
 
     pop ax
 
