@@ -300,24 +300,7 @@ void main(int argc, char *argv[]) {
     printf("argc %d\narg1 %s\n", argc, argv[1]);
     printf("my  psp: %x\n", getpsp());
 
-    {
-        extern char cmdline[0x100];
-
-        char *c = argv[1];
-        char *s = cmdline;
-        char *l = cmdline + 1;
-
-        *s = 1;
-
-        *l++ = ' ';
-
-        do {
-            (*s)++;
-            *l++ = *c++;
-        } while (*c != 0);
-
-        *l = 0x0d;
-    }
+    setup_cmdline(argv[1]);
 
     if (load_program("c:\\tr\\cods\\arca.exe")) {
         printf("cannot load arca.exe\n");

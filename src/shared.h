@@ -17,6 +17,26 @@ extern void ds_trampoline_end();
 
 /* - */
 
+void setup_cmdline(char *args) {
+    extern char cmdline[0x100];
+
+    char *c = args;
+    char *s = cmdline;
+    char *l = cmdline + 1;
+
+    *s = 1;
+
+    *l++ = ' ';
+
+    do {
+        (*s)++;
+        *l++ = *c++;
+    } while (*c != 0);
+
+    *l = 0x0d;
+}
+
+
 void patch_far_jmp(void far * addr, void far * dst) {
     unsigned char far* original = addr;
     unsigned long func = (unsigned long) dst;
