@@ -1,8 +1,8 @@
 rm -fr build
 
 mkdir build
+cp -r "${PWD}/dosroot/tr"   "build/tr"
 ln -s "${PWD}/dosroot/tc"   "build/tc"
-ln -s "${PWD}/dosroot/tr"   "build/tr"
 ln -s "${PWD}/dosroot/tasm" "build/tasm"
 for i in src/*; do ln -s "${PWD}/$i" build/; done
 
