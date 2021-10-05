@@ -10,7 +10,7 @@ SDL_VIDEODRIVER=dummy dosbox \
     -c "mount c build" \
     -c "c:"\
     -c "set path=c:/tc;c:/tasm" \
-    -c "tcc loader.asm main.c  > build.txt" \
+    -c "tcc mana.c loader.asm  > build.txt" \
     -c "exit"
 
 cat build/build.txt
