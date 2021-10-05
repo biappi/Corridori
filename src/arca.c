@@ -7,6 +7,8 @@
 #define arca_base (outpsp + 0x10)
 
 #define seg006 (arca_base + 0x046f)
+#define seg007 (arca_base + 0x0592)
+#define seg008 (arca_base + 0x05a7)
 #define seg012 (arca_base + 0x08fa)
 #define seg013 (arca_base + 0x0961)
 #define seg015 (arca_base + 0x0a2d)
@@ -19,6 +21,7 @@ void far* far* far* status_ele_block;
 unsigned int far* far* logi_tab_file;
 void far* far* far* mat_filenames;
 int far* gfx_bobs_color_override;
+void far* far* pti_file_content;
 
 void far* far* bobs_ele_item;
 int  far* bobs_sizeof;
@@ -29,6 +32,7 @@ int  far* bobs_x;
 int  far* bobs_y;
 int  far* bobs_count;
 
+
 /* last parameter pushed is last in arg list */
 typedef void (far pascal *render_ele_t) (int x, int y, void far* ele, int boh);
 typedef void (far pascal *wait_vsync_t) (void);
@@ -36,6 +40,9 @@ typedef void (far pascal *get_tile_type_for_x_y_t) (int x, int y, char far* out)
 typedef void (far pascal *render_string_t) (int x, int y, char far* string, int color);
 typedef char (far pascal *logi_tab_contains_t) (int thing, int log_tab_index);
 typedef void (far pascal *render_background_layer_t) (int mat_index);
+typedef int  (far pascal *get_line_from_pti_internal_t)(int idx, char far* dst, void far* pti_object);
+typedef void (far pascal *render_explanation_strings_t)(char far* line1, char far* line2, int boh1, int boh2);
+
 
 render_ele_t render_ele;
 render_ele_t render_ele_flipped;
@@ -44,8 +51,12 @@ get_tile_type_for_x_y_t get_tile_type_for_x_y;
 render_string_t render_string;
 logi_tab_contains_t logi_tab_contains_theirs;
 render_background_layer_t render_background_layer;
+get_line_from_pti_internal_t get_line_from_pti_internal;
+render_explanation_strings_t render_explanation_strings;
+
 
 int far pascal logi_tab_contains(int thing, int logi_tab_index);
+
 
 void wait_vsync() {
     asm mov dx, 0x03da;
@@ -304,8 +315,60 @@ void far pascal render_bobs_in_background() {
     ds_trampoline_end();
 }
 
+void get_line_from_pti_c(int idx, char far* out_pstring) {
+    char line[0x100];
+
+    ds_trampoline_start();
+
+    {
+        get_line_from_pti_internal_t g;
+        void far* far* pti = pti_file_content;
+
+        g = get_line_from_pti_internal;
+        ds_trampoline_end();
+        g(idx, line, *pti);
+    }
+
+    copy_c_to_pascal(line, out_pstring);
+
+    {
+        char size = *out_pstring;
+
+        out_pstring[size] = ' ';
+        format_word(out_pstring + size + 1, idx);
+        *out_pstring = size + 5;
+    }
+}
+
+void far pascal get_line_from_pti(int idx) {
+    char far* out_pstring;
+    out_pstring = *(char far **)((char _ss *)&idx + 2);
+    get_line_from_pti_c(idx, out_pstring);
+}
+
+void far pascal render_context_explanation(int line1_id, int line2_id) {
+    char line1[0x50];
+    char line2[0x50];
+
+    get_line_from_pti_c(line1_id, line1);
+    get_line_from_pti_c(line2_id, line2);
+
+    ds_trampoline_start();
+
+    {
+        render_explanation_strings_t r = render_explanation_strings;
+
+        ds_trampoline_end();
+        r(line1, line2, 0xffcf, 0);
+        ds_trampoline_start();
+    }
+
+    ds_trampoline_end();
+}
+
 void init_pointers() {
     highlight_frame_nr       = MK_FP(dseg, 0x0100);
+    pti_file_content         = MK_FP(dseg, 0x2cbc);
     status_ele_block         = MK_FP(dseg, 0x2f0c);
     mat_filenames            = MK_FP(dseg, 0x2f58);
     logi_tab_file            = MK_FP(dseg, 0x2f14);
@@ -320,15 +383,19 @@ void init_pointers() {
     background_buffer        = MK_FP(dseg, 0x3d20);
     gfx_bobs_color_override  = MK_FP(dseg, 0x3d28);
 
-    logi_tab_contains_theirs = MK_FP(seg012, 0x0603);
-    render_background_layer  = MK_FP(seg013, 0x0244);
-    get_tile_type_for_x_y    = MK_FP(seg013, 0x061e);
-    render_string            = MK_FP(seg015, 0x05f9);
-    wait_vsync_theirs        = MK_FP(seg015, 0x1311);
-    render_ele               = MK_FP(seg015, 0x1b8e);
-    render_ele_flipped       = MK_FP(seg015, 0x1bc3);
+    get_line_from_pti_internal = MK_FP(seg008, 0x02c8);
+    logi_tab_contains_theirs   = MK_FP(seg012, 0x0603);
+    render_background_layer    = MK_FP(seg013, 0x0244);
+    get_tile_type_for_x_y      = MK_FP(seg013, 0x061e);
+    render_string              = MK_FP(seg015, 0x05f9);
+    render_explanation_strings = MK_FP(seg015, 0x0d11);
+    wait_vsync_theirs          = MK_FP(seg015, 0x1311);
+    render_ele                 = MK_FP(seg015, 0x1b8e);
+    render_ele_flipped         = MK_FP(seg015, 0x1bc3);
 
     patch_far_jmp(MK_FP(seg006, 0x10bb), &draw_highlight_under_cursor);
+    patch_far_jmp(MK_FP(seg006, 0x0fcb), &render_context_explanation);
+    patch_far_jmp(MK_FP(seg007, 0x001d), &get_line_from_pti);
     patch_far_jmp(MK_FP(seg012, 0x0603), &logi_tab_contains_w);
     patch_far_jmp(MK_FP(seg013, 0x048d), &render_all_background_layers);
     patch_far_jmp(MK_FP(seg013, 0x070a), &bobs_get_count);
