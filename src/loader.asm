@@ -19,8 +19,12 @@
 
 .code
 
-    jmpptr dd 0
+    jmpptr  dd 0
 
+    myds    dw 0
+    otherds dw 0
+
+public myds
 
 public load_program
 load_program proc
@@ -82,5 +86,65 @@ start_program proc
     jmp dword ptr jmpptr
 
 start_program endp
+
+
+public ds_trampoline_init
+ds_trampoline_init proc
+
+    push ax
+    mov ax, ds
+    mov myds, ax
+    pop ax
+    ret
+
+ds_trampoline_init endp
+
+public ds_trampoline_start
+ds_trampoline_start proc
+
+    push ax
+    mov ax, ds
+    mov otherds, ax
+    mov ax, myds
+    mov ds, ax
+    pop ax
+    ret
+
+ds_trampoline_start endp
+
+
+public ds_trampoline_end
+ds_trampoline_end proc
+
+    push ax
+    mov ax, otherds
+    mov ds, ax
+    pop ax
+    ret
+
+ds_trampoline_end endp
+
+test1 dw 0
+
+public t1
+t1 proc
+
+    push bp
+    mov bp, sp
+    mov bx, [bp + 4]
+    mov test1, bx
+    pop bp
+    ret
+
+t1 endp
+
+
+public t2
+t2 proc
+
+    mov ax, cs
+    ret
+
+t2 endp
 
 end
