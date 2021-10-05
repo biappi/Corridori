@@ -11,6 +11,7 @@ SDL_VIDEODRIVER=dummy dosbox \
     -c "c:"\
     -c "set path=c:/tc;c:/tasm" \
     -c "tcc mana.c loader.asm  > build.txt" \
+    -c "tcc arca.c loader.asm >> build.txt" \
     -c "exit"
 
 cat build/build.txt
