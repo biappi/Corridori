@@ -95,7 +95,7 @@ void copy_c_to_pascal(char far * cstring, char far * out) {
 
 char nibble_to_char(char n) {
     n = n & 0x0f;
-    return n > 10 ? n - 10 + 'a' : n + '0';
+    return n >= 10 ? n - 10 + 'a' : n + '0';
 }
 
 void format_byte(char far *dst, char byte) {

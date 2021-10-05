@@ -16,6 +16,7 @@
 unsigned int far* background_buffer; /* segment! */
 unsigned char far* highlight_frame_nr;
 void far* far* far* status_ele_block;
+unsigned int far* far* logi_tab_file;
 
 /* last parameter pushed is last in arg list */
 typedef void (far pascal *render_ele_t) (int x, int y, void far* ele, int boh);
@@ -28,7 +29,9 @@ render_ele_t render_ele;
 wait_vsync_t wait_vsync_theirs;
 get_tile_type_for_x_y_t get_tile_type_for_x_y;
 render_string_t render_string;
-logi_tab_contains_t logi_tab_contains;
+logi_tab_contains_t logi_tab_contains_theirs;
+
+int far pascal logi_tab_contains(int thing, int logi_tab_index);
 
 void wait_vsync() {
     asm mov dx, 0x03da;
@@ -63,15 +66,33 @@ void far pascal test_vga() {
     ds_trampoline_end();
 }
 
-void far pascal draw_highlight_under_cursor() {
-    int x, y;
-
+void far pascal vga_dump(int x, int y, char far* s) {
     unsigned int old_buffer;
+    char string[0x100];
+
+    old_buffer = *background_buffer;
+    *background_buffer = 0xa000;
+
+    copy_c_to_pascal(s, string);
+
+    {
+        render_string_t r = render_string;
+
+        ds_trampoline_end();
+        r(x, y, string, 0x17);
+        ds_trampoline_start();
+    }
+
+    *background_buffer = old_buffer;
+}
+
+void far pascal draw_highlight_under_cursor() {
+    unsigned int old_buffer;
+    int x, y;
 
     ds_trampoline_start();
 
     old_buffer = *background_buffer;
-
     *background_buffer = 0xa000;
 
     for (y = 0; y < 0x13; y++) {
@@ -88,8 +109,6 @@ void far pascal draw_highlight_under_cursor() {
 
             {
                 get_tile_type_for_x_y_t get_type = get_tile_type_for_x_y;
-                render_string_t r = render_string;
-                logi_tab_contains_t lt_contains = logi_tab_contains;
 
                 ds_trampoline_end();
                 get_type(pixel_x + 8, pixel_y,      &data1);
@@ -98,46 +117,37 @@ void far pascal draw_highlight_under_cursor() {
                 ds_trampoline_end();
                 get_type(pixel_x + 8, pixel_y + 10, &data2);
                 ds_trampoline_start();
+            }
+            
+            top_25 = logi_tab_contains(data1, 0x25);
+            top_28 = logi_tab_contains(data1, 0x28);
+            bottom_25 = logi_tab_contains(data2, 0x25);
+
+            if ((top_25 || top_28) && !bottom_25) 
+            {
+                render_ele_t e = render_ele;
+                render_string_t s = render_string;
+
+                void far *ele = (*status_ele_block)[4 + *highlight_frame_nr];
+                char far* thing = " 111";
+
+                thing[0] = 3;
+                thing[1] = top_25 ? '1' : '.';
+                thing[2] = top_28 ? '1' : '.';
+                thing[3] = bottom_25 ? '1' : '.';
 
                 ds_trampoline_end();
-                top_25 = lt_contains(data1, 0x25);
-                top_28 = lt_contains(data1, 0x28);
-                bottom_25 = lt_contains(data2, 0x25);
+                e(pixel_x, pixel_y, ele, -16);
                 ds_trampoline_start();
 
-                if ((top_25 || top_28) && !bottom_25) 
-                {
-                    render_ele_t e = render_ele;
-                    void far *ele = (*status_ele_block)[4 + *highlight_frame_nr];
-                    char far* thing = " 111";
-
-                    thing[0] = 3;
-                    thing[1] = top_25 ? '1' : '.';
-                    thing[2] = top_28 ? '1' : '.';
-                    thing[3] = bottom_25 ? '1' : '.';
-
-                    ds_trampoline_end();
-                    e(pixel_x, pixel_y, ele, -16);
-                    ds_trampoline_start();
-
-                    ds_trampoline_end();
-                    r(pixel_x, pixel_y, thing, 0x17);
-                    ds_trampoline_start();
-                }
+                ds_trampoline_end();
+                s(pixel_x, pixel_y, thing, 0x17);
+                ds_trampoline_start();
             }
         }
     }
 
-    {
-        render_string_t r = render_string;
-        char far* diocane = " diocane";
-
-        *diocane = 7;
-
-        ds_trampoline_end();
-        r(0, 0, diocane, 0x17);
-        ds_trampoline_start();
-    }
+    vga_dump(0, 0, "diocane");
 
     wait_vsync();
     wait_vsync();
@@ -149,18 +159,54 @@ void far pascal draw_highlight_under_cursor() {
     ds_trampoline_end();
 }
 
-void init_pointers() {
-    background_buffer = MK_FP(dseg, 0x3d20);
-    status_ele_block = MK_FP(dseg, 0x2f0c);
-    highlight_frame_nr = MK_FP(dseg, 0x0100);
+int far pascal logi_tab_contains(int thing, int logi_tab_index) {
+    unsigned int offset;
+    unsigned char far* data;
+    char retval = 0;
 
-    logi_tab_contains     = MK_FP(seg012, 0x0603);
-    get_tile_type_for_x_y = MK_FP(seg013, 0x061e);
-    render_string         = MK_FP(seg015, 0x05f9);
-    wait_vsync_theirs     = MK_FP(seg015, 0x1311);
-    render_ele            = MK_FP(seg015, 0x1b8e);
+    thing &= 0xff;
+    logi_tab_index &= 0xff;
+
+    offset = (*logi_tab_file)[logi_tab_index];
+    offset = ((offset & 0x00ff) << 8) | ((offset & 0xff00) >> 8);
+    data = (unsigned char far *)(*logi_tab_file) + offset;
+
+    while (*data != 0xff) {
+        if (*data == thing) {
+            retval = 1;
+            break;
+        }
+
+        data++;
+    }
+
+    return retval;
+}
+
+int far pascal logi_tab_contains_w(int thing, int logi_tab_index) {
+    int x;
+
+    ds_trampoline_start();
+    x = logi_tab_contains(thing, logi_tab_index);
+    ds_trampoline_end();
+
+    return x;
+}
+
+void init_pointers() {
+    highlight_frame_nr       = MK_FP(dseg, 0x0100);
+    status_ele_block         = MK_FP(dseg, 0x2f0c);
+    logi_tab_file            = MK_FP(dseg, 0x2f14);
+    background_buffer        = MK_FP(dseg, 0x3d20);
+
+    logi_tab_contains_theirs = MK_FP(seg012, 0x0603);
+    get_tile_type_for_x_y    = MK_FP(seg013, 0x061e);
+    render_string            = MK_FP(seg015, 0x05f9);
+    wait_vsync_theirs        = MK_FP(seg015, 0x1311);
+    render_ele               = MK_FP(seg015, 0x1b8e);
 
     patch_far_jmp(MK_FP(seg006, 0x10bb), &draw_highlight_under_cursor);
+    patch_far_jmp(MK_FP(seg012, 0x0603), &logi_tab_contains_w);
 }
 
 void main(int argc, char *argv[]) {
