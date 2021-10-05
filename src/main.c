@@ -27,8 +27,16 @@ extern void ds_trampoline_end();
 #define tr_base (outpsp + 0x10)
 
 #define seg003  (tr_base + 0x00d8)
+#define seg012  (tr_base + 0x0692)
+#define seg013  (tr_base + 0x06b3)
 #define seg015  (tr_base + 0x071d)
 #define dseg    (tr_base + 0x0c2d)
+
+
+void set_text_mode() {
+    asm mov ax, 0x03;
+    asm int 10h;
+}
 
 void dump_pascal_string(char far *string) {
     char size = *string;
@@ -43,9 +51,8 @@ void dump_pascal_string(char far *string) {
     }
 }
 
-
-void dump_c_string(char *string) {
-    char *s = string;
+void dump_c_string(char far *string) {
+    char far *s = string;
     char c;
 
     do {
@@ -71,14 +78,47 @@ char *pascal_to_c(char far *string) {
     return cstring;
 }
 
-void set_text_mode() {
-    asm mov ax, 0x03;
-    asm int 10h;
+void copy_c_to_pascal(char far * cstring, char far * out) {
+    char c;
+    char i = 0;
+
+    do {
+        c = cstring[i];
+        out[i + 1] = c;
+        i++;
+    } while (c != 0);
+
+    *out = i;
 }
 
-typedef (far pascal *exit_with_error_t)(int, int, char far *);
+char nibble_to_char(char n) {
+    n = n & 0x0f;
+    return n > 10 ? n - 10 + 'a' : n + '0';
+}
+
+void format_byte(char far *dst, char byte) {
+    dst[0] = nibble_to_char((byte & 0xf0) >> 4);
+    dst[1] = nibble_to_char((byte & 0x0f) >> 0);
+}
+
+void format_word(char far *dst, int word) {
+    format_byte(dst + 0, (word & 0xff00) >> 8);
+    format_byte(dst + 2, (word & 0x00ff) >> 0);
+}
+
+void format_ptr(char far *dst, void far * ptr) {
+    format_word(dst + 0, FP_SEG(ptr));
+    format_word(dst + 5, FP_OFF(ptr));
+    dst[4] = ':';
+}
+
+/* last parameter pushed is last in arg list */
+
+typedef void (far pascal *exit_with_error_t) (int e, int error_type, char far* message);
+typedef int  (far pascal *get_line_from_pti_internal_t)(int idx, char far* dst, void far* pti_object);
 
 exit_with_error_t exit_with_error;
+get_line_from_pti_internal_t get_line_from_pti_internal;
 
 void far pascal check_if_file_not_found(char far * file) {
     FILE *test;
@@ -87,19 +127,10 @@ void far pascal check_if_file_not_found(char far * file) {
     ds_trampoline_start();
 
     cfilename = pascal_to_c(file);
-
-/*
-    set_text_mode();
-    dump_pascal_string(file);
-    dump_c_string(cfilename);
-*/
-
     test = fopen(cfilename, "r");
 
     if (!test) {
         exit_with_error_t e = exit_with_error;
-
-        dump_c_string("die");
 
         ds_trampoline_end();
         e(5, 3, file);
@@ -110,23 +141,69 @@ void far pascal check_if_file_not_found(char far * file) {
     }
 }
 
+void far pascal get_line_from_pti(int idx) {
+    char far* out_pstring;
+    void far* far* pti;
+    char line[0x100];
+
+    ds_trampoline_start();
+
+    pti = MK_FP(dseg, 0x4c72);
+
+    {
+        get_line_from_pti_internal_t g;
+
+        g = get_line_from_pti_internal;
+        ds_trampoline_end();
+        g(idx, line, *pti);
+    }
+
+    out_pstring = *(char far **)((char _ss *)&idx + 2);
+    copy_c_to_pascal(line, out_pstring);
+
+    {
+        char size = *out_pstring;
+
+        out_pstring[size] = ' ';
+        format_word(out_pstring + size + 1, idx);
+        *out_pstring = size + 5;
+    }
+}
+
+char far* sucap = "\x04suca";
+
+void far pascal configure_menu() {
+    ds_trampoline_start();
+
+    set_text_mode();
+    dump_c_string("porcoddio");
+    printf("madonna maiala\n");
+    getch();
+
+    asm mov ax, 0x13;
+    asm int 10h;
+    ds_trampoline_end();
+}
+
+void patch_far_jmp(void far * addr, void far * dst) {
+    unsigned char far* original = addr;
+    unsigned long func = (unsigned long) dst;
+
+    *original++ = 0xea; /* JMP ptr16:16 */
+    *original++ = (func >>  0) & 0xff;
+    *original++ = (func >>  8) & 0xff;
+    *original++ = (func >> 16) & 0xff;
+    *original++ = (func >> 24) & 0xff;
+}
+
+
 void main() {
     int i;
     char far *str;
 
     unsigned long far* calltgt;
  
-    void far *func = &check_if_file_not_found;
-
-    struct SREGS segreg;
-
-    segread(&segreg);
     ds_trampoline_init();
-
-    printf("segreg cs %x\n", segreg.cs);
-    printf("segreg ds %x\n", segreg.ds);
-    printf("t1 %x\n", t2());
-
 
     if (load_program("c:\\tr\\manager.exe")) {
         printf("cannot load manager.exe\n");
@@ -151,11 +228,16 @@ void main() {
 
     /* patch to intercept */
     calltgt = MK_FP(seg003, 0x0672);
-    *calltgt = (unsigned long) func;
+    *calltgt = (unsigned long) &check_if_file_not_found;
 
     /* get the original function */
     exit_with_error = MK_FP(seg015, 0x0310);
-    
+    get_line_from_pti_internal = MK_FP(seg013, 0x02c8);
+
+    /* completely replace get_line_from_pti */
+    patch_far_jmp(MK_FP(seg012, 0x001c), &get_line_from_pti);
+
+    patch_far_jmp(MK_FP(seg003, 0x1b01), &configure_menu);
 
     start_program();
 }
