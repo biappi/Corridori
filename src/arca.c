@@ -41,8 +41,10 @@ typedef void (far pascal *render_string_t) (int x, int y, char far* string, int 
 typedef char (far pascal *logi_tab_contains_t) (int thing, int log_tab_index);
 typedef void (far pascal *render_background_layer_t) (int mat_index);
 typedef int  (far pascal *get_line_from_pti_internal_t)(int idx, char far* dst, void far* pti_object);
-typedef void (far pascal *render_explanation_strings_t)(char far* line1, char far* line2, int boh1, int boh2);
-
+typedef void (far pascal *gfx_1_t)(int boh1, int boh2, int boh3, int boh4);
+typedef void (far pascal *gfx_2_t)(int boh1, int boh2, int boh3, int boh4, char boh5);
+typedef void (far pascal *gfx_3_t)(int boh1, int boh2, int boh3, int boh4, char boh5);
+typedef int (far pascal *get_text_width_t)(char far* str);
 
 render_ele_t render_ele;
 render_ele_t render_ele_flipped;
@@ -52,8 +54,10 @@ render_string_t render_string;
 logi_tab_contains_t logi_tab_contains_theirs;
 render_background_layer_t render_background_layer;
 get_line_from_pti_internal_t get_line_from_pti_internal;
-render_explanation_strings_t render_explanation_strings;
-
+gfx_1_t gfx_1;
+gfx_2_t gfx_2;
+gfx_3_t gfx_3;
+get_text_width_t get_text_width;
 
 int far pascal logi_tab_contains(int thing, int logi_tab_index);
 
@@ -331,6 +335,8 @@ void get_line_from_pti_c(int idx, char far* out_pstring) {
 
     copy_c_to_pascal(line, out_pstring);
 
+
+#if 0
     {
         char size = *out_pstring;
 
@@ -338,12 +344,95 @@ void get_line_from_pti_c(int idx, char far* out_pstring) {
         format_word(out_pstring + size + 1, idx);
         *out_pstring = size + 5;
     }
+#endif
 }
 
 void far pascal get_line_from_pti(int idx) {
     char far* out_pstring;
     out_pstring = *(char far **)((char _ss *)&idx + 2);
     get_line_from_pti_c(idx, out_pstring);
+}
+
+void far pascal render_explanation_strings(
+    char far* line1,
+    char far* line2,
+    char color,
+    char boh2
+) {
+    get_text_width_t gtw;
+    render_string_t rs;
+    gfx_2_t g2;
+    gfx_3_t g3;
+
+    unsigned int old_buffer;
+
+    int line1_width;
+    int line2_width;
+
+    int left;
+    int right;
+
+    ds_trampoline_start();
+
+    gtw = get_text_width;
+    g2 = gfx_2;
+    g3 = gfx_3;
+    rs = render_string;
+
+    old_buffer = *background_buffer;
+    *background_buffer = 0xa000;
+
+    ds_trampoline_end();
+    line1_width = gtw(line1);
+    ds_trampoline_start();
+
+    ds_trampoline_end();
+    line2_width = gtw(line2);
+    ds_trampoline_start();
+
+    if (line1_width > line2_width) {
+        left = (0x140 - line1_width) / 2;
+        right = left + line1_width;
+    }
+    else {
+        left = (0x140 - line2_width) / 2;
+        right = left + line2_width;
+    }
+    
+    if (left <      4) left  =     4;
+    if (right > 0x13b) right = 0x13b;
+
+    if (!line2 || (line2[0] == 1 && line2[1] == ' ')) {
+        ds_trampoline_end();
+        g2(left - 4, 0x55, right + 3, 0x67, boh2);
+        ds_trampoline_start();
+
+        ds_trampoline_end();
+        g3(left - 3, 0x56, right + 2, 0x66, color);
+        ds_trampoline_start();
+    }
+    else {
+        ds_trampoline_end();
+        g2(left - 4, 0x55, right + 3, 0x70, boh2);
+        ds_trampoline_start();
+
+        ds_trampoline_end();
+        g3(left - 3, 0x56, right + 2, 0x6f, color);
+        ds_trampoline_start();
+    }
+
+    ds_trampoline_end();
+    rs((0x140 - line1_width) / 2, 0x5a, line1, color);
+    ds_trampoline_start();
+
+    if (line2[0] != 1 && line2[1] != ' ') {
+        ds_trampoline_end();
+        rs((0x140 - line2_width) / 2, 0x64, line2, color);
+        ds_trampoline_start();
+    }
+
+    *background_buffer = old_buffer;
+    ds_trampoline_end();
 }
 
 void far pascal render_context_explanation(int line1_id, int line2_id) {
@@ -353,17 +442,7 @@ void far pascal render_context_explanation(int line1_id, int line2_id) {
     get_line_from_pti_c(line1_id, line1);
     get_line_from_pti_c(line2_id, line2);
 
-    ds_trampoline_start();
-
-    {
-        render_explanation_strings_t r = render_explanation_strings;
-
-        ds_trampoline_end();
-        r(line1, line2, 0xffcf, 0);
-        ds_trampoline_start();
-    }
-
-    ds_trampoline_end();
+    render_explanation_strings(line1, line2, 0xffcf, 0);
 }
 
 void init_pointers() {
@@ -387,11 +466,15 @@ void init_pointers() {
     logi_tab_contains_theirs   = MK_FP(seg012, 0x0603);
     render_background_layer    = MK_FP(seg013, 0x0244);
     get_tile_type_for_x_y      = MK_FP(seg013, 0x061e);
+    get_text_width             = MK_FP(seg015, 0x04fc);
     render_string              = MK_FP(seg015, 0x05f9);
-    render_explanation_strings = MK_FP(seg015, 0x0d11);
     wait_vsync_theirs          = MK_FP(seg015, 0x1311);
+    gfx_1                      = MK_FP(seg015, 0x136b);
+    gfx_3                      = MK_FP(seg015, 0x1511);
+    gfx_2                      = MK_FP(seg015, 0x1595);
     render_ele                 = MK_FP(seg015, 0x1b8e);
     render_ele_flipped         = MK_FP(seg015, 0x1bc3);
+
 
     patch_far_jmp(MK_FP(seg006, 0x10bb), &draw_highlight_under_cursor);
     patch_far_jmp(MK_FP(seg006, 0x0fcb), &render_context_explanation);

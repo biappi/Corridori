@@ -110,7 +110,7 @@ void copy_c_to_pascal(char far * cstring, char far * out) {
         i++;
     } while (c != 0);
 
-    *out = i;
+    *out = i - 1;
 }
 
 char nibble_to_char(char n) {
