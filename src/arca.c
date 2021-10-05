@@ -17,6 +17,7 @@ unsigned int far* background_buffer; /* segment! */
 unsigned char far* highlight_frame_nr;
 void far* far* far* status_ele_block;
 unsigned int far* far* logi_tab_file;
+void far* far* far* mat_filenames;
 
 /* last parameter pushed is last in arg list */
 typedef void (far pascal *render_ele_t) (int x, int y, void far* ele, int boh);
@@ -24,12 +25,14 @@ typedef void (far pascal *wait_vsync_t) (void);
 typedef void (far pascal *get_tile_type_for_x_y_t) (int x, int y, char far* out);
 typedef void (far pascal *render_string_t) (int x, int y, char far* string, int color);
 typedef char (far pascal *logi_tab_contains_t) (int thing, int log_tab_index);
+typedef void (far pascal *render_background_layer_t) (int mat_index);
 
 render_ele_t render_ele;
 wait_vsync_t wait_vsync_theirs;
 get_tile_type_for_x_y_t get_tile_type_for_x_y;
 render_string_t render_string;
 logi_tab_contains_t logi_tab_contains_theirs;
+render_background_layer_t render_background_layer;
 
 int far pascal logi_tab_contains(int thing, int logi_tab_index);
 
@@ -193,13 +196,36 @@ int far pascal logi_tab_contains_w(int thing, int logi_tab_index) {
     return x;
 }
 
+int far pascal render_all_background_layers() {
+    int i;
+    render_background_layer_t r;
+
+    ds_trampoline_start();
+
+    r = render_background_layer;
+
+    for (i = 0; i < 4; i++) {
+        int mat = i == 3 ? 9 : i;
+
+        if ((*mat_filenames)[mat] != 0) {
+            ds_trampoline_end();
+            r(mat);
+            ds_trampoline_start();
+        }
+    }
+
+    ds_trampoline_end();
+}
+
 void init_pointers() {
     highlight_frame_nr       = MK_FP(dseg, 0x0100);
     status_ele_block         = MK_FP(dseg, 0x2f0c);
+    mat_filenames            = MK_FP(dseg, 0x2f58);
     logi_tab_file            = MK_FP(dseg, 0x2f14);
     background_buffer        = MK_FP(dseg, 0x3d20);
 
     logi_tab_contains_theirs = MK_FP(seg012, 0x0603);
+    render_background_layer  = MK_FP(seg013, 0x0244);
     get_tile_type_for_x_y    = MK_FP(seg013, 0x061e);
     render_string            = MK_FP(seg015, 0x05f9);
     wait_vsync_theirs        = MK_FP(seg015, 0x1311);
@@ -207,6 +233,7 @@ void init_pointers() {
 
     patch_far_jmp(MK_FP(seg006, 0x10bb), &draw_highlight_under_cursor);
     patch_far_jmp(MK_FP(seg012, 0x0603), &logi_tab_contains_w);
+    patch_far_jmp(MK_FP(seg013, 0x048d), &render_all_background_layers);
 }
 
 void main(int argc, char *argv[]) {
