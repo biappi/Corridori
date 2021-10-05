@@ -445,6 +445,27 @@ void far pascal render_context_explanation(int line1_id, int line2_id) {
     render_explanation_strings(line1, line2, 0xffcf, 0);
 }
 
+void far pascal render_help_string(int far* y, char far* string, char color) {
+    render_string_t rs;
+    unsigned int old_buffer;
+
+    ds_trampoline_start();
+
+    rs = render_string;
+
+    old_buffer = *background_buffer;
+    *background_buffer = 0xa000;
+
+    ds_trampoline_end();
+    rs(4, *y, string, color);
+    ds_trampoline_start();
+
+    *y += 10;
+
+    *background_buffer = old_buffer;
+    ds_trampoline_end();
+}
+
 void init_pointers() {
     highlight_frame_nr       = MK_FP(dseg, 0x0100);
     pti_file_content         = MK_FP(dseg, 0x2cbc);
@@ -484,6 +505,7 @@ void init_pointers() {
     patch_far_jmp(MK_FP(seg013, 0x070a), &bobs_get_count);
     patch_far_jmp(MK_FP(seg013, 0x071d), &add_bob_per_background);
     patch_far_jmp(MK_FP(seg013, 0x0b64), &render_bobs_in_background);
+    patch_far_jmp(MK_FP(seg015, 0x0eca), &render_help_string);
 }
 
 void main(int argc, char *argv[]) {
