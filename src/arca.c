@@ -466,6 +466,51 @@ void far pascal render_help_string(int far* y, char far* string, char color) {
     ds_trampoline_end();
 }
 
+void far pascal render_key_help(int color, int boh) {
+    gfx_1_t g1;
+    gfx_2_t g2;
+    gfx_3_t g3;
+    render_string_t rs;
+
+    unsigned int old_buffer;
+    char line[0x100];
+    int text_y;
+    int i;
+
+    ds_trampoline_start();
+
+    g1 = gfx_1;
+    g2 = gfx_2;
+    g3 = gfx_3;
+    rs = render_string;
+
+    old_buffer = *background_buffer;
+    *background_buffer = 0xa000;
+
+    ds_trampoline_end();
+    g1(0, 0, 0x13f, 0xc7);
+    g2(0, 0, 0x13f, 0xc7, boh);
+    g3(0, 0, 0x13f, 0xc7, color);
+    ds_trampoline_start();
+
+    text_y = 4;
+
+    for (i = 0; i < 0x13; i++) {
+        ds_trampoline_end();
+        get_line_from_pti_c(0x88b8 + i, line);
+        ds_trampoline_start();
+
+        ds_trampoline_end();
+        rs(4, text_y, line, color);
+        ds_trampoline_start();
+
+        text_y += 10;
+    }
+
+    *background_buffer = old_buffer;
+    ds_trampoline_end();
+}
+
 void init_pointers() {
     highlight_frame_nr       = MK_FP(dseg, 0x0100);
     pti_file_content         = MK_FP(dseg, 0x2cbc);
@@ -499,6 +544,7 @@ void init_pointers() {
 
     patch_far_jmp(MK_FP(seg006, 0x10bb), &draw_highlight_under_cursor);
     patch_far_jmp(MK_FP(seg006, 0x0fcb), &render_context_explanation);
+    patch_far_jmp(MK_FP(seg006, 0x101c), &render_key_help);
     patch_far_jmp(MK_FP(seg007, 0x001d), &get_line_from_pti);
     patch_far_jmp(MK_FP(seg012, 0x0603), &logi_tab_contains_w);
     patch_far_jmp(MK_FP(seg013, 0x048d), &render_all_background_layers);
