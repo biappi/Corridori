@@ -25,6 +25,9 @@
     myds    dw 0
     otherds dw 0
 
+    savedsi dw 0
+    saveddi dw 0
+
 public myds
 
 public load_program
@@ -103,6 +106,8 @@ ds_trampoline_init endp
 public ds_trampoline_start
 ds_trampoline_start proc
 
+    mov di, saveddi
+    mov si, savedsi
     push ax
     mov ax, ds
     mov otherds, ax
@@ -121,6 +126,8 @@ ds_trampoline_end proc
     mov ax, otherds
     mov ds, ax
     pop ax
+    mov savedsi, si
+    mov saveddi, di
     ret
 
 ds_trampoline_end endp

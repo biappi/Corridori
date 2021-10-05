@@ -31,7 +31,12 @@ void patch_far_jmp(void far * addr, void far * dst) {
 /* - */
 
 void set_text_mode() {
-    asm mov ax, 0x03;
+    asm mov ax, 0x03
+    asm int 10h;
+}
+
+void set_vga_mode() {
+    asm mov ax, 0x13;
     asm int 10h;
 }
 
