@@ -18,8 +18,10 @@ unsigned char far* highlight_frame_nr;
 void far* far* far* status_ele_block;
 unsigned int far* far* logi_tab_file;
 void far* far* far* mat_filenames;
+int far* gfx_bobs_color_override;
 
 void far* far* bobs_ele_item;
+int  far* bobs_sizeof;
 char far* bobs_palette_start;
 char far* bobs_flip;
 int  far* bobs_color;
@@ -36,6 +38,7 @@ typedef char (far pascal *logi_tab_contains_t) (int thing, int log_tab_index);
 typedef void (far pascal *render_background_layer_t) (int mat_index);
 
 render_ele_t render_ele;
+render_ele_t render_ele_flipped;
 wait_vsync_t wait_vsync_theirs;
 get_tile_type_for_x_y_t get_tile_type_for_x_y;
 render_string_t render_string;
@@ -265,12 +268,49 @@ char far pascal bobs_get_count() {
     return ret;
 }
 
+void far pascal render_bobs_in_background() {
+    char count;
+    char i;
+
+    ds_trampoline_start();
+
+    count = *bobs_count;
+
+    for (i = 0; i < count; i++) {
+
+        if (!bobs_sizeof[i])
+            continue;
+
+        if (bobs_color[i])
+            *gfx_bobs_color_override = bobs_color[i];
+
+        {
+            render_ele_t e = bobs_flip[i] ? render_ele_flipped : render_ele;
+
+            int x = bobs_x[i];
+            int y = bobs_y[i];
+            void far* ele = bobs_ele_item[i];
+            int pal = bobs_palette_start[i];
+
+            ds_trampoline_end();
+            e(x, y, ele, pal);
+            ds_trampoline_start();
+        }
+
+        if (bobs_color[i])
+            *gfx_bobs_color_override = 0xc7;
+    }
+
+    ds_trampoline_end();
+}
+
 void init_pointers() {
     highlight_frame_nr       = MK_FP(dseg, 0x0100);
     status_ele_block         = MK_FP(dseg, 0x2f0c);
     mat_filenames            = MK_FP(dseg, 0x2f58);
     logi_tab_file            = MK_FP(dseg, 0x2f14);
     bobs_ele_item            = MK_FP(dseg, 0x383c);
+    bobs_sizeof              = MK_FP(dseg, 0x3904);
     bobs_palette_start       = MK_FP(dseg, 0x3968);
     bobs_flip                = MK_FP(dseg, 0x399a);
     bobs_color               = MK_FP(dseg, 0x39cc);
@@ -278,6 +318,7 @@ void init_pointers() {
     bobs_y                   = MK_FP(dseg, 0x3b5c);
     bobs_count               = MK_FP(dseg, 0x3bc0);
     background_buffer        = MK_FP(dseg, 0x3d20);
+    gfx_bobs_color_override  = MK_FP(dseg, 0x3d28);
 
     logi_tab_contains_theirs = MK_FP(seg012, 0x0603);
     render_background_layer  = MK_FP(seg013, 0x0244);
@@ -285,12 +326,14 @@ void init_pointers() {
     render_string            = MK_FP(seg015, 0x05f9);
     wait_vsync_theirs        = MK_FP(seg015, 0x1311);
     render_ele               = MK_FP(seg015, 0x1b8e);
+    render_ele_flipped       = MK_FP(seg015, 0x1bc3);
 
     patch_far_jmp(MK_FP(seg006, 0x10bb), &draw_highlight_under_cursor);
     patch_far_jmp(MK_FP(seg012, 0x0603), &logi_tab_contains_w);
     patch_far_jmp(MK_FP(seg013, 0x048d), &render_all_background_layers);
     patch_far_jmp(MK_FP(seg013, 0x070a), &bobs_get_count);
     patch_far_jmp(MK_FP(seg013, 0x071d), &add_bob_per_background);
+    patch_far_jmp(MK_FP(seg013, 0x0b64), &render_bobs_in_background);
 }
 
 void main(int argc, char *argv[]) {
