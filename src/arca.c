@@ -511,6 +511,62 @@ void far pascal render_key_help(int color, int boh) {
     ds_trampoline_end();
 }
 
+void far pascal render_pause_box(char far* string, int color, int boh) {
+    get_text_width_t gtw;
+    render_string_t rs;
+    gfx_1_t g1;
+    gfx_2_t g2;
+    gfx_3_t g3;
+
+    unsigned int old_buffer;
+    int text_width;
+    int left;
+    int right;
+    int y;
+
+    ds_trampoline_start();
+
+    gtw = get_text_width;
+    rs = render_string;
+    g1 = gfx_1;
+    g2 = gfx_2;
+    g3 = gfx_3;
+
+    old_buffer = *background_buffer;
+    *background_buffer = 0xa000;
+
+    ds_trampoline_end();
+    g1(0, 0, 0x13f, 0xc7);
+    ds_trampoline_start();
+
+    ds_trampoline_end();
+    text_width = gtw(string);
+    ds_trampoline_start();
+
+    left = (0x140 - text_width) / 2;
+    right = left + text_width;
+
+    y = 0x5c;
+
+    if (left <     4) left =     4;
+    if (left > 0x13b) left = 0x13b;
+
+    ds_trampoline_end();
+    g2(left - 4, y, right + 3, y + 0x10, boh);
+    ds_trampoline_start();
+
+    ds_trampoline_end();
+    g3(left - 3, y + 1, right + 2, y + 0xf, color);
+    ds_trampoline_start();
+
+    ds_trampoline_end();
+    rs(left, y + 5, string, color);
+    ds_trampoline_start();
+
+    *background_buffer = old_buffer;
+    ds_trampoline_end();
+}
+
 void init_pointers() {
     highlight_frame_nr       = MK_FP(dseg, 0x0100);
     pti_file_content         = MK_FP(dseg, 0x2cbc);
@@ -551,6 +607,7 @@ void init_pointers() {
     patch_far_jmp(MK_FP(seg013, 0x070a), &bobs_get_count);
     patch_far_jmp(MK_FP(seg013, 0x071d), &add_bob_per_background);
     patch_far_jmp(MK_FP(seg013, 0x0b64), &render_bobs_in_background);
+    patch_far_jmp(MK_FP(seg015, 0x0c23), &render_pause_box);
     patch_far_jmp(MK_FP(seg015, 0x0eca), &render_help_string);
 }
 
