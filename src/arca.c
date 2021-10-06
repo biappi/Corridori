@@ -25,6 +25,12 @@ unsigned int far* far* logi_tab_file;
 void far* far* far* mat_filenames;
 int far* gfx_bobs_color_override;
 void far* far* pti_file_content;
+char far* pupo_current_ani;
+char far* far* swivar_block_2;
+char far* far* swi_file_content;
+void far* far* swi_file_elements;
+int far* background_ani_frame;
+void far* tiletype_actions;
 
 void far* far* bobs_ele_item;
 int  far* bobs_sizeof;
@@ -35,17 +41,16 @@ int  far* bobs_x;
 int  far* bobs_y;
 int  far* bobs_count;
 
-int far* mouse_pointer_x;
-int far* mouse_pointer_y;
+int  far* mouse_pointer_x;
+int  far* mouse_pointer_y;
 char far* mouse_inited;
 char far* mouse_do_default_action;
 void far* far* mouse_funcptr2;
-int far* mouse_pointer_file_size;
+int  far* mouse_pointer_file_size;
 char far* far* mouse_pointer_file_buf;
 char far* far* mouse_pointer_ele_1;
 char far* far* mouse_pointer_ele_2;
 char far* far* mouse_pointer_ele_3;
-char far* pupo_current_ani;
 
 /* last parameter pushed is last in arg list */
 typedef void (far pascal *render_ele_t) (int x, int y, void far* ele, int boh);
@@ -64,6 +69,8 @@ typedef void (far pascal *mouse_click_event_t)(int x, int y, int button_id);
 typedef void (far pascal *cammina_per_click_t)();
 typedef void (far pascal *mouse_get_status_t)(int far* dx, int far* dy, int far* status);
 typedef int  (far pascal *mouse_pointer_for_point_t)(int x, int y);
+typedef void (far pascal *do_tiletype_actions_inner_t)(int boh);
+typedef void (far pascal *tiletype_action_t)(void far* ptr, int far* idx, int far* top);
 
 render_ele_t render_ele;
 render_ele_t render_ele_flipped;
@@ -82,7 +89,7 @@ mouse_click_event_t mouse_click_event;
 cammina_per_click_t cammina_per_click;
 mouse_get_status_t mouse_get_status;
 mouse_pointer_for_point_t mouse_pointer_for_point;
-
+do_tiletype_actions_inner_t do_tiletype_actions_inner_th;
 
 int far pascal logi_tab_contains(int thing, int logi_tab_index);
 
@@ -119,6 +126,20 @@ void far pascal test_vga() {
 
     ds_trampoline_end();
 }
+
+void far pascal bg_dump(int x, int y, char far* s) {
+    char string[0x100];
+    copy_c_to_pascal(s, string);
+
+    {
+        render_string_t r = render_string;
+
+        ds_trampoline_end();
+        r(x, y, string, 0x17);
+        ds_trampoline_start();
+    }
+}
+
 
 void far pascal vga_dump(int x, int y, char far* s) {
     unsigned int old_buffer;
@@ -213,6 +234,10 @@ void far pascal draw_highlight_under_cursor() {
     ds_trampoline_end();
 }
 
+int from_big_endian(int x) {
+    return x = ((x & 0x00ff) << 8) | ((x & 0xff00) >> 8);
+}
+
 int far pascal logi_tab_contains(int thing, int logi_tab_index) {
     unsigned int offset;
     unsigned char far* data;
@@ -222,7 +247,7 @@ int far pascal logi_tab_contains(int thing, int logi_tab_index) {
     logi_tab_index &= 0xff;
 
     offset = (*logi_tab_file)[logi_tab_index];
-    offset = ((offset & 0x00ff) << 8) | ((offset & 0xff00) >> 8);
+    offset = from_big_endian(offset);
     data = (unsigned char far *)(*logi_tab_file) + offset;
 
     while (*data != 0xff) {
@@ -698,9 +723,14 @@ void far pascal mouse_pointer_draw() {
             void far* ele;
             int cursor;
 
+            x = *mouse_pointer_x;
+            y = *mouse_pointer_y;
+
             ds_trampoline_end();
             cursor = mpt(x, y);
             ds_trampoline_start();
+
+            /* todo: override cursor based on set stru_13452 at seg003:0202 */
 
             x = *mouse_pointer_x;
             y = *mouse_pointer_y;
@@ -710,6 +740,108 @@ void far pascal mouse_pointer_draw() {
             add_bob_per_background(x + 8, y + 10, ele, 0xffe1, 0, 0xc7);
             ds_trampoline_start();
         }
+    }
+
+    ds_trampoline_end();
+}
+
+void far pascal do_tiletype_actions_inner(unsigned int boh) {
+    int idx;
+    int top;
+    int i;
+    void far* ptr1;
+    void far* ptr2;
+    int type;
+
+    ds_trampoline_start();
+
+    idx = boh == 0xff ? 0    : boh;
+    top = boh == 0xff ? 0x3f : boh;
+
+    for (i = idx; i <= top; i++) {
+
+        if ((*swivar_block_2)[i] == 0)
+            continue;
+
+        ptr1 = swi_file_content[i];
+        type = *(int far*)ptr1;
+        type = from_big_endian(type); 
+
+        ptr2 = (((char far*)ptr1) + 4);
+        if (type != 0) {
+            tiletype_action_t ac;
+
+            *background_ani_frame = 0;
+            ac = ((tiletype_action_t far*)tiletype_actions)[type - 1];
+
+
+        {
+            char *dc_i   = "i    xx";
+            char *dc_swi = "swi  xxxx:xxxx";
+            char *dc_toc = "ac   xxxx:xxxx";
+            char *dc_p1  = "p1   xxxx:xxxx";
+            char *dc_p2  = "p2   xxxx:xxxx";
+            char *diocan = "type xxxx";
+            char Y = 0;
+            format_byte(dc_i + 5, i);
+            bg_dump(0, Y, dc_i);
+            Y += 8;
+
+            format_ptr(dc_swi + 5, swi_file_elements);
+            vga_dump(0, Y, dc_swi);
+            Y += 8;
+
+            format_ptr(dc_p1 + 5, ptr1);
+            vga_dump(0, Y, dc_p1);
+            Y += 8;
+
+            format_ptr(dc_p2 + 5, ptr2);
+            vga_dump(0, Y, dc_p2);
+            Y += 8;
+
+            format_word(diocan + 5, type);
+            vga_dump(0, Y, diocan);
+            Y += 8;
+
+            format_ptr(dc_toc + 5, ac);
+            vga_dump(0, Y, dc_toc);
+            Y += 8;
+
+        }
+
+        wait_vsync();
+        wait_vsync();
+        wait_vsync();
+            while (1);
+
+            ds_trampoline_end();
+            ac(ptr2, &top, &i);
+            ds_trampoline_start();
+        }
+    }
+
+    ds_trampoline_end();
+}
+
+void far pascal do_tiletype_actions(char boh) {
+
+    if (boh > 0x3f)
+        return;
+
+    ds_trampoline_start();
+
+    if ((*swivar_block_2)[boh] == 0) {
+        do_tiletype_actions_inner_t in = do_tiletype_actions_inner_th;
+
+        (*swivar_block_2)[boh] = 1;
+
+        ds_trampoline_end();
+        if (1) {
+            in(boh);
+        } else {
+            do_tiletype_actions_inner(boh);
+        }
+        ds_trampoline_start();
     }
 
     ds_trampoline_end();
@@ -726,11 +858,15 @@ void init_pointers() {
     mouse_pointer_x          = MK_FP(dseg, 0x0992);
     mouse_pointer_y          = MK_FP(dseg, 0x0994);
     mouse_do_default_action  = MK_FP(dseg, 0x0998);
+    swi_file_content         = MK_FP(dseg, 0x2b98);
+    swi_file_elements        = MK_FP(dseg, 0x2b9c);
     pti_file_content         = MK_FP(dseg, 0x2cbc);
+    swivar_block_2           = MK_FP(dseg, 0x2eee);
     pupo_current_ani         = MK_FP(dseg, 0x2efb);
     status_ele_block         = MK_FP(dseg, 0x2f0c);
-    mat_filenames            = MK_FP(dseg, 0x2f58);
     logi_tab_file            = MK_FP(dseg, 0x2f14);
+    background_ani_frame     = MK_FP(dseg, 0x2f4f);
+    mat_filenames            = MK_FP(dseg, 0x2f58);
     bobs_ele_item            = MK_FP(dseg, 0x383c);
     bobs_sizeof              = MK_FP(dseg, 0x3904);
     bobs_palette_start       = MK_FP(dseg, 0x3968);
@@ -741,10 +877,13 @@ void init_pointers() {
     bobs_count               = MK_FP(dseg, 0x3bc0);
     background_buffer        = MK_FP(dseg, 0x3d20);
     mouse_inited             = MK_FP(dseg, 0x414b);
+    tiletype_actions         = MK_FP(dseg, 0x2c9c);
 
     mouse_pointer_for_point    = MK_FP(seg004, 0x078a);
     mouse_click_event          = MK_FP(seg004, 0x0851);
     cammina_per_click          = MK_FP(seg004, 0x08f0);
+    do_tiletype_actions_inner_th
+                               = MK_FP(seg006, 0x064b);
     get_line_from_pti_internal = MK_FP(seg008, 0x02c8);
     mouse_get_status           = MK_FP(seg010, 0x0022);
     mouse_button_status        = MK_FP(seg010, 0x0096);
@@ -763,9 +902,13 @@ void init_pointers() {
     patch_far_jmp(MK_FP(seg003, 0x0222), &mouse_pointer_draw);
     patch_far_jmp(MK_FP(seg003, 0x0314), &mouse_pointer_init);
     patch_far_jmp(MK_FP(seg003, 0x016e), &mouse_check_buttons);
-    patch_far_jmp(MK_FP(seg006, 0x10bb), &draw_highlight_under_cursor);
+/*
+    patch_far_jmp(MK_FP(seg006, 0x064b), &do_tiletype_actions_inner);
+*/
+    patch_far_jmp(MK_FP(seg006, 0x070b), &do_tiletype_actions);
     patch_far_jmp(MK_FP(seg006, 0x0fcb), &render_context_explanation);
     patch_far_jmp(MK_FP(seg006, 0x101c), &render_key_help);
+    patch_far_jmp(MK_FP(seg006, 0x10bb), &draw_highlight_under_cursor);
     patch_far_jmp(MK_FP(seg007, 0x001d), &get_line_from_pti);
     patch_far_jmp(MK_FP(seg012, 0x0603), &logi_tab_contains_w);
     patch_far_jmp(MK_FP(seg013, 0x048d), &render_all_background_layers);
