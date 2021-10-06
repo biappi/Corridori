@@ -6,9 +6,12 @@
 
 #define arca_base (outpsp + 0x10)
 
+#define seg003 (arca_base + 0x0325)
+#define seg004 (arca_base + 0x0358)
 #define seg006 (arca_base + 0x046f)
 #define seg007 (arca_base + 0x0592)
 #define seg008 (arca_base + 0x05a7)
+#define seg010 (arca_base + 0x06bb)
 #define seg012 (arca_base + 0x08fa)
 #define seg013 (arca_base + 0x0961)
 #define seg015 (arca_base + 0x0a2d)
@@ -32,6 +35,17 @@ int  far* bobs_x;
 int  far* bobs_y;
 int  far* bobs_count;
 
+int far* mouse_pointer_x;
+int far* mouse_pointer_y;
+char far* mouse_inited;
+char far* mouse_do_default_action;
+void far* far* mouse_funcptr2;
+int far* mouse_pointer_file_size;
+char far* far* mouse_pointer_file_buf;
+char far* far* mouse_pointer_ele_1;
+char far* far* mouse_pointer_ele_2;
+char far* far* mouse_pointer_ele_3;
+char far* pupo_current_ani;
 
 /* last parameter pushed is last in arg list */
 typedef void (far pascal *render_ele_t) (int x, int y, void far* ele, int boh);
@@ -44,7 +58,12 @@ typedef int  (far pascal *get_line_from_pti_internal_t)(int idx, char far* dst, 
 typedef void (far pascal *gfx_1_t)(int boh1, int boh2, int boh3, int boh4);
 typedef void (far pascal *gfx_2_t)(int boh1, int boh2, int boh3, int boh4, char boh5);
 typedef void (far pascal *gfx_3_t)(int boh1, int boh2, int boh3, int boh4, char boh5);
-typedef int (far pascal *get_text_width_t)(char far* str);
+typedef int  (far pascal *get_text_width_t)(char far* str);
+typedef int  (far pascal *mouse_button_status_t)(int far* button, int far* x, int far* y, int far* count);
+typedef void (far pascal *mouse_click_event_t)(int x, int y, int button_id);
+typedef void (far pascal *cammina_per_click_t)();
+typedef void (far pascal *mouse_get_status_t)(int far* dx, int far* dy, int far* status);
+typedef int  (far pascal *mouse_pointer_for_point_t)(int x, int y);
 
 render_ele_t render_ele;
 render_ele_t render_ele_flipped;
@@ -58,6 +77,12 @@ gfx_1_t gfx_1;
 gfx_2_t gfx_2;
 gfx_3_t gfx_3;
 get_text_width_t get_text_width;
+mouse_button_status_t mouse_button_status;
+mouse_click_event_t mouse_click_event;
+cammina_per_click_t cammina_per_click;
+mouse_get_status_t mouse_get_status;
+mouse_pointer_for_point_t mouse_pointer_for_point;
+
 
 int far pascal logi_tab_contains(int thing, int logi_tab_index);
 
@@ -147,7 +172,7 @@ void far pascal draw_highlight_under_cursor() {
                 get_type(pixel_x + 8, pixel_y + 10, &data2);
                 ds_trampoline_start();
             }
-            
+
             top_25 = logi_tab_contains(data1, 0x25);
             top_28 = logi_tab_contains(data1, 0x28);
             bottom_25 = logi_tab_contains(data2, 0x25);
@@ -334,17 +359,6 @@ void get_line_from_pti_c(int idx, char far* out_pstring) {
     }
 
     copy_c_to_pascal(line, out_pstring);
-
-
-#if 0
-    {
-        char size = *out_pstring;
-
-        out_pstring[size] = ' ';
-        format_word(out_pstring + size + 1, idx);
-        *out_pstring = size + 5;
-    }
-#endif
 }
 
 void far pascal get_line_from_pti(int idx) {
@@ -567,9 +581,153 @@ void far pascal render_pause_box(char far* string, int color, int boh) {
     ds_trampoline_end();
 }
 
+void far pascal mouse_pointer_init() {
+    ds_trampoline_start();
+    *mouse_pointer_x         = 0xa8;
+    *mouse_pointer_y         = 0x64;
+    *mouse_pointer_file_size = 0x00;
+    ds_trampoline_end();
+}
+
+void far pascal mouse_check_buttons() {
+    int button_id;
+    int button;
+    int x;
+    int y;
+    int count;
+
+    ds_trampoline_start();
+
+    if (*mouse_inited) {
+        mouse_button_status_t ms = mouse_button_status;
+        mouse_click_event_t evt = mouse_click_event;
+        cammina_per_click_t camm = cammina_per_click;
+
+        void far* mousefunc2 = *mouse_funcptr2;
+        ds_trampoline_end();
+
+        button_id = 0;
+        button = 1;
+        ms(&button, &x, &y, &count);
+
+        ds_trampoline_start();
+
+        if (count > 0) {
+            button_id = 2;
+        }
+        else {
+            ds_trampoline_end();
+            button = 0;
+            ms(&button, &x, &y, &count);
+            ds_trampoline_start();
+
+            if (count > 0) {
+                button_id = 1;
+            }
+        }
+
+        if (button_id) {
+            int mp_x = *mouse_pointer_x;
+            int mp_y = *mouse_pointer_y;
+
+            ds_trampoline_end();
+            evt(mp_x, mp_y, button_id);
+            ds_trampoline_start();
+        }
+
+        if (*mouse_do_default_action) {
+            int ani = *pupo_current_ani;
+            int (far pascal *funcptr2)(int, int) = mousefunc2;
+
+            ds_trampoline_end();
+
+            if (funcptr2(ani, 0)) {
+                ds_trampoline_start();
+                ds_trampoline_end();
+                camm();
+            }
+
+            ds_trampoline_start();
+        }
+    }
+
+    ds_trampoline_end();
+}
+
+void far pascal mouse_set_position(int col, int row) {
+    asm mov ax, 4;
+    asm mov cx, col;
+    asm mov dx, row;
+    asm int 33h;
+}
+
+void far pascal mouse_pointer_draw() {
+    ds_trampoline_start();
+
+    if ((*mouse_pointer_file_size) &&
+        (*mouse_inited))
+    {
+        mouse_get_status_t gs = mouse_get_status;
+
+        int dx;
+        int dy;
+
+        int status;
+
+        ds_trampoline_end();
+
+        gs(&dx, &dy, &status);
+        ds_trampoline_start();
+
+        mouse_set_position(0xa0, 0x64);
+
+        *mouse_pointer_x = *mouse_pointer_x + dx - 0xa0; 
+        *mouse_pointer_y = *mouse_pointer_y + dy - 0x64;
+
+        if (*mouse_pointer_x > 0x13d) *mouse_pointer_x = 0x13d;
+        if (*mouse_pointer_x < 0    ) *mouse_pointer_x = 0x0;
+
+        if (*mouse_pointer_y >  0xc5) *mouse_pointer_y = 0xc5;
+        if (*mouse_pointer_y <  0   ) *mouse_pointer_y = 0x0;
+
+        {
+            mouse_pointer_for_point_t mpt = mouse_pointer_for_point;
+
+            int x;
+            int y;
+            void far* ele;
+            int cursor;
+
+            ds_trampoline_end();
+            cursor = mpt(x, y);
+            ds_trampoline_start();
+
+            x = *mouse_pointer_x;
+            y = *mouse_pointer_y;
+            ele = mouse_pointer_ele_1[cursor - 1];
+
+            ds_trampoline_end();
+            add_bob_per_background(x + 8, y + 10, ele, 0xffe1, 0, 0xc7);
+            ds_trampoline_start();
+        }
+    }
+
+    ds_trampoline_end();
+}
+
 void init_pointers() {
     highlight_frame_nr       = MK_FP(dseg, 0x0100);
+    mouse_funcptr2           = MK_FP(dseg, 0x097c);
+    mouse_pointer_file_size  = MK_FP(dseg, 0x0980);
+    mouse_pointer_file_buf   = MK_FP(dseg, 0x0982);
+    mouse_pointer_ele_1      = MK_FP(dseg, 0x0986);
+    mouse_pointer_ele_2      = MK_FP(dseg, 0x098a);
+    mouse_pointer_ele_3      = MK_FP(dseg, 0x098e);
+    mouse_pointer_x          = MK_FP(dseg, 0x0992);
+    mouse_pointer_y          = MK_FP(dseg, 0x0994);
+    mouse_do_default_action  = MK_FP(dseg, 0x0998);
     pti_file_content         = MK_FP(dseg, 0x2cbc);
+    pupo_current_ani         = MK_FP(dseg, 0x2efb);
     status_ele_block         = MK_FP(dseg, 0x2f0c);
     mat_filenames            = MK_FP(dseg, 0x2f58);
     logi_tab_file            = MK_FP(dseg, 0x2f14);
@@ -582,9 +740,14 @@ void init_pointers() {
     bobs_y                   = MK_FP(dseg, 0x3b5c);
     bobs_count               = MK_FP(dseg, 0x3bc0);
     background_buffer        = MK_FP(dseg, 0x3d20);
-    gfx_bobs_color_override  = MK_FP(dseg, 0x3d28);
+    mouse_inited             = MK_FP(dseg, 0x414b);
 
+    mouse_pointer_for_point    = MK_FP(seg004, 0x078a);
+    mouse_click_event          = MK_FP(seg004, 0x0851);
+    cammina_per_click          = MK_FP(seg004, 0x08f0);
     get_line_from_pti_internal = MK_FP(seg008, 0x02c8);
+    mouse_get_status           = MK_FP(seg010, 0x0022);
+    mouse_button_status        = MK_FP(seg010, 0x0096);
     logi_tab_contains_theirs   = MK_FP(seg012, 0x0603);
     render_background_layer    = MK_FP(seg013, 0x0244);
     get_tile_type_for_x_y      = MK_FP(seg013, 0x061e);
@@ -597,7 +760,9 @@ void init_pointers() {
     render_ele                 = MK_FP(seg015, 0x1b8e);
     render_ele_flipped         = MK_FP(seg015, 0x1bc3);
 
-
+    patch_far_jmp(MK_FP(seg003, 0x0222), &mouse_pointer_draw);
+    patch_far_jmp(MK_FP(seg003, 0x0314), &mouse_pointer_init);
+    patch_far_jmp(MK_FP(seg003, 0x016e), &mouse_check_buttons);
     patch_far_jmp(MK_FP(seg006, 0x10bb), &draw_highlight_under_cursor);
     patch_far_jmp(MK_FP(seg006, 0x0fcb), &render_context_explanation);
     patch_far_jmp(MK_FP(seg006, 0x101c), &render_key_help);
