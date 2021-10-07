@@ -28,7 +28,6 @@ char far* pupo_current_ani;
 char far* far* swivar_block_2;
 char far* far* swi_file_content;
 void far* far* swi_file_elements;
-int far* background_ani_frame;
 void far* tiletype_actions;
 
 void far* far* bobs_ele_item;
@@ -61,7 +60,8 @@ char far* tiles_types;
 int  far* tiles_overrides;
 char far* current_mat_loaded;
 char far* far* mat_buffer;
-
+char far* background_ani_countdown;
+char far* background_ani_frame;
 
 /* last parameter pushed is last in arg list */
 typedef void (far pascal *render_ele_t) (int x, int y, void far* ele, int boh);
@@ -365,6 +365,46 @@ void far pascal render_all_background_layers() {
     render_background_layer_mine(1);
     render_background_layer_mine(2);
     render_background_layer_mine(9);
+}
+
+void far pascal animate_and_render_background() {
+    int i;
+    ds_trampoline_start();
+
+    for (i = 0; i < 0x14 * 0x14; i++) {
+        unsigned int tile_o = from_big_endian(tiles_ids[i]);
+        unsigned int tile_n = tile_o;
+        unsigned int frame  = *background_ani_frame;
+        static int FF = 0;
+
+        if ((tile_n & 0xf000) == 0x9000) {
+            if (tile_n & 0x0800) {
+                frame = 3;
+            }
+            else {
+                if ((tile_n & 0x0400) && (frame == 3)) {
+                    tile_n = tile_n | 0x0800;
+                }
+            }
+        
+            tile_n = (tile_n & 0xfffc) | (frame & 0x0003);
+            tiles_ids[i] = from_big_endian(tile_n);
+        } 
+    }
+
+    *background_ani_countdown = *background_ani_countdown - 1;
+
+    if (*background_ani_countdown == 0) {
+        *background_ani_frame = *background_ani_frame + 1;
+        *background_ani_countdown = 4;
+    }
+
+    if (*background_ani_frame == 4) {
+        *background_ani_frame = 0;
+    }
+
+    ds_trampoline_end();
+    render_all_background_layers();
 }
 
 void far pascal add_bob_per_background(
@@ -838,58 +878,60 @@ void far pascal do_tiletype_actions_inner(unsigned int boh) {
             continue;
 
         ptr1 = swi_file_content[i];
-        type = *(int far*)ptr1;
+        type = *((int  far*)ptr1);
+        ptr2 = (((char far*)ptr1) + 4);
         type = from_big_endian(type); 
 
-        ptr2 = (((char far*)ptr1) + 4);
         if (type != 0) {
             tiletype_action_t ac;
 
             *background_ani_frame = 0;
+
             ac = ((tiletype_action_t far*)tiletype_actions)[type - 1];
 
+            if (0)
+            {
+                char *dc_i   = "i    xx";
+                char *dc_swi = "swi  xxxx:xxxx";
+                char *dc_toc = "ac   xxxx:xxxx";
+                char *dc_p1  = "p1   xxxx:xxxx";
+                char *dc_p2  = "p2   xxxx:xxxx";
+                char *diocan = "type xxxx";
+                char Y = 0;
 
-        {
-            char *dc_i   = "i    xx";
-            char *dc_swi = "swi  xxxx:xxxx";
-            char *dc_toc = "ac   xxxx:xxxx";
-            char *dc_p1  = "p1   xxxx:xxxx";
-            char *dc_p2  = "p2   xxxx:xxxx";
-            char *diocan = "type xxxx";
-            char Y = 0;
-            format_byte(dc_i + 5, i);
-            bg_dump(0, Y, dc_i);
-            Y += 8;
+                format_byte(dc_i + 5, i);
+                vga_dump(0, Y, dc_i);
+                Y += 8;
 
-            format_ptr(dc_swi + 5, swi_file_elements);
-            vga_dump(0, Y, dc_swi);
-            Y += 8;
+                format_ptr(dc_swi + 5, swi_file_elements);
+                vga_dump(0, Y, dc_swi);
+                Y += 8;
 
-            format_ptr(dc_p1 + 5, ptr1);
-            vga_dump(0, Y, dc_p1);
-            Y += 8;
+                format_ptr(dc_p1 + 5, ptr1);
+                vga_dump(0, Y, dc_p1);
+                Y += 8;
 
-            format_ptr(dc_p2 + 5, ptr2);
-            vga_dump(0, Y, dc_p2);
-            Y += 8;
+                format_ptr(dc_p2 + 5, ptr2);
+                vga_dump(0, Y, dc_p2);
+                Y += 8;
 
-            format_word(diocan + 5, type);
-            vga_dump(0, Y, diocan);
-            Y += 8;
+                format_word(diocan + 5, type);
+                vga_dump(0, Y, diocan);
+                Y += 8;
 
-            format_ptr(dc_toc + 5, ac);
-            vga_dump(0, Y, dc_toc);
-            Y += 8;
+                format_ptr(dc_toc + 5, ac);
+                vga_dump(0, Y, dc_toc);
+                Y += 8;
 
-        }
+                wait_vsync();
+                wait_vsync();
+                wait_vsync();
 
-        wait_vsync();
-        wait_vsync();
-        wait_vsync();
-            while (1);
+                while(1);
+            }
 
             ds_trampoline_end();
-            ac(ptr2, &top, &i);
+            ac(ptr2, &i, &top);
             ds_trampoline_start();
         }
     }
@@ -920,6 +962,7 @@ void far pascal do_tiletype_actions(char boh) {
 
     ds_trampoline_end();
 }
+
 void init_pointers() {
     highlight_frame_nr       = MK_FP(dseg, 0x0100);
     mouse_funcptr2           = MK_FP(dseg, 0x097c);
@@ -940,6 +983,7 @@ void init_pointers() {
     status_ele_block         = MK_FP(dseg, 0x2f0c);
     logi_tab_file            = MK_FP(dseg, 0x2f14);
     background_ani_frame     = MK_FP(dseg, 0x2f4f);
+    background_ani_countdown = MK_FP(dseg, 0x2f4e);
     mat_filenames            = MK_FP(dseg, 0x2f58);
     tiles_ids                = MK_FP(dseg, 0x2f78);
     tiles_types              = MK_FP(dseg, 0x32b8);
@@ -983,9 +1027,6 @@ void init_pointers() {
     patch_far_jmp(MK_FP(seg003, 0x0222), &mouse_pointer_draw);
     patch_far_jmp(MK_FP(seg003, 0x0314), &mouse_pointer_init);
     patch_far_jmp(MK_FP(seg003, 0x016e), &mouse_check_buttons);
-/*
-    patch_far_jmp(MK_FP(seg006, 0x064b), &do_tiletype_actions_inner);
-*/
     patch_far_jmp(MK_FP(seg006, 0x070b), &do_tiletype_actions);
     patch_far_jmp(MK_FP(seg006, 0x0fcb), &render_context_explanation);
     patch_far_jmp(MK_FP(seg006, 0x101c), &render_key_help);
@@ -993,6 +1034,7 @@ void init_pointers() {
     patch_far_jmp(MK_FP(seg007, 0x001d), &get_line_from_pti);
     patch_far_jmp(MK_FP(seg012, 0x0603), &logi_tab_contains_w);
     patch_far_jmp(MK_FP(seg013, 0x048d), &render_all_background_layers);
+    patch_far_jmp(MK_FP(seg013, 0x04de), &animate_and_render_background);
     patch_far_jmp(MK_FP(seg013, 0x070a), &bobs_get_count);
     patch_far_jmp(MK_FP(seg013, 0x071d), &add_bob_per_background);
     patch_far_jmp(MK_FP(seg013, 0x0b64), &render_bobs_in_background);
