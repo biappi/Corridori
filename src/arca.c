@@ -22,7 +22,6 @@ unsigned int far* background_buffer;
 unsigned char far* highlight_frame_nr;
 void far* far* far* status_ele_block;
 unsigned int far* far* logi_tab_file;
-void far* far* far* mat_filenames;
 int far* gfx_bobs_color_override;
 void far* far* pti_file_content;
 char far* pupo_current_ani;
@@ -52,6 +51,18 @@ char far* far* mouse_pointer_ele_1;
 char far* far* mouse_pointer_ele_2;
 char far* far* mouse_pointer_ele_3;
 
+struct {
+    char info;
+    char file;
+} far* mat_filenames;
+
+int  far* tiles_ids;
+char far* tiles_types;
+int  far* tiles_overrides;
+char far* current_mat_loaded;
+char far* far* mat_buffer;
+
+
 /* last parameter pushed is last in arg list */
 typedef void (far pascal *render_ele_t) (int x, int y, void far* ele, int boh);
 typedef void (far pascal *wait_vsync_t) (void);
@@ -71,6 +82,8 @@ typedef void (far pascal *mouse_get_status_t)(int far* dx, int far* dy, int far*
 typedef int  (far pascal *mouse_pointer_for_point_t)(int x, int y);
 typedef void (far pascal *do_tiletype_actions_inner_t)(int boh);
 typedef void (far pascal *tiletype_action_t)(void far* ptr, int far* idx, int far* top);
+typedef void (far pascal *load_buffer_mat_t)(int x);
+
 
 render_ele_t render_ele;
 render_ele_t render_ele_flipped;
@@ -90,6 +103,7 @@ cammina_per_click_t cammina_per_click;
 mouse_get_status_t mouse_get_status;
 mouse_pointer_for_point_t mouse_pointer_for_point;
 do_tiletype_actions_inner_t do_tiletype_actions_inner_th;
+load_buffer_mat_t load_buffer_mat;
 
 int far pascal logi_tab_contains(int thing, int logi_tab_index);
 
@@ -272,25 +286,85 @@ int far pascal logi_tab_contains_w(int thing, int logi_tab_index) {
     return x;
 }
 
-void far pascal render_all_background_layers() {
+void far pascal render_background_layer_mine(int mat_idx) {
     int i;
-    render_background_layer_t r;
 
     ds_trampoline_start();
 
-    r = render_background_layer;
+    for (i = 0; i < 0x14 * 0x14; i++) {
+        int original  = tiles_ids[i];
+        int overrid   = tiles_overrides[i];
+        int tile_info = from_big_endian(
+            original == overrid ? 0xffff : original
+        );
 
-    for (i = 0; i < 4; i++) {
-        int mat = i == 3 ? 9 : i;
+        char tile_mat = ((tile_info & 0xf000) >> 12);
 
-        if ((*mat_filenames)[mat] != 0) {
+        if (original == overrid)
+            continue;
+
+        if (tile_mat != mat_idx)
+            continue;
+
+        tiles_overrides[i] = original;
+
+        if (*current_mat_loaded != mat_idx) 
+        {
+            load_buffer_mat_t lb = load_buffer_mat;
+            char tileset = mat_filenames[mat_idx].file;
+
             ds_trampoline_end();
-            r(mat);
+            lb(tileset);
             ds_trampoline_start();
+
+            *current_mat_loaded = mat_idx;
+        }
+
+        {
+            int tile_x = i % 0x14;
+            int tile_y = i / 0x14;
+            int tile_i = tile_info & 0x01ff;
+
+            int flip   = !!(tile_info & 0x0200);
+
+            static const tile_width = 0x10;
+            static const tile_height = 0x0a;
+
+            int tile_px_x = tile_x * tile_width;
+            int tile_px_y = tile_y * tile_height;
+
+            int stride = tile_width * 0x14;
+
+            int src_offset = tile_i * (tile_width * tile_height);
+            char far* dst = MK_FP(*background_buffer, 0);
+            char far* src = *mat_buffer;
+
+            int x, y;
+
+            src += src_offset;
+
+            for (y = 0; y < tile_height; y++) {
+                for (x = 0; x < tile_width; x++) {
+                    int px = tile_px_x + x;
+                    int py = tile_px_y + y;
+                    int off = py * stride + px;
+                    int sx = !flip ? x : tile_width - x - 1;
+                    int soff = y * tile_width + sx;
+
+                    dst[off] = src[soff];
+                }
+            }
         }
     }
 
     ds_trampoline_end();
+}
+
+void far pascal render_all_background_layers() {
+    render_background_layer_mine(0);
+    render_background_layer_mine(1);
+    render_background_layer_mine(2);
+    render_background_layer_mine(9);
 }
 
 void far pascal add_bob_per_background(
@@ -846,7 +920,6 @@ void far pascal do_tiletype_actions(char boh) {
 
     ds_trampoline_end();
 }
-
 void init_pointers() {
     highlight_frame_nr       = MK_FP(dseg, 0x0100);
     mouse_funcptr2           = MK_FP(dseg, 0x097c);
@@ -858,6 +931,7 @@ void init_pointers() {
     mouse_pointer_x          = MK_FP(dseg, 0x0992);
     mouse_pointer_y          = MK_FP(dseg, 0x0994);
     mouse_do_default_action  = MK_FP(dseg, 0x0998);
+    tiletype_actions         = MK_FP(dseg, 0x2c9c);
     swi_file_content         = MK_FP(dseg, 0x2b98);
     swi_file_elements        = MK_FP(dseg, 0x2b9c);
     pti_file_content         = MK_FP(dseg, 0x2cbc);
@@ -867,6 +941,9 @@ void init_pointers() {
     logi_tab_file            = MK_FP(dseg, 0x2f14);
     background_ani_frame     = MK_FP(dseg, 0x2f4f);
     mat_filenames            = MK_FP(dseg, 0x2f58);
+    tiles_ids                = MK_FP(dseg, 0x2f78);
+    tiles_types              = MK_FP(dseg, 0x32b8);
+    tiles_overrides          = MK_FP(dseg, 0x3448);
     bobs_ele_item            = MK_FP(dseg, 0x383c);
     bobs_sizeof              = MK_FP(dseg, 0x3904);
     bobs_palette_start       = MK_FP(dseg, 0x3968);
@@ -876,8 +953,10 @@ void init_pointers() {
     bobs_y                   = MK_FP(dseg, 0x3b5c);
     bobs_count               = MK_FP(dseg, 0x3bc0);
     background_buffer        = MK_FP(dseg, 0x3d20);
+    current_mat_loaded       = MK_FP(dseg, 0x3c14);
+    mat_buffer               = MK_FP(dseg, 0x3770);
     mouse_inited             = MK_FP(dseg, 0x414b);
-    tiletype_actions         = MK_FP(dseg, 0x2c9c);
+
 
     mouse_pointer_for_point    = MK_FP(seg004, 0x078a);
     mouse_click_event          = MK_FP(seg004, 0x0851);
@@ -888,6 +967,7 @@ void init_pointers() {
     mouse_get_status           = MK_FP(seg010, 0x0022);
     mouse_button_status        = MK_FP(seg010, 0x0096);
     logi_tab_contains_theirs   = MK_FP(seg012, 0x0603);
+    load_buffer_mat            = MK_FP(seg013, 0x154);
     render_background_layer    = MK_FP(seg013, 0x0244);
     get_tile_type_for_x_y      = MK_FP(seg013, 0x061e);
     get_text_width             = MK_FP(seg015, 0x04fc);
@@ -898,6 +978,7 @@ void init_pointers() {
     gfx_2                      = MK_FP(seg015, 0x1595);
     render_ele                 = MK_FP(seg015, 0x1b8e);
     render_ele_flipped         = MK_FP(seg015, 0x1bc3);
+
 
     patch_far_jmp(MK_FP(seg003, 0x0222), &mouse_pointer_draw);
     patch_far_jmp(MK_FP(seg003, 0x0314), &mouse_pointer_init);
