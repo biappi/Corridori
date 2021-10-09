@@ -30,6 +30,9 @@ char far* far* swivar_block_2;
 char far* far* swi_file_content;
 void far* far* swi_file_elements;
 void far* tiletype_actions;
+char far* far* animjoy_tab_file;
+char far* far* frames_tab_file;
+char far* get_new_ani;
 
 void far* far* bobs_ele_item;
 int  far* bobs_sizeof;
@@ -57,6 +60,7 @@ char far* left_pressed;
 char far* right_pressed;
 char far* l_shift_pressed;
 char far* r_shift_pressed;
+char far* esc_pressed_flag;
 
 struct {
     char info;
@@ -79,6 +83,9 @@ char far* pupo_tile_bottom;
 int  far* vita;
 char far* colpi;
 int  far* punti;
+int  far* pupo_new_x;
+int  far* pupo_new_y;
+char far* gun_bool;
 
 
 /* last parameter pushed is last in arg list */
@@ -1098,6 +1105,27 @@ char far pascal capisci_dove_muovere_il_pupo_key() {
 
 void far update_pupo_1() {
     ds_trampoline_start();
+
+    /*
+    char dove;
+
+    if (*esc_pressed_flag) {
+        dove = 0;
+    }
+    else {
+        ds_trampoline_end();
+        capisci_dove_muovere_il_pupo_key();
+        ds_trampoline_start();
+    }
+
+    {
+        char far* new_ani = *animjoy_tab_file + (*pupo_current_ani * 18) + dove;
+
+        *pupo_current_ani = *new_ani;
+        *get_new_ani = 0;
+    }
+    */
+
     {
         get_tile_type_for_x_y_t get_type = get_tile_type_for_x_y;
         int px = *pupo_x;
@@ -1113,6 +1141,64 @@ void far update_pupo_1() {
         ds_trampoline_end();
         get_type(px, py + 10, bottom);
         ds_trampoline_start();
+    }
+
+    {
+        void (far pascal *controlla_sotto_piedi)(void far* ani, int top, int bottom, int x, int y, int new_x, int new_y)
+            = MK_FP(seg002, 0x0eb9);
+
+        void far* ani = pupo_current_ani;
+        int top = *pupo_tile_top;
+        int bot = *pupo_tile_bottom;
+        int x = *pupo_x;
+        int y = *pupo_y;
+        int nx = *pupo_new_x;
+        int ny = *pupo_new_y;
+
+        ds_trampoline_end();
+        controlla_sotto_piedi(ani, top, bot, x, y, nx, ny);
+        ds_trampoline_start();
+    }
+
+    if (*gun_bool == 0) {
+        int a = *pupo_current_ani;
+
+        *pupo_current_ani =
+            (a == 0x47) ? 0x48:
+            (a == 0x12) ? 0x13:
+            a;
+    }
+
+    {
+        int a = *pupo_current_ani;
+
+        do {
+            void (far pascal *offset_from_ani)(int ani, int x, int y, int far* nx, int far* ny)
+                = MK_FP(seg002, 0x01c1);
+            void (far pascal *cosa_ho_di_fronte)(char far* ani, int x, int y, int nx, int ny)
+                = MK_FP(seg002, 0x114c);
+
+            char far* ani = pupo_current_ani;
+
+            int x = *pupo_x;
+            int y = *pupo_y;
+            int far* nx = pupo_new_x;
+            int far* ny = pupo_new_y;
+            int A = *pupo_current_ani;
+
+            ds_trampoline_end();
+            offset_from_ani(A, x, y, nx, ny);
+            ds_trampoline_start();
+
+            {
+                int NX = *nx;
+                int NY = *ny;
+
+                ds_trampoline_end();
+                cosa_ho_di_fronte(ani, x, y, NX, NY);
+                ds_trampoline_start();
+            }
+        } while (*pupo_current_ani != a);
     }
 
     ds_trampoline_end();
@@ -1170,8 +1256,13 @@ void init_pointers() {
     right_pressed            = MK_FP(dseg, 0x42a7);
     l_shift_pressed          = MK_FP(dseg, 0x42b1);
     r_shift_pressed          = MK_FP(dseg, 0x42b2);
-
-
+    pupo_new_x               = MK_FP(dseg, 0x2cc4);
+    pupo_new_y               = MK_FP(dseg, 0x2cc6);
+    gun_bool                 = MK_FP(dseg, 0x2eff);
+    animjoy_tab_file         = MK_FP(dseg, 0x0934);
+    frames_tab_file          = MK_FP(dseg, 0x0938);
+    get_new_ani              = MK_FP(dseg, 0x2efb);
+    esc_pressed_flag         = MK_FP(dseg, 0x414f);
 
 
     mouse_pointer_for_point    = MK_FP(seg004, 0x078a);
@@ -1216,7 +1307,9 @@ void init_pointers() {
     patch_far_jmp(MK_FP(seg015, 0x0eca), &render_help_string);
 
     /* Update Pupo */
-    patch_cave(MK_FP(seg002, 0x17fc), MK_FP(seg002, 0x1823), &update_pupo_1);
+    {
+        patch_cave(MK_FP(seg002, 0x17fc), MK_FP(seg002, 0x18a6), &update_pupo_1);
+    }
 }
 
 void main(int argc, char *argv[]) {
