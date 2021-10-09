@@ -1032,8 +1032,8 @@ void far pascal draw_faccia() {
 
 char far pascal capisci_dove_muovere_il_pupo_key() {
     /*
-        +------  up
-        |+-----  down
+        +------  down
+        |+-----  up
         ||+----  left
         |||+---  right
         ||||
@@ -1044,11 +1044,11 @@ char far pascal capisci_dove_muovere_il_pupo_key() {
         0011 ->        [0]
         0100 -> 1
         0101 -> 2
-        0110 -> 6
+        0110 -> 8
         0111 ->        [1]
         1000 -> 5
         1001 -> 4
-        1010 -> 8
+        1010 -> 6
         1011 ->        [5]
         1100 ->        [0]
         1101 ->        [3]
@@ -1057,7 +1057,7 @@ char far pascal capisci_dove_muovere_il_pupo_key() {
     */
 
     static char dpad_to_direction[0x10] = {
-        0, 3, 7, 0, 1, 2, 6, 1, 5, 4, 8, 5, 0, 3, 4, 0
+        0, 3, 7, 0, 1, 2, 8, 1, 5, 4, 6, 5, 0, 3, 4, 0
     };
 
     char dpad;
@@ -1067,8 +1067,8 @@ char far pascal capisci_dove_muovere_il_pupo_key() {
     ds_trampoline_start();
 
     dpad =
-        (!!*up_pressed    << 3) |
-        (!!*down_pressed  << 2) |
+        (!!*down_pressed  << 3) |
+        (!!*up_pressed    << 2) |
         (!!*left_pressed  << 1) |
         (!!*right_pressed << 0);
 
