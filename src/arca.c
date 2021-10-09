@@ -6,6 +6,7 @@
 
 #define arca_base (outpsp + 0x10)
 
+#define seg002 (arca_base + 0x00f6)
 #define seg003 (arca_base + 0x0325)
 #define seg004 (arca_base + 0x0358)
 #define seg006 (arca_base + 0x046f)
@@ -49,6 +50,13 @@ char far* far* mouse_pointer_file_buf;
 char far* far* mouse_pointer_ele_1;
 char far* far* mouse_pointer_ele_2;
 char far* far* mouse_pointer_ele_3;
+
+char far* up_pressed;
+char far* down_pressed;
+char far* left_pressed;
+char far* right_pressed;
+char far* l_shift_pressed;
+char far* r_shift_pressed;
 
 struct {
     char info;
@@ -1020,6 +1028,73 @@ void far pascal draw_faccia() {
     ds_trampoline_end();
 }
 
+
+char far pascal capisci_dove_muovere_il_pupo_key() {
+    /*
+        +------  up
+        |+-----  down
+        ||+----  left
+        |||+---  right
+        ||||
+        ----
+        0000 -> 0
+        0001 -> 3
+        0010 -> 7
+        0011 ->        [0]
+        0100 -> 1
+        0101 -> 2
+        0110 -> 6
+        0111 ->        [1]
+        1000 -> 5
+        1001 -> 4
+        1010 -> 8
+        1011 ->        [5]
+        1100 ->        [0]
+        1101 ->        [3]
+        1110 ->        [4]
+        1111 ->        [0]
+    */
+
+    static char dpad_to_direction[0x10] = {
+        0, 3, 7, 0, 1, 2, 6, 1, 5, 4, 8, 5, 0, 3, 4, 0
+    };
+
+    char dpad;
+    char direction;
+    char shift;
+
+    ds_trampoline_start();
+
+    dpad =
+        (!!*up_pressed    << 3) |
+        (!!*down_pressed  << 2) |
+        (!!*left_pressed  << 1) |
+        (!!*right_pressed << 0);
+
+    shift = (!!*l_shift_pressed) || (!!*r_shift_pressed);
+
+    direction = dpad_to_direction[dpad] + (shift ? 9 : 0);
+
+    if (direction) {
+        void (far pascal *reset_clicked_button)() = MK_FP(seg004, 0x0000);
+
+        ds_trampoline_end();
+        reset_clicked_button();
+        ds_trampoline_start();
+    }
+    else {
+        char (far pascal *muove_pupo_per_mouse)() = MK_FP(seg004, 0x018d);
+
+        ds_trampoline_end();
+        direction = muove_pupo_per_mouse();
+        ds_trampoline_start();
+    }
+    
+    ds_trampoline_end();
+
+    return direction;
+}
+
 void init_pointers() {
     highlight_frame_nr       = MK_FP(dseg, 0x0100);
     mouse_funcptr2           = MK_FP(dseg, 0x097c);
@@ -1064,7 +1139,14 @@ void init_pointers() {
     current_mat_loaded       = MK_FP(dseg, 0x3c14);
     mat_buffer               = MK_FP(dseg, 0x3770);
     mouse_inited             = MK_FP(dseg, 0x414b);
-    
+    up_pressed               = MK_FP(dseg, 0x42a4);
+    down_pressed             = MK_FP(dseg, 0x42a5);
+    left_pressed             = MK_FP(dseg, 0x42a6);
+    right_pressed            = MK_FP(dseg, 0x42a7);
+    l_shift_pressed          = MK_FP(dseg, 0x42b1);
+    r_shift_pressed          = MK_FP(dseg, 0x42b2);
+
+
     mouse_pointer_for_point    = MK_FP(seg004, 0x078a);
     mouse_click_event          = MK_FP(seg004, 0x0851);
     cammina_per_click          = MK_FP(seg004, 0x08f0);
@@ -1087,6 +1169,7 @@ void init_pointers() {
     render_ele_flipped         = MK_FP(seg015, 0x1bc3);
 
 
+    patch_far_jmp(MK_FP(seg002, 0x0000), &capisci_dove_muovere_il_pupo_key);
     patch_far_jmp(MK_FP(seg003, 0x0222), &mouse_pointer_draw);
     patch_far_jmp(MK_FP(seg003, 0x0314), &mouse_pointer_init);
     patch_far_jmp(MK_FP(seg003, 0x016e), &mouse_check_buttons);
