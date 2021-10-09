@@ -34,7 +34,7 @@ void far* far* bobs_ele_item;
 int  far* bobs_sizeof;
 char far* bobs_palette_start;
 char far* bobs_flip;
-int  far* bobs_color;
+unsigned int  far* bobs_color;
 int  far* bobs_x;
 int  far* bobs_y;
 int  far* bobs_count;
@@ -62,6 +62,15 @@ char far* current_mat_loaded;
 char far* far* mat_buffer;
 char far* background_ani_countdown;
 char far* background_ani_frame;
+char far* punti_countdown;
+char far* faccia_countdown;
+int  far* pupo_x;
+int  far* pupo_y;
+
+int  far* vita;
+char far* colpi;
+int  far* punti;
+
 
 /* last parameter pushed is last in arg list */
 typedef void (far pascal *render_ele_t) (int x, int y, void far* ele, int boh);
@@ -375,7 +384,6 @@ void far pascal animate_and_render_background() {
         unsigned int tile_o = from_big_endian(tiles_ids[i]);
         unsigned int tile_n = tile_o;
         unsigned int frame  = *background_ani_frame;
-        static int FF = 0;
 
         if ((tile_n & 0xf000) == 0x9000) {
             if (tile_n & 0x0800) {
@@ -963,6 +971,55 @@ void far pascal do_tiletype_actions(char boh) {
     ds_trampoline_end();
 }
 
+void far pascal draw_faccia() {
+    int y;
+    int boh;
+    void far *ele1;
+    void far *ele0;
+
+    ds_trampoline_start();
+
+    if (*faccia_countdown == 0) {
+        ds_trampoline_end();
+        return;
+    }
+
+    *faccia_countdown = *faccia_countdown - 1;
+
+    y = *pupo_y < 0x64 ? 0xc3 : 0x34;
+    boh = y - 7 - ((0x800 - *vita) / 0x31);
+
+    ele1 = (*status_ele_block)[1];
+    ele0 = (*status_ele_block)[0];
+
+    {
+        char *suca;
+
+        gfx_2_t g2 = gfx_2;
+
+        ds_trampoline_end();
+        g2(0, 98, 70, 2 * 8 + 100 + 2, 50);
+
+        ds_trampoline_start();
+        suca  = "vita xxxx";
+        format_word(suca + 5, *vita);
+        bg_dump(20, 100, suca);
+
+        suca  = "boh  xxxx";
+        format_word(suca + 5, boh);
+        bg_dump(20, 108, suca);
+    }
+
+    { 
+        ds_trampoline_end();
+        add_bob_per_background(0x123, y, ele1, 0xfff0, 0, 0);
+        add_bob_per_background(0x123, y + 50, ele0, 0xfff0, 0, boh);
+        ds_trampoline_start();
+    }
+
+    ds_trampoline_end();
+}
+
 void init_pointers() {
     highlight_frame_nr       = MK_FP(dseg, 0x0100);
     mouse_funcptr2           = MK_FP(dseg, 0x097c);
@@ -980,7 +1037,14 @@ void init_pointers() {
     pti_file_content         = MK_FP(dseg, 0x2cbc);
     swivar_block_2           = MK_FP(dseg, 0x2eee);
     pupo_current_ani         = MK_FP(dseg, 0x2efb);
+    pupo_x                   = MK_FP(dseg, 0x2ef6);
+    pupo_y                   = MK_FP(dseg, 0x2ef8);
+    colpi                    = MK_FP(dseg, 0x2f00);
+    vita                     = MK_FP(dseg, 0x2f04);
+    punti                    = MK_FP(dseg, 0x2f06);
     status_ele_block         = MK_FP(dseg, 0x2f0c);
+    punti_countdown          = MK_FP(dseg, 0x2f29);
+    faccia_countdown         = MK_FP(dseg, 0x2f2a);
     logi_tab_file            = MK_FP(dseg, 0x2f14);
     background_ani_frame     = MK_FP(dseg, 0x2f4f);
     background_ani_countdown = MK_FP(dseg, 0x2f4e);
@@ -1000,8 +1064,7 @@ void init_pointers() {
     current_mat_loaded       = MK_FP(dseg, 0x3c14);
     mat_buffer               = MK_FP(dseg, 0x3770);
     mouse_inited             = MK_FP(dseg, 0x414b);
-
-
+    
     mouse_pointer_for_point    = MK_FP(seg004, 0x078a);
     mouse_click_event          = MK_FP(seg004, 0x0851);
     cammina_per_click          = MK_FP(seg004, 0x08f0);
@@ -1032,6 +1095,7 @@ void init_pointers() {
     patch_far_jmp(MK_FP(seg006, 0x101c), &render_key_help);
     patch_far_jmp(MK_FP(seg006, 0x10bb), &draw_highlight_under_cursor);
     patch_far_jmp(MK_FP(seg007, 0x001d), &get_line_from_pti);
+    patch_far_jmp(MK_FP(seg012, 0x024a), &draw_faccia);
     patch_far_jmp(MK_FP(seg012, 0x0603), &logi_tab_contains_w);
     patch_far_jmp(MK_FP(seg013, 0x048d), &render_all_background_layers);
     patch_far_jmp(MK_FP(seg013, 0x04de), &animate_and_render_background);
