@@ -74,7 +74,8 @@ char far* punti_countdown;
 char far* faccia_countdown;
 int  far* pupo_x;
 int  far* pupo_y;
-
+char far* pupo_tile_top;
+char far* pupo_tile_bottom;
 int  far* vita;
 char far* colpi;
 int  far* punti;
@@ -1095,8 +1096,32 @@ char far pascal capisci_dove_muovere_il_pupo_key() {
     return direction;
 }
 
+void far update_pupo_1() {
+    ds_trampoline_start();
+    {
+        get_tile_type_for_x_y_t get_type = get_tile_type_for_x_y;
+        int px = *pupo_x;
+        int py = *pupo_y;
+
+        char far* top = pupo_tile_top;
+        char far* bottom = pupo_tile_bottom;
+        
+        ds_trampoline_end();
+        get_type(px, py,      top);
+        ds_trampoline_start();
+
+        ds_trampoline_end();
+        get_type(px, py + 10, bottom);
+        ds_trampoline_start();
+    }
+
+    ds_trampoline_end();
+}
+
 void init_pointers() {
     highlight_frame_nr       = MK_FP(dseg, 0x0100);
+    pupo_tile_top            = MK_FP(dseg, 0x0954);
+    pupo_tile_bottom         = MK_FP(dseg, 0x0955);
     mouse_funcptr2           = MK_FP(dseg, 0x097c);
     mouse_pointer_file_size  = MK_FP(dseg, 0x0980);
     mouse_pointer_file_buf   = MK_FP(dseg, 0x0982);
@@ -1147,6 +1172,8 @@ void init_pointers() {
     r_shift_pressed          = MK_FP(dseg, 0x42b2);
 
 
+
+
     mouse_pointer_for_point    = MK_FP(seg004, 0x078a);
     mouse_click_event          = MK_FP(seg004, 0x0851);
     cammina_per_click          = MK_FP(seg004, 0x08f0);
@@ -1169,7 +1196,7 @@ void init_pointers() {
     render_ele_flipped         = MK_FP(seg015, 0x1bc3);
 
 
-    patch_far_jmp(MK_FP(seg002, 0x0000), &capisci_dove_muovere_il_pupo_key);
+    patch_far_jmp(MK_FP(seg002, 0x0000), &capisci_dove_muovere_il_pupo_key); 
     patch_far_jmp(MK_FP(seg003, 0x0222), &mouse_pointer_draw);
     patch_far_jmp(MK_FP(seg003, 0x0314), &mouse_pointer_init);
     patch_far_jmp(MK_FP(seg003, 0x016e), &mouse_check_buttons);
@@ -1187,6 +1214,9 @@ void init_pointers() {
     patch_far_jmp(MK_FP(seg013, 0x0b64), &render_bobs_in_background);
     patch_far_jmp(MK_FP(seg015, 0x0c23), &render_pause_box);
     patch_far_jmp(MK_FP(seg015, 0x0eca), &render_help_string);
+
+    /* Update Pupo */
+    patch_cave(MK_FP(seg002, 0x17fc), MK_FP(seg002, 0x1823), &update_pupo_1);
 }
 
 void main(int argc, char *argv[]) {

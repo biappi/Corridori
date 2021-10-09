@@ -37,7 +37,7 @@ void setup_cmdline(char *args) {
 }
 
 
-void patch_far_jmp(void far * addr, void far * dst) {
+unsigned char far* patch_far_jmp(void far * addr, void far * dst) {
     unsigned char far* original = addr;
     unsigned long func = (unsigned long) dst;
 
@@ -46,6 +46,29 @@ void patch_far_jmp(void far * addr, void far * dst) {
     *original++ = (func >>  8) & 0xff;
     *original++ = (func >> 16) & 0xff;
     *original++ = (func >> 24) & 0xff;
+
+    return original;
+}
+
+unsigned char far* patch_far_call(void far * addr, void far * dst) {
+    unsigned char far* original = addr;
+    unsigned long func = (unsigned long) dst;
+
+    *original++ = 0x9a; /* CALL ptr16:16 */
+    *original++ = (func >>  0) & 0xff;
+    *original++ = (func >>  8) & 0xff;
+    *original++ = (func >> 16) & 0xff;
+    *original++ = (func >> 24) & 0xff;
+
+    return original;
+}
+
+unsigned char far* patch_cave(void far* start, void far* end, void far* tgt) {
+    unsigned char far* original = start;
+
+    original = patch_far_call(original, tgt);
+    original = patch_far_jmp(original, end);
+    return original;
 }
 
 /* - */
