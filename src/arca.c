@@ -1418,6 +1418,13 @@ void far pascal update_pupo_tail() {
     ds_trampoline_end();
 }
 
+void far pascal update_pupo_5() {
+    ds_trampoline_start();
+    *pupo_anim_countdown = 0;
+    *pupo_current_ani = *pupo_current_ani > 0x35 ? 0x51: 0x1c;
+    ds_trampoline_end();
+}
+
 void init_pointers() {
     highlight_frame_nr       = MK_FP(dseg, 0x0100);
     pupo_tile_top            = MK_FP(dseg, 0x0954);
@@ -1542,6 +1549,7 @@ void init_pointers() {
         patch_cave(MK_FP(seg002, 0x18cb), MK_FP(seg002, 0x192e), &update_pupo_2);
         patch_cave(MK_FP(seg002, 0x192e), MK_FP(seg002, 0x19da), &update_pupo_3);
         patch_cave(MK_FP(seg002, 0x19da), MK_FP(seg002, 0x1ae0), &update_pupo_4);
+        patch_cave(MK_FP(seg002, 0x1b11), MK_FP(seg002, 0x1b4c), &update_pupo_5);
         patch_cave(MK_FP(seg002, 0x1b9a), MK_FP(seg002, 0x1bad), &update_pupo_tail);
     }
 }
