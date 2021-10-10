@@ -100,6 +100,7 @@ char far* pupo_anim_countdown;
 int  far* to_set_pupo_x;
 int  far* to_set_pupo_y;
 char far* palette_mangling_counter;
+char far* disable_pupo_anim;
 
 /* last parameter pushed is last in arg list */
 typedef void (far pascal *render_ele_t) (int x, int y, void far* ele, int boh);
@@ -1396,6 +1397,27 @@ void far pascal update_pupo_4() {
     ds_trampoline_end();
 }
 
+void far pascal update_pupo_tail() {
+    ds_trampoline_start();
+
+    {
+        void (far pascal *change_screen_boundary)() = MK_FP(seg002, 0x12b0);
+        void (far pascal *sub_122f1)() = MK_FP(seg002, 0x1391);
+
+        ds_trampoline_end();
+        change_screen_boundary();
+        sub_122f1();
+        ds_trampoline_start();
+
+        if (!*disable_pupo_anim) {
+            *pupo_anim_countdown = *pupo_anim_countdown - 1;
+        }
+
+    }
+
+    ds_trampoline_end();
+}
+
 void init_pointers() {
     highlight_frame_nr       = MK_FP(dseg, 0x0100);
     pupo_tile_top            = MK_FP(dseg, 0x0954);
@@ -1467,7 +1489,7 @@ void init_pointers() {
     to_set_pupo_x            = MK_FP(dseg, 0x08fc);
     to_set_pupo_y            = MK_FP(dseg, 0x08fe);
     palette_mangling_counter = MK_FP(dseg, 0x2f18);
-
+    disable_pupo_anim        = MK_FP(dseg, 0x2efd);
 
     mouse_pointer_for_point    = MK_FP(seg004, 0x078a);
     mouse_click_event          = MK_FP(seg004, 0x0851);
@@ -1520,7 +1542,7 @@ void init_pointers() {
         patch_cave(MK_FP(seg002, 0x18cb), MK_FP(seg002, 0x192e), &update_pupo_2);
         patch_cave(MK_FP(seg002, 0x192e), MK_FP(seg002, 0x19da), &update_pupo_3);
         patch_cave(MK_FP(seg002, 0x19da), MK_FP(seg002, 0x1ae0), &update_pupo_4);
-
+        patch_cave(MK_FP(seg002, 0x1b9a), MK_FP(seg002, 0x1bad), &update_pupo_tail);
     }
 }
 
