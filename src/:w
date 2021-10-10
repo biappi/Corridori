@@ -1245,29 +1245,6 @@ void far pascal update_pupo_2() {
     ds_trampoline_end();
 }
 
-void vga_dump_ptr(int far* y, char far* str, void far* ptr) {
-    char *fmt = "xxxx:xxxx";
-    format_ptr(fmt, ptr);
-    vga_dump(0, *y, str);
-    vga_dump(40, *y, fmt);
-    (*y)++;
-}
-
-void vga_dump_byte(int far* y, char far* str, char b) {
-    char *fmt = "xx";
-    format_byte(fmt, b);
-    vga_dump(0, *y, str);
-    vga_dump(40, *y, fmt);
-    (*y)++;
-}
-
-void vga_dump_word(int far* y, char far* str, int w) {
-    char *fmt = "xxxx";
-    format_word(fmt, w);
-    vga_dump(0, *y, str);
-    vga_dump(40, *y, fmt);
-    (*y)++;
-}
 
 void far pascal update_pupo_3() {
     struct frame_info_t {
@@ -1278,6 +1255,10 @@ void far pascal update_pupo_3() {
         char flip;
     };
 
+
+    char *suca;
+    int YY;
+
     char far* frames_tab_file;
     struct frame_info_t far* frame_info;
 
@@ -1286,20 +1267,70 @@ void far pascal update_pupo_3() {
     frames_tab_file = MK_FP(*frames_tab_file_seg, *frames_tab_file_off);
     frame_info = (struct frame_info_t far *)(frames_tab_file + *pupo_offset);
 
-    if ((frame_info->frame | frame_info->countdown)) {
+    if (!(frame_info->frame | frame_info->countdown)) {
         *pupo_offset = *pupo_offset + 5; /* sizeof(frame_info_t) */
         *pupo_current_frame = frame_info->frame;
         *pupo_anim_countdown = (frame_info->countdown + 3) / 4;
         *pupo_x_delta = frame_info->x_delta;
         *pupo_y_delta = frame_info->y_delta;
-        *pupo_flip = frame_info->flip;
     }
     else {
         *get_new_ani = 1;
     }
 
+    YY = 0;
+/*
+    suca = "xxxx:xxxx";
+    format_ptr(suca, frames_tab_file);
+    vga_dump(0, YY, "frame");
+    vga_dump(40, YY, suca);
+    YY += 8;
+*/
+    suca = "xxxx:xxxx";
+    format_ptr(suca, frame_info);
+    vga_dump(0, YY, "info");
+    vga_dump(40, YY, suca);
+    YY += 8;
+
+    suca = "xx";
+    format_byte(suca, OLD_ANI);
+    vga_dump(0, YY, "ani");
+    vga_dump(40, YY, suca);
+    YY += 8;
+
+    suca = "xx";
+    format_byte(suca, *pupo_current_frame);
+    vga_dump(0, YY, "fr");
+    vga_dump(40, YY, suca);
+    YY += 8;
+
+    suca = "xx";
+    format_byte(suca, *pupo_anim_countdown);
+    vga_dump(0, YY, "anicd");
+    vga_dump(40, YY, suca);
+    YY += 8;
+
+    suca = "xx";
+    format_byte(suca, *pupo_x_delta);
+    vga_dump(0, YY, "xd");
+    vga_dump(40, YY, suca);
+    YY += 8;
+
+    suca = "xx";
+    format_byte(suca, *pupo_y_delta);
+    vga_dump(0, YY, "yd");
+    vga_dump(40, YY, suca);
+    YY += 8;
+
+    suca = "xx";
+    format_byte(suca, *pupo_flip);
+    vga_dump(0, YY, "fl");
+    vga_dump(40, YY, suca);
+    YY += 8;
+
     ds_trampoline_end();
 }
+
 
 void init_pointers() {
     highlight_frame_nr       = MK_FP(dseg, 0x0100);
@@ -1359,7 +1390,7 @@ void init_pointers() {
     animjoy_tab_file         = MK_FP(dseg, 0x0934);
     frames_tab_file_seg      = MK_FP(dseg, 0x0938);
     frames_tab_file_off      = MK_FP(dseg, 0x093a);
-    get_new_ani              = MK_FP(dseg, 0x2efe);
+    get_new_ani              = MK_FP(dseg, 0x2efb);
     esc_pressed_flag         = MK_FP(dseg, 0x414f);
     byte_1f4dc               = MK_FP(dseg, 0x094c);
     pupo_offset              = MK_FP(dseg, 0x0952);
@@ -1416,7 +1447,7 @@ void init_pointers() {
     {
         patch_cave(MK_FP(seg002, 0x17fc), MK_FP(seg002, 0x18a4), &update_pupo_1);
         patch_cave(MK_FP(seg002, 0x18cb), MK_FP(seg002, 0x192e), &update_pupo_2);
-        patch_cave(MK_FP(seg002, 0x192e), MK_FP(seg002, 0x197e), &update_pupo_3);
+        patch_cave(MK_FP(seg002, 0x19de), MK_FP(seg002, 0x197e), &update_pupo_3);
     }
 }
 
