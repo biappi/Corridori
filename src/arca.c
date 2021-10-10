@@ -1209,8 +1209,8 @@ void far update_pupo_1() {
 
 void far pascal update_pupo_2() {
     char far* frames_tab_file;
+
     char far* ani;
-    int  far* file_off;
     int a;
     int d;
     int o;
@@ -1221,6 +1221,18 @@ void far pascal update_pupo_2() {
  
     *byte_1f4dc = 0;
     *pupo_offset = from_big_endian(*(int far *)(frames_tab_file + (*pupo_current_ani * 2)));
+
+    {
+        char far* animofs = *animofs_tab_file;
+
+        int  far* offs = (int far* )animofs;
+        char      ani  = *pupo_current_ani;
+        int       o1   = from_big_endian(offs[0]) + ani;
+        int       o2   = from_big_endian(offs[1]) + ani;
+
+        *pupo_x = *pupo_x + *(animofs + o1);
+        *pupo_y = *pupo_y + *(animofs + o2);
+    }
 
     ds_trampoline_end();
 }
@@ -1336,7 +1348,7 @@ void init_pointers() {
     /* Update Pupo */
     {
         patch_cave(MK_FP(seg002, 0x17fc), MK_FP(seg002, 0x18a4), &update_pupo_1);
-        patch_cave(MK_FP(seg002, 0x18cb), MK_FP(seg002, 0x18f7), &update_pupo_2);
+        patch_cave(MK_FP(seg002, 0x18cb), MK_FP(seg002, 0x192e), &update_pupo_2);
     }
 }
 
