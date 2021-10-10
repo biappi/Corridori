@@ -94,6 +94,8 @@ char far* pupo_flip;
 char far* pupo_x_delta;
 char far* pupo_y_delta;
 char far* pupo_anim_countdown;
+int  far* to_set_pupo_x;
+int  far* to_set_pupo_y;
 
 
 /* last parameter pushed is last in arg list */
@@ -206,6 +208,30 @@ void far pascal vga_dump(int x, int y, char far* s) {
     }
 
     *background_buffer = old_buffer;
+}
+
+void vga_dump_ptr(int far* y, char far* str, void far* ptr) {
+    char *fmt = "xxxx:xxxx";
+    format_ptr(fmt, ptr);
+    vga_dump(0, *y, str);
+    vga_dump(40, *y, fmt);
+    (*y)++;
+}
+
+void vga_dump_byte(int far* y, char far* str, char b) {
+    char *fmt = "xx";
+    format_byte(fmt, b);
+    vga_dump(0, *y, str);
+    vga_dump(40, *y, fmt);
+    (*y)++;
+}
+
+void vga_dump_word(int far* y, char far* str, int w) {
+    char *fmt = "xxxx";
+    format_word(fmt, w);
+    vga_dump(0, *y, str);
+    vga_dump(40, *y, fmt);
+    (*y)++;
 }
 
 void far pascal draw_highlight_under_cursor() {
@@ -1212,8 +1238,6 @@ void far update_pupo_1() {
     ds_trampoline_end();
 }
 
-int OLD_ANI = 0;
-
 void far pascal update_pupo_2() {
     char far* frames_tab_file;
 
@@ -1228,7 +1252,6 @@ void far pascal update_pupo_2() {
  
     *byte_1f4dc = 0;
     *pupo_offset = from_big_endian(*(int far *)(frames_tab_file + (*pupo_current_ani * 2)));
-    OLD_ANI = *pupo_current_ani;
 
     {
         char far* animofs = *animofs_tab_file;
@@ -1243,30 +1266,6 @@ void far pascal update_pupo_2() {
     }
 
     ds_trampoline_end();
-}
-
-void vga_dump_ptr(int far* y, char far* str, void far* ptr) {
-    char *fmt = "xxxx:xxxx";
-    format_ptr(fmt, ptr);
-    vga_dump(0, *y, str);
-    vga_dump(40, *y, fmt);
-    (*y)++;
-}
-
-void vga_dump_byte(int far* y, char far* str, char b) {
-    char *fmt = "xx";
-    format_byte(fmt, b);
-    vga_dump(0, *y, str);
-    vga_dump(40, *y, fmt);
-    (*y)++;
-}
-
-void vga_dump_word(int far* y, char far* str, int w) {
-    char *fmt = "xxxx";
-    format_word(fmt, w);
-    vga_dump(0, *y, str);
-    vga_dump(40, *y, fmt);
-    (*y)++;
 }
 
 void far pascal update_pupo_3() {
@@ -1298,8 +1297,28 @@ void far pascal update_pupo_3() {
         *get_new_ani = 1;
     }
 
+    if (*get_new_ani) {
+        char far* animofs = *animofs_tab_file;
+
+        int  far* offs = (int far* )animofs;
+        char      ani  = *pupo_current_ani;
+        int       o1   = from_big_endian(offs[2]) + ani;
+        int       o2   = from_big_endian(offs[3]) + ani;
+
+        *pupo_x = *pupo_x + *(animofs + o1);
+        *pupo_y = *pupo_y + *(animofs + o2);
+
+        if ((*to_set_pupo_x < 0) ||
+            (*to_set_pupo_x > 319))
+        {
+            *to_set_pupo_x = *pupo_x;
+            *to_set_pupo_y = *pupo_y;
+        }
+    }
+
     ds_trampoline_end();
 }
+
 
 void init_pointers() {
     highlight_frame_nr       = MK_FP(dseg, 0x0100);
@@ -1369,7 +1388,8 @@ void init_pointers() {
     pupo_x_delta             = MK_FP(dseg, 0x094f);
     pupo_y_delta             = MK_FP(dseg, 0x0950);
     pupo_anim_countdown      = MK_FP(dseg, 0x2efa);
-
+    to_set_pupo_x            = MK_FP(dseg, 0x08fc);
+    to_set_pupo_y            = MK_FP(dseg, 0x08fe);
 
     mouse_pointer_for_point    = MK_FP(seg004, 0x078a);
     mouse_click_event          = MK_FP(seg004, 0x0851);
@@ -1416,7 +1436,7 @@ void init_pointers() {
     {
         patch_cave(MK_FP(seg002, 0x17fc), MK_FP(seg002, 0x18a4), &update_pupo_1);
         patch_cave(MK_FP(seg002, 0x18cb), MK_FP(seg002, 0x192e), &update_pupo_2);
-        patch_cave(MK_FP(seg002, 0x192e), MK_FP(seg002, 0x197e), &update_pupo_3);
+        patch_cave(MK_FP(seg002, 0x192e), MK_FP(seg002, 0x19da), &update_pupo_3);
     }
 }
 
