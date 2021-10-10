@@ -31,9 +31,12 @@ char far* far* swi_file_content;
 void far* far* swi_file_elements;
 void far* tiletype_actions;
 char far* far* animjoy_tab_file;
-char far* far* frames_tab_file;
+char far* far* animofs_tab_file;
+int  far* frames_tab_file_seg;
+int  far* frames_tab_file_off;
 char far* get_new_ani;
-
+char far* byte_1f4dc;
+int  far* pupo_offset;
 void far* far* bobs_ele_item;
 int  far* bobs_sizeof;
 char far* bobs_palette_start;
@@ -1204,6 +1207,24 @@ void far update_pupo_1() {
     ds_trampoline_end();
 }
 
+void far pascal update_pupo_2() {
+    char far* frames_tab_file;
+    char far* ani;
+    int  far* file_off;
+    int a;
+    int d;
+    int o;
+
+    ds_trampoline_start();
+
+    frames_tab_file = MK_FP(*frames_tab_file_seg, *frames_tab_file_off);
+ 
+    *byte_1f4dc = 0;
+    *pupo_offset = from_big_endian(*(int far *)(frames_tab_file + (*pupo_current_ani * 2)));
+
+    ds_trampoline_end();
+}
+
 void init_pointers() {
     highlight_frame_nr       = MK_FP(dseg, 0x0100);
     pupo_tile_top            = MK_FP(dseg, 0x0954);
@@ -1260,9 +1281,15 @@ void init_pointers() {
     pupo_new_y               = MK_FP(dseg, 0x2cc6);
     gun_bool                 = MK_FP(dseg, 0x2eff);
     animjoy_tab_file         = MK_FP(dseg, 0x0934);
-    frames_tab_file          = MK_FP(dseg, 0x0938);
+    frames_tab_file_seg      = MK_FP(dseg, 0x0938);
+    frames_tab_file_off      = MK_FP(dseg, 0x093a);
     get_new_ani              = MK_FP(dseg, 0x2efb);
     esc_pressed_flag         = MK_FP(dseg, 0x414f);
+    byte_1f4dc               = MK_FP(dseg, 0x094c);
+    pupo_offset              = MK_FP(dseg, 0x0952);
+    animofs_tab_file         = MK_FP(dseg, 0x0930);
+
+
 
 
     mouse_pointer_for_point    = MK_FP(seg004, 0x078a);
@@ -1308,7 +1335,8 @@ void init_pointers() {
 
     /* Update Pupo */
     {
-        patch_cave(MK_FP(seg002, 0x17fc), MK_FP(seg002, 0x18a6), &update_pupo_1);
+        patch_cave(MK_FP(seg002, 0x17fc), MK_FP(seg002, 0x18a4), &update_pupo_1);
+        patch_cave(MK_FP(seg002, 0x18cb), MK_FP(seg002, 0x18f7), &update_pupo_2);
     }
 }
 
