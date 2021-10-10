@@ -9,13 +9,16 @@
 #define seg002 (arca_base + 0x00f6)
 #define seg003 (arca_base + 0x0325)
 #define seg004 (arca_base + 0x0358)
+#define seg005 (arca_base + 0x044f)
 #define seg006 (arca_base + 0x046f)
 #define seg007 (arca_base + 0x0592)
 #define seg008 (arca_base + 0x05a7)
 #define seg010 (arca_base + 0x06bb)
+#define seg011 (arca_base + 0x06c8)
 #define seg012 (arca_base + 0x08fa)
 #define seg013 (arca_base + 0x0961)
 #define seg015 (arca_base + 0x0a2d)
+#define seg017 (arca_base + 0x0c8f)
 #define dseg   (arca_base + 0x0eb9)
 
 
@@ -81,8 +84,8 @@ char far* punti_countdown;
 char far* faccia_countdown;
 int  far* pupo_x;
 int  far* pupo_y;
-char far* pupo_tile_top;
-char far* pupo_tile_bottom;
+unsigned char far* pupo_tile_top;
+unsigned char far* pupo_tile_bottom;
 int  far* vita;
 char far* colpi;
 int  far* punti;
@@ -96,7 +99,7 @@ char far* pupo_y_delta;
 char far* pupo_anim_countdown;
 int  far* to_set_pupo_x;
 int  far* to_set_pupo_y;
-
+char far* palette_mangling_counter;
 
 /* last parameter pushed is last in arg list */
 typedef void (far pascal *render_ele_t) (int x, int y, void far* ele, int boh);
@@ -274,23 +277,28 @@ void far pascal draw_highlight_under_cursor() {
             if ((top_25 || top_28) && !bottom_25) 
             {
                 render_ele_t e = render_ele;
-                render_string_t s = render_string;
-
                 void far *ele = (*status_ele_block)[4 + *highlight_frame_nr];
-                char far* thing = " 111";
-
-                thing[0] = 3;
-                thing[1] = top_25 ? '1' : '.';
-                thing[2] = top_28 ? '1' : '.';
-                thing[3] = bottom_25 ? '1' : '.';
 
                 ds_trampoline_end();
                 e(pixel_x, pixel_y, ele, -16);
                 ds_trampoline_start();
 
-                ds_trampoline_end();
-                s(pixel_x, pixel_y, thing, 0x17);
-                ds_trampoline_start();
+                if (0) {
+                    char far* thing = " 111";
+
+                    thing[0] = 3;
+                    thing[1] = top_25 ? '1' : '.';
+                    thing[2] = top_28 ? '1' : '.';
+                    thing[3] = bottom_25 ? '1' : '.';
+
+                    vga_dump(pixel_x, pixel_y, thing);
+                }
+            }
+
+            if (data1) {
+                char *suca = "xx";
+                format_byte(suca, data1);
+                vga_dump(pixel_x, pixel_y, suca);
             }
         }
     }
@@ -1319,6 +1327,74 @@ void far pascal update_pupo_3() {
     ds_trampoline_end();
 }
 
+void far pascal update_pupo_4() {
+
+    ds_trampoline_start();
+    *byte_1f4dc = *byte_1f4dc + *byte_1f4dc;
+
+    if ((*pupo_tile_top & 0xf0) == 0xd0)
+    {
+        void (far pascal *reset_clicked_button)() = MK_FP(seg004, 0x0000);
+        void (far pascal *calls_funcptr_1)() = MK_FP(seg004, 0x0cd4);
+
+        char type = (*pupo_tile_top & 0x0f) + 0xc;
+
+        ds_trampoline_end();
+        do_tiletype_actions(type);
+        reset_clicked_button();
+        calls_funcptr_1();
+        ds_trampoline_start();
+
+        {
+            get_tile_type_for_x_y_t get_type = get_tile_type_for_x_y;
+            void (far pascal *reset_array_bobs)() = MK_FP(seg013, 0x0685);
+            void (far pascal *reset_background_ani)() = MK_FP(seg013, 0x4cf);
+            int x, y;
+            char far * tt = pupo_tile_top;
+            char far * tb = pupo_tile_bottom;
+            
+            *pupo_new_x = *pupo_x;
+            *pupo_new_y = *pupo_y;
+
+            x = *pupo_new_x;
+            y = *pupo_new_y;
+
+            ds_trampoline_end();
+            get_type(x, y,  tt);
+            get_type(x, y + 0xa,  tb);
+            reset_array_bobs();
+            reset_background_ani();
+            ds_trampoline_start();
+
+            if (*vita > 0x800) {
+                void (far pascal *draw_punti_faccia)() = MK_FP(seg012, 0x05e6);
+                void (far pascal *draw_stars)() = MK_FP(seg005, 0x0000);
+
+                ds_trampoline_end();
+                animate_and_render_background();
+                draw_stars();
+                draw_punti_faccia();
+                ds_trampoline_start();
+            }
+
+            {
+                void (far pascal *copy_bg_vga)() = MK_FP(seg015, 0x1435);
+                void (far pascal *select_pal)(char a, char b) = MK_FP(seg017, 0x0916);
+                void (far pascal *install_ucci)() = MK_FP(seg011, 0x0486);
+
+                ds_trampoline_end();
+                copy_bg_vga();
+                select_pal(1, 0);
+                install_ucci();
+                ds_trampoline_start();
+
+                *palette_mangling_counter = 2;
+            }
+        }
+    }
+
+    ds_trampoline_end();
+}
 
 void init_pointers() {
     highlight_frame_nr       = MK_FP(dseg, 0x0100);
@@ -1390,6 +1466,8 @@ void init_pointers() {
     pupo_anim_countdown      = MK_FP(dseg, 0x2efa);
     to_set_pupo_x            = MK_FP(dseg, 0x08fc);
     to_set_pupo_y            = MK_FP(dseg, 0x08fe);
+    palette_mangling_counter = MK_FP(dseg, 0x2f18);
+
 
     mouse_pointer_for_point    = MK_FP(seg004, 0x078a);
     mouse_click_event          = MK_FP(seg004, 0x0851);
@@ -1434,9 +1512,15 @@ void init_pointers() {
 
     /* Update Pupo */
     {
+        /* 1 breaks some tile types */
+
+/*
         patch_cave(MK_FP(seg002, 0x17fc), MK_FP(seg002, 0x18a4), &update_pupo_1);
+*/
         patch_cave(MK_FP(seg002, 0x18cb), MK_FP(seg002, 0x192e), &update_pupo_2);
         patch_cave(MK_FP(seg002, 0x192e), MK_FP(seg002, 0x19da), &update_pupo_3);
+        patch_cave(MK_FP(seg002, 0x19da), MK_FP(seg002, 0x1ae0), &update_pupo_4);
+
     }
 }
 
