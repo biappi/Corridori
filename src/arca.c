@@ -19,6 +19,7 @@
 #define seg013 (arca_base + 0x0961)
 #define seg015 (arca_base + 0x0a2d)
 #define seg017 (arca_base + 0x0c8f)
+#define seg021 (arca_base + 0x0dc0)
 #define dseg   (arca_base + 0x0eb9)
 
 
@@ -33,7 +34,8 @@ char far* far* swivar_block_2;
 char far* far* swi_file_content;
 void far* far* swi_file_elements;
 void far* tiletype_actions;
-char far* far* animjoy_tab_file;
+int  far* animjoy_tab_file_seg;
+int  far* animjoy_tab_file_off;
 char far* far* animofs_tab_file;
 int  far* frames_tab_file_seg;
 int  far* frames_tab_file_off;
@@ -1149,26 +1151,6 @@ char far pascal capisci_dove_muovere_il_pupo_key() {
 void far update_pupo_1() {
     ds_trampoline_start();
 
-    /*
-    char dove;
-
-    if (*esc_pressed_flag) {
-        dove = 0;
-    }
-    else {
-        ds_trampoline_end();
-        capisci_dove_muovere_il_pupo_key();
-        ds_trampoline_start();
-    }
-
-    {
-        char far* new_ani = *animjoy_tab_file + (*pupo_current_ani * 18) + dove;
-
-        *pupo_current_ani = *new_ani;
-        *get_new_ani = 0;
-    }
-    */
-
     {
         get_tile_type_for_x_y_t get_type = get_tile_type_for_x_y;
         int px = *pupo_x;
@@ -1293,6 +1275,8 @@ void far pascal update_pupo_3() {
 
     frames_tab_file = MK_FP(*frames_tab_file_seg, *frames_tab_file_off);
     frame_info = (struct frame_info_t far *)(frames_tab_file + *pupo_offset);
+
+    
 
     if ((frame_info->frame | frame_info->countdown)) {
         *pupo_offset = *pupo_offset + 5; /* sizeof(frame_info_t) */
@@ -1425,6 +1409,135 @@ void far pascal update_pupo_5() {
     ds_trampoline_end();
 }
 
+void far pascal update_pupo() {
+    char enemy_hit = 0;
+    char get_new_frame;
+    char far* animjoy_tab_file;
+
+    ds_trampoline_start();
+
+    animjoy_tab_file = MK_FP(*animjoy_tab_file_seg, *animjoy_tab_file_off);
+    do {
+
+        if (!enemy_hit)
+            get_new_frame = 0;
+
+        if (*get_new_ani && !enemy_hit)
+        {
+            char far* new_ani;
+            char dove;
+
+            if (*esc_pressed_flag) {
+                dove = 0;
+            }
+            else {
+                ds_trampoline_end();
+                dove = capisci_dove_muovere_il_pupo_key();
+                ds_trampoline_start();
+            }
+
+            new_ani = animjoy_tab_file + (*pupo_current_ani * 18) + dove;
+            *pupo_current_ani = *new_ani;
+
+            *get_new_ani = 0;
+            get_new_frame = 1;
+
+            ds_trampoline_end();
+            update_pupo_1();
+            ds_trampoline_start();
+        }
+
+        if (*disable_pupo_anim) {
+            get_new_frame = 1;
+            *disable_pupo_anim = 0;
+        }
+
+        {
+            void (far pascal *gsa_and_exit)() = MK_FP(seg006, 0x0ce5);
+
+            ds_trampoline_end();
+            gsa_and_exit();
+            ds_trampoline_start();
+        }
+
+        if (*pupo_anim_countdown == 0) {
+            if (get_new_frame) {
+                ds_trampoline_end();
+                update_pupo_2();
+                ds_trampoline_start();
+            }
+
+            ds_trampoline_end();
+            update_pupo_3();
+            update_pupo_4();
+            ds_trampoline_start();
+
+            /* damage still broken */
+            if (0)
+            {
+                void (far pascal *sub_1243d)() = MK_FP(seg002, 0x14dd);
+                char (far pascal *check_pu_for_vita)(int x) = MK_FP(seg011, 0x0557);
+
+                ds_trampoline_end();
+                sub_1243d();
+                ds_trampoline_start();
+
+                enemy_hit = 1;
+
+                ds_trampoline_end();
+                if (check_pu_for_vita(0)) {
+                    enemy_hit = 0;
+                }
+                ds_trampoline_start();
+
+                if (enemy_hit) {
+                    get_new_frame = 1;
+
+                    vga_dump(0, 150, "HIT");
+                    wait_vsync();
+                    wait_vsync();
+                    wait_vsync();
+                    wait_vsync();
+
+
+                    ds_trampoline_end();
+                    update_pupo_5();
+                    ds_trampoline_start();
+                }
+                else {
+                    if (*byte_1f4dc == 4) {
+                        char (far pascal *set_is_member)(char item, void far* set) = MK_FP(seg021, 0x09d7);
+                        char is_boh;
+
+
+                    vga_dump(0, 150, "QUATTRO");
+                    wait_vsync();
+                    wait_vsync();
+                    wait_vsync();
+                    wait_vsync();
+                        ds_trampoline_end();
+                        is_boh = set_is_member(*pupo_current_ani, MK_FP(seg002, 0x176d));
+                        ds_trampoline_start();
+
+                        if (is_boh) {
+                            void (far pascal *mangle_pu_gun)() = MK_FP(seg011, 0x0619);
+                            void (far pascal *reset_clicked_button)() = MK_FP(seg004, 0x0000);
+
+                            ds_trampoline_end();
+                            mangle_pu_gun();
+                            reset_clicked_button();
+                            ds_trampoline_start();
+                        }
+                    }
+                }
+            }
+        }
+    } while (*get_new_ani);
+
+    ds_trampoline_end();
+    update_pupo_tail();
+}
+
 void init_pointers() {
     highlight_frame_nr       = MK_FP(dseg, 0x0100);
     pupo_tile_top            = MK_FP(dseg, 0x0954);
@@ -1480,7 +1593,8 @@ void init_pointers() {
     pupo_new_x               = MK_FP(dseg, 0x2cc4);
     pupo_new_y               = MK_FP(dseg, 0x2cc6);
     gun_bool                 = MK_FP(dseg, 0x2eff);
-    animjoy_tab_file         = MK_FP(dseg, 0x0934);
+    animjoy_tab_file_seg     = MK_FP(dseg, 0x0934);
+    animjoy_tab_file_off     = MK_FP(dseg, 0x0936);
     frames_tab_file_seg      = MK_FP(dseg, 0x0938);
     frames_tab_file_off      = MK_FP(dseg, 0x093a);
     get_new_ani              = MK_FP(dseg, 0x2efe);
@@ -1541,17 +1655,13 @@ void init_pointers() {
 
     /* Update Pupo */
     {
-        /* 1 breaks some tile types */
-
-/*
+        /* 1 breaks some tile types / jump / look up */
         patch_cave(MK_FP(seg002, 0x17fc), MK_FP(seg002, 0x18a4), &update_pupo_1);
-*/
-        patch_cave(MK_FP(seg002, 0x18cb), MK_FP(seg002, 0x192e), &update_pupo_2);
-        patch_cave(MK_FP(seg002, 0x192e), MK_FP(seg002, 0x19da), &update_pupo_3);
-        patch_cave(MK_FP(seg002, 0x19da), MK_FP(seg002, 0x1ae0), &update_pupo_4);
-        patch_cave(MK_FP(seg002, 0x1b11), MK_FP(seg002, 0x1b4c), &update_pupo_5);
-        patch_cave(MK_FP(seg002, 0x1b9a), MK_FP(seg002, 0x1bad), &update_pupo_tail);
+
+        /* simple animations seem to work */
+        patch_far_jmp(MK_FP(seg002, 0x178d), &update_pupo);
     }
+
 }
 
 void main(int argc, char *argv[]) {
@@ -1569,6 +1679,7 @@ void main(int argc, char *argv[]) {
     }
 
     printf("new psp: %x\n", outpsp);
+    printf("dseg: %lx\n", dseg);
     printf("start...\n");
     getch();
 
