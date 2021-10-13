@@ -221,7 +221,7 @@ void vga_dump_ptr(int far* y, char far* str, void far* ptr) {
     format_ptr(fmt, ptr);
     vga_dump(0, *y, str);
     vga_dump(40, *y, fmt);
-    (*y)++;
+    (*y) += 0x10;
 }
 
 void vga_dump_byte(int far* y, char far* str, char b) {
@@ -229,7 +229,7 @@ void vga_dump_byte(int far* y, char far* str, char b) {
     format_byte(fmt, b);
     vga_dump(0, *y, str);
     vga_dump(40, *y, fmt);
-    (*y)++;
+    (*y) += 0x10;
 }
 
 void vga_dump_word(int far* y, char far* str, int w) {
@@ -237,7 +237,7 @@ void vga_dump_word(int far* y, char far* str, int w) {
     format_word(fmt, w);
     vga_dump(0, *y, str);
     vga_dump(40, *y, fmt);
-    (*y)++;
+    (*y) += 0x10;
 }
 
 void far pascal draw_highlight_under_cursor() {
@@ -1200,10 +1200,6 @@ void far update_pupo_1() {
         do {
             void (far pascal *offset_from_ani)(int ani, int x, int y, int far* nx, int far* ny)
                 = MK_FP(seg002, 0x01c1);
-            void (far pascal *cosa_ho_di_fronte)(char far* ani, int x, int y, int nx, int ny)
-                = MK_FP(seg002, 0x114c);
-
-            char far* ani = pupo_current_ani;
 
             int x = *pupo_x;
             int y = *pupo_y;
@@ -1216,12 +1212,21 @@ void far update_pupo_1() {
             ds_trampoline_start();
 
             {
-                int NX = *nx;
-                int NY = *ny;
+                void (far pascal *cosa_ho_di_fronte)(char far* ani, int x, int y, int nx, int ny)
+                    = MK_FP(seg002, 0x114c);
+
+                int __ani = *pupo_current_ani;
+                int NX = *pupo_new_x;
+                int NY = *pupo_new_y;
+                int X = *pupo_x;
+                int Y = *pupo_y;
 
                 ds_trampoline_end();
-                cosa_ho_di_fronte(ani, x, y, NX, NY);
+                cosa_ho_di_fronte(&__ani, X, Y, NX, NY);
                 ds_trampoline_start();
+
+                *pupo_current_ani = __ani;
+                a = __ani;
             }
         } while (*pupo_current_ani != a);
     }
@@ -1276,8 +1281,6 @@ void far pascal update_pupo_3() {
     frames_tab_file = MK_FP(*frames_tab_file_seg, *frames_tab_file_off);
     frame_info = (struct frame_info_t far *)(frames_tab_file + *pupo_offset);
 
-    
-
     if ((frame_info->frame | frame_info->countdown)) {
         *pupo_offset = *pupo_offset + 5; /* sizeof(frame_info_t) */
         *pupo_current_frame = frame_info->frame;
@@ -1315,7 +1318,7 @@ void far pascal update_pupo_3() {
 void far pascal update_pupo_4() {
 
     ds_trampoline_start();
-    *byte_1f4dc = *byte_1f4dc + *byte_1f4dc;
+    *byte_1f4dc = *byte_1f4dc + 1;
 
     if ((*pupo_tile_top & 0xf0) == 0xd0)
     {
@@ -1472,49 +1475,36 @@ void far pascal update_pupo() {
             update_pupo_4();
             ds_trampoline_start();
 
-            /* damage still broken */
-            if (0)
             {
                 void (far pascal *sub_1243d)() = MK_FP(seg002, 0x14dd);
-                char (far pascal *check_pu_for_vita)(int x) = MK_FP(seg011, 0x0557);
 
                 ds_trampoline_end();
                 sub_1243d();
                 ds_trampoline_start();
+            }
 
+            {
+                char (far pascal *check_pu_for_vita)(int x) = MK_FP(seg011, 0x0557);
                 enemy_hit = 1;
 
                 ds_trampoline_end();
-                if (check_pu_for_vita(0)) {
+                if (!check_pu_for_vita(0) && !check_pu_for_vita(1)) {
                     enemy_hit = 0;
                 }
                 ds_trampoline_start();
 
+
                 if (enemy_hit) {
+                    *get_new_ani = 1;
                     get_new_frame = 1;
-
-                    vga_dump(0, 150, "HIT");
-                    wait_vsync();
-                    wait_vsync();
-                    wait_vsync();
-                    wait_vsync();
-
-
-                    ds_trampoline_end();
-                    update_pupo_5();
-                    ds_trampoline_start();
+                    *pupo_anim_countdown = 0;
+                    *pupo_current_ani = *pupo_current_ani > 0x35 ? 0x51: 0x1c;
                 }
                 else {
                     if (*byte_1f4dc == 4) {
                         char (far pascal *set_is_member)(char item, void far* set) = MK_FP(seg021, 0x09d7);
                         char is_boh;
 
-
-                    vga_dump(0, 150, "QUATTRO");
-                    wait_vsync();
-                    wait_vsync();
-                    wait_vsync();
-                    wait_vsync();
                         ds_trampoline_end();
                         is_boh = set_is_member(*pupo_current_ani, MK_FP(seg002, 0x176d));
                         ds_trampoline_start();
@@ -1652,15 +1642,7 @@ void init_pointers() {
     patch_far_jmp(MK_FP(seg013, 0x0b64), &render_bobs_in_background);
     patch_far_jmp(MK_FP(seg015, 0x0c23), &render_pause_box);
     patch_far_jmp(MK_FP(seg015, 0x0eca), &render_help_string);
-
-    /* Update Pupo */
-    {
-        /* 1 breaks some tile types / jump / look up */
-        patch_cave(MK_FP(seg002, 0x17fc), MK_FP(seg002, 0x18a4), &update_pupo_1);
-
-        /* simple animations seem to work */
-        patch_far_jmp(MK_FP(seg002, 0x178d), &update_pupo);
-    }
+    patch_far_jmp(MK_FP(seg002, 0x178d), &update_pupo);
 
 }
 
