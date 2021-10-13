@@ -47,10 +47,15 @@ void far* far* bobs_ele_item;
 int  far* bobs_sizeof;
 char far* bobs_palette_start;
 char far* bobs_flip;
-unsigned int  far* bobs_color;
+unsigned int far* bobs_color;
 int  far* bobs_x;
 int  far* bobs_y;
 int  far* bobs_count;
+unsigned int far* pu_file_buffer_seg;
+unsigned int far* pu_file_buffer_off;
+char far* far* far* ucci_image_content;
+char far* enemy_flip;
+char far* far* bobs_to_hit_mouse;
 
 int  far* mouse_pointer_x;
 int  far* mouse_pointer_y;
@@ -105,7 +110,7 @@ int  far* to_set_pupo_y;
 char far* palette_mangling_counter;
 char far* disable_pupo_anim;
 int  far* pupo_palette_override;
-
+char far* current_room_number;
 
 
 
@@ -223,7 +228,7 @@ void vga_dump_ptr(int far* y, char far* str, void far* ptr) {
     format_ptr(fmt, ptr);
     vga_dump(0, *y, str);
     vga_dump(40, *y, fmt);
-    (*y) += 0x10;
+    (*y) += 8;
 }
 
 void vga_dump_byte(int far* y, char far* str, char b) {
@@ -231,7 +236,7 @@ void vga_dump_byte(int far* y, char far* str, char b) {
     format_byte(fmt, b);
     vga_dump(0, *y, str);
     vga_dump(40, *y, fmt);
-    (*y) += 0x10;
+    (*y) += 8;
 }
 
 void vga_dump_word(int far* y, char far* str, int w) {
@@ -239,7 +244,7 @@ void vga_dump_word(int far* y, char far* str, int w) {
     format_word(fmt, w);
     vga_dump(0, *y, str);
     vga_dump(40, *y, fmt);
-    (*y) += 0x10;
+    (*y) += 8;
 }
 
 /* - */
@@ -1533,13 +1538,51 @@ void far pascal update_pupo() {
 }
 
 void far pascal add_enemy_to_bobs(int enemy_id) {
-    void (far pascal *add_enemy)(int id);
+    struct pu_item_t {
+        int  x1;
+        int  y1;
+        int  x2;
+        int  y2;
+        char ignored1;
+        char ignored2;
+        int  boh1;
+        char bool1;
+        char maybe_item_type;
+        int  copy_x1;
+        int  copy_y1;
+        char sprite_nr;
+        char ignored3;
+        char ignored4;
+        char ignored5;
+        int  wanted_ucci_nr;
+        int  unk27;
+    };
 
     ds_trampoline_start();
-    add_enemy = MK_FP(seg011, 0x2221);
-    ds_trampoline_end();
 
-    add_enemy(enemy_id);
+    {
+        int offset = (*current_room_number * 2 + enemy_id) * 0x1c;
+        unsigned int ptr_off = *pu_file_buffer_off + offset;
+        char far* pu = (char far*)MK_FP(*pu_file_buffer_seg, ptr_off);
+        struct pu_item_t far* pu_item = (struct pu_item_t far*)pu;
+
+        char sprite_nr = *(pu + 20);
+        char far* ele = (*ucci_image_content)[sprite_nr];
+
+        int  x = pu_item->x1 + pu_item->x2;
+        int  y = pu_item->y1 + pu_item->y2;
+        char flip = enemy_flip[enemy_id];
+
+        /* check on ucci_image_content should not be here, but for now
+        it seems i need it */
+        if (*ucci_image_content && (!pu_item->bool1 || x < 320)) {
+            ds_trampoline_end();
+            add_bob_per_background(x, y, ele, 0xffd1, flip, 0);
+            ds_trampoline_start();
+        }
+    }
+
+    ds_trampoline_end();
 }
 
 void far pascal add_pupo_to_bobs() {
@@ -1652,6 +1695,13 @@ void init_pointers() {
     r_shift_pressed          = MK_FP(dseg, 0x42b2);
 
 
+    /* unsorted */
+    current_room_number      = MK_FP(dseg, 0x2f50);
+    pu_file_buffer_seg       = MK_FP(dseg, 0x2dc6);
+    pu_file_buffer_off       = MK_FP(dseg, 0x2dc8);
+    ucci_image_content       = MK_FP(dseg, 0x2dce);
+    enemy_flip               = MK_FP(dseg, 0x2de8);
+    bobs_to_hit_mouse        = MK_FP(dseg, 0x3768);
 
     mouse_pointer_for_point    = MK_FP(seg004, 0x078a);
     mouse_click_event          = MK_FP(seg004, 0x0851);
