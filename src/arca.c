@@ -1576,6 +1576,21 @@ void far pascal draw_pupi() {
 
 void init_pointers() {
     highlight_frame_nr       = MK_FP(dseg, 0x0100);
+    to_set_pupo_x            = MK_FP(dseg, 0x08fc);
+    to_set_pupo_y            = MK_FP(dseg, 0x08fe);
+    animofs_tab_file         = MK_FP(dseg, 0x0930);
+    animjoy_tab_file_seg     = MK_FP(dseg, 0x0934);
+    animjoy_tab_file_off     = MK_FP(dseg, 0x0936);
+    frames_tab_file_seg      = MK_FP(dseg, 0x0938);
+    frames_tab_file_off      = MK_FP(dseg, 0x093a);
+    byte_1f4dc               = MK_FP(dseg, 0x094c);
+    pupo_current_frame       = MK_FP(dseg, 0x094d);
+    pupo_flip                = MK_FP(dseg, 0x094e);
+    pupo_x_delta             = MK_FP(dseg, 0x094f);
+    pupo_y_delta             = MK_FP(dseg, 0x0950);
+    pupo_offset              = MK_FP(dseg, 0x0952);
+    pupo_palette_override    = MK_FP(dseg, 0x095a);
+    tr_ele_file              = MK_FP(dseg, 0x095e);
     pupo_tile_top            = MK_FP(dseg, 0x0954);
     pupo_tile_bottom         = MK_FP(dseg, 0x0955);
     mouse_funcptr2           = MK_FP(dseg, 0x097c);
@@ -1591,14 +1606,21 @@ void init_pointers() {
     swi_file_content         = MK_FP(dseg, 0x2b98);
     swi_file_elements        = MK_FP(dseg, 0x2b9c);
     pti_file_content         = MK_FP(dseg, 0x2cbc);
+    pupo_new_x               = MK_FP(dseg, 0x2cc4);
+    pupo_new_y               = MK_FP(dseg, 0x2cc6);
     swivar_block_2           = MK_FP(dseg, 0x2eee);
     pupo_current_ani         = MK_FP(dseg, 0x2efb);
+    get_new_ani              = MK_FP(dseg, 0x2efe);
+    gun_bool                 = MK_FP(dseg, 0x2eff);
     pupo_x                   = MK_FP(dseg, 0x2ef6);
     pupo_y                   = MK_FP(dseg, 0x2ef8);
+    pupo_anim_countdown      = MK_FP(dseg, 0x2efa);
+    disable_pupo_anim        = MK_FP(dseg, 0x2efd);
     colpi                    = MK_FP(dseg, 0x2f00);
     vita                     = MK_FP(dseg, 0x2f04);
     punti                    = MK_FP(dseg, 0x2f06);
     status_ele_block         = MK_FP(dseg, 0x2f0c);
+    palette_mangling_counter = MK_FP(dseg, 0x2f18);
     punti_countdown          = MK_FP(dseg, 0x2f29);
     faccia_countdown         = MK_FP(dseg, 0x2f2a);
     logi_tab_file            = MK_FP(dseg, 0x2f14);
@@ -1617,39 +1639,19 @@ void init_pointers() {
     bobs_y                   = MK_FP(dseg, 0x3b5c);
     bobs_count               = MK_FP(dseg, 0x3bc0);
     background_buffer        = MK_FP(dseg, 0x3d20);
+    bob_to_hit_mouse_3       = MK_FP(dseg, 0x376a);
     current_mat_loaded       = MK_FP(dseg, 0x3c14);
     mat_buffer               = MK_FP(dseg, 0x3770);
     mouse_inited             = MK_FP(dseg, 0x414b);
+    esc_pressed_flag         = MK_FP(dseg, 0x414f);
     up_pressed               = MK_FP(dseg, 0x42a4);
     down_pressed             = MK_FP(dseg, 0x42a5);
     left_pressed             = MK_FP(dseg, 0x42a6);
     right_pressed            = MK_FP(dseg, 0x42a7);
     l_shift_pressed          = MK_FP(dseg, 0x42b1);
     r_shift_pressed          = MK_FP(dseg, 0x42b2);
-    pupo_new_x               = MK_FP(dseg, 0x2cc4);
-    pupo_new_y               = MK_FP(dseg, 0x2cc6);
-    gun_bool                 = MK_FP(dseg, 0x2eff);
-    animjoy_tab_file_seg     = MK_FP(dseg, 0x0934);
-    animjoy_tab_file_off     = MK_FP(dseg, 0x0936);
-    frames_tab_file_seg      = MK_FP(dseg, 0x0938);
-    frames_tab_file_off      = MK_FP(dseg, 0x093a);
-    get_new_ani              = MK_FP(dseg, 0x2efe);
-    esc_pressed_flag         = MK_FP(dseg, 0x414f);
-    byte_1f4dc               = MK_FP(dseg, 0x094c);
-    pupo_offset              = MK_FP(dseg, 0x0952);
-    animofs_tab_file         = MK_FP(dseg, 0x0930);
-    pupo_current_frame       = MK_FP(dseg, 0x094d);
-    pupo_flip                = MK_FP(dseg, 0x094e);
-    pupo_x_delta             = MK_FP(dseg, 0x094f);
-    pupo_y_delta             = MK_FP(dseg, 0x0950);
-    pupo_anim_countdown      = MK_FP(dseg, 0x2efa);
-    to_set_pupo_x            = MK_FP(dseg, 0x08fc);
-    to_set_pupo_y            = MK_FP(dseg, 0x08fe);
-    palette_mangling_counter = MK_FP(dseg, 0x2f18);
-    disable_pupo_anim        = MK_FP(dseg, 0x2efd);
-    tr_ele_file              = MK_FP(dseg, 0x095e);
-    pupo_palette_override    = MK_FP(dseg, 0x095a);
-    bob_to_hit_mouse_3       = MK_FP(dseg, 0x376a);
+
+
 
     mouse_pointer_for_point    = MK_FP(seg004, 0x078a);
     mouse_click_event          = MK_FP(seg004, 0x0851);
@@ -1672,10 +1674,13 @@ void init_pointers() {
     render_ele_flipped         = MK_FP(seg015, 0x1bc3);
 
 
+
     patch_far_jmp(MK_FP(seg002, 0x0000), &capisci_dove_muovere_il_pupo_key); 
+    patch_far_jmp(MK_FP(seg002, 0x178d), &update_pupo);
+    patch_far_jmp(MK_FP(seg002, 0x1c2c), &draw_pupi);
+    patch_far_jmp(MK_FP(seg003, 0x016e), &mouse_check_buttons);
     patch_far_jmp(MK_FP(seg003, 0x0222), &mouse_pointer_draw);
     patch_far_jmp(MK_FP(seg003, 0x0314), &mouse_pointer_init);
-    patch_far_jmp(MK_FP(seg003, 0x016e), &mouse_check_buttons);
     patch_far_jmp(MK_FP(seg006, 0x070b), &do_tiletype_actions);
     patch_far_jmp(MK_FP(seg006, 0x0fcb), &render_context_explanation);
     patch_far_jmp(MK_FP(seg006, 0x101c), &render_key_help);
@@ -1685,16 +1690,14 @@ void init_pointers() {
     patch_far_jmp(MK_FP(seg012, 0x0603), &logi_tab_contains_w);
     patch_far_jmp(MK_FP(seg013, 0x048d), &render_all_background_layers);
     patch_far_jmp(MK_FP(seg013, 0x04de), &animate_and_render_background);
+    patch_far_jmp(MK_FP(seg013, 0x05e6), &screen_to_tile_x);
+    patch_far_jmp(MK_FP(seg013, 0x0602), &screen_to_tile_y);
+    patch_far_jmp(MK_FP(seg013, 0x061e), &get_tile_type_w);
     patch_far_jmp(MK_FP(seg013, 0x070a), &bobs_get_count);
     patch_far_jmp(MK_FP(seg013, 0x071d), &add_bob_per_background);
     patch_far_jmp(MK_FP(seg013, 0x0b64), &render_bobs_in_background);
     patch_far_jmp(MK_FP(seg015, 0x0c23), &render_pause_box);
     patch_far_jmp(MK_FP(seg015, 0x0eca), &render_help_string);
-    patch_far_jmp(MK_FP(seg002, 0x178d), &update_pupo);
-    patch_far_jmp(MK_FP(seg013, 0x061e), &get_tile_type_w);
-    patch_far_jmp(MK_FP(seg013, 0x05e6), &screen_to_tile_x);
-    patch_far_jmp(MK_FP(seg013, 0x0602), &screen_to_tile_y);
-    patch_far_jmp(MK_FP(seg002, 0x1c2c), &draw_pupi);
 }
 
 void main(int argc, char *argv[]) {
