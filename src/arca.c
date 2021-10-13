@@ -26,6 +26,7 @@
 unsigned int far* background_buffer;
 unsigned char far* highlight_frame_nr;
 void far* far* far* status_ele_block;
+void far* far* far* tr_ele_file;
 unsigned int far* far* logi_tab_file;
 int far* gfx_bobs_color_override;
 void far* far* pti_file_content;
@@ -61,7 +62,7 @@ char far* far* mouse_pointer_file_buf;
 char far* far* mouse_pointer_ele_1;
 char far* far* mouse_pointer_ele_2;
 char far* far* mouse_pointer_ele_3;
-
+char far* bob_to_hit_mouse_3;
 char far* up_pressed;
 char far* down_pressed;
 char far* left_pressed;
@@ -103,6 +104,10 @@ int  far* to_set_pupo_x;
 int  far* to_set_pupo_y;
 char far* palette_mangling_counter;
 char far* disable_pupo_anim;
+int  far* pupo_palette_override;
+
+
+
 
 /* last parameter pushed is last in arg list */
 typedef void (far pascal *render_ele_t) (int x, int y, void far* ele, int boh);
@@ -1527,6 +1532,48 @@ void far pascal update_pupo() {
     update_pupo_tail();
 }
 
+void far pascal add_enemy_to_bobs(int enemy_id) {
+    void (far pascal *add_enemy)(int id);
+
+    ds_trampoline_start();
+    add_enemy = MK_FP(seg011, 0x2221);
+    ds_trampoline_end();
+
+    add_enemy(enemy_id);
+}
+
+void far pascal add_pupo_to_bobs() {
+    int x;
+    int y;
+    void far* ele;
+    int flip;
+    int color;
+
+    ds_trampoline_start();
+
+    x = *pupo_x + *pupo_x_delta;
+    y = *pupo_y + *pupo_y_delta;
+    ele = (*tr_ele_file)[*pupo_current_frame];
+    flip = *pupo_flip;
+    color = *pupo_palette_override;
+
+    ds_trampoline_end();
+    add_bob_per_background(x, y, ele, 0xffc1, flip, color);
+    ds_trampoline_start();
+
+    *bob_to_hit_mouse_3 = *bobs_count;
+    
+    ds_trampoline_end();
+}
+
+void far pascal draw_pupi() {
+    /* sort not implemented */
+
+    add_enemy_to_bobs(0);
+    add_enemy_to_bobs(1);
+    add_pupo_to_bobs();
+}
+
 void init_pointers() {
     highlight_frame_nr       = MK_FP(dseg, 0x0100);
     pupo_tile_top            = MK_FP(dseg, 0x0954);
@@ -1600,6 +1647,9 @@ void init_pointers() {
     to_set_pupo_y            = MK_FP(dseg, 0x08fe);
     palette_mangling_counter = MK_FP(dseg, 0x2f18);
     disable_pupo_anim        = MK_FP(dseg, 0x2efd);
+    tr_ele_file              = MK_FP(dseg, 0x095e);
+    pupo_palette_override    = MK_FP(dseg, 0x095a);
+    bob_to_hit_mouse_3       = MK_FP(dseg, 0x376a);
 
     mouse_pointer_for_point    = MK_FP(seg004, 0x078a);
     mouse_click_event          = MK_FP(seg004, 0x0851);
@@ -1610,7 +1660,7 @@ void init_pointers() {
     mouse_get_status           = MK_FP(seg010, 0x0022);
     mouse_button_status        = MK_FP(seg010, 0x0096);
     logi_tab_contains_theirs   = MK_FP(seg012, 0x0603);
-    load_buffer_mat            = MK_FP(seg013, 0x154);
+    load_buffer_mat            = MK_FP(seg013, 0x0154);
     render_background_layer    = MK_FP(seg013, 0x0244);
     get_text_width             = MK_FP(seg015, 0x04fc);
     render_string              = MK_FP(seg015, 0x05f9);
@@ -1644,6 +1694,7 @@ void init_pointers() {
     patch_far_jmp(MK_FP(seg013, 0x061e), &get_tile_type_w);
     patch_far_jmp(MK_FP(seg013, 0x05e6), &screen_to_tile_x);
     patch_far_jmp(MK_FP(seg013, 0x0602), &screen_to_tile_y);
+    patch_far_jmp(MK_FP(seg002, 0x1c2c), &draw_pupi);
 }
 
 void main(int argc, char *argv[]) {
