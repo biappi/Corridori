@@ -107,7 +107,6 @@ char far* disable_pupo_anim;
 /* last parameter pushed is last in arg list */
 typedef void (far pascal *render_ele_t) (int x, int y, void far* ele, int boh);
 typedef void (far pascal *wait_vsync_t) (void);
-typedef void (far pascal *get_tile_type_for_x_y_t) (int x, int y, char far* out);
 typedef void (far pascal *render_string_t) (int x, int y, char far* string, int color);
 typedef char (far pascal *logi_tab_contains_t) (int thing, int log_tab_index);
 typedef void (far pascal *render_background_layer_t) (int mat_index);
@@ -129,7 +128,6 @@ typedef void (far pascal *load_buffer_mat_t)(int x);
 render_ele_t render_ele;
 render_ele_t render_ele_flipped;
 wait_vsync_t wait_vsync_theirs;
-get_tile_type_for_x_y_t get_tile_type_for_x_y;
 render_string_t render_string;
 logi_tab_contains_t logi_tab_contains_theirs;
 render_background_layer_t render_background_layer;
@@ -147,7 +145,6 @@ do_tiletype_actions_inner_t do_tiletype_actions_inner_th;
 load_buffer_mat_t load_buffer_mat;
 
 int far pascal logi_tab_contains(int thing, int logi_tab_index);
-
 
 void wait_vsync() {
     asm mov dx, 0x03da;
@@ -240,6 +237,40 @@ void vga_dump_word(int far* y, char far* str, int w) {
     (*y) += 0x10;
 }
 
+/* - */
+
+#define TILES_WIDTH  16;
+#define TILES_HEIGTH 10;
+
+#define MAX(a, b) ((a) > (b) ? a : b)
+#define MIN(a, b) ((a) < (b) ? a : b)
+
+char far pascal screen_to_tile_x(int screen_x) {
+    int x = screen_x / TILES_WIDTH;
+    return MIN(MAX(x, 0), 19);
+}
+
+char far pascal screen_to_tile_y(int screen_y) {
+    int y = screen_y / TILES_HEIGTH;
+    return MIN(MAX(y, 0), 20);
+}
+
+
+char far pascal get_tile_type(int x, int y) {
+    int tx = screen_to_tile_x(x);
+    int ty = screen_to_tile_y(y);
+
+    return tiles_types[ty * 20 + tx];
+}
+
+void far pascal get_tile_type_w(int x, int y, char far* out) {
+    ds_trampoline_start();
+    *out = get_tile_type(x, y);
+    ds_trampoline_end();
+}
+
+/* - */
+
 void far pascal draw_highlight_under_cursor() {
     unsigned int old_buffer;
     int x, y;
@@ -251,27 +282,15 @@ void far pascal draw_highlight_under_cursor() {
 
     for (y = 0; y < 0x13; y++) {
         for (x = 1; x < 0x12; x++) {
-            int pixel_x = x * 16;
-            int pixel_y = y * 10;
-
-            char data1;
-            char data2;
-
             char top_25;
             char top_28;
             char bottom_25;
 
-            {
-                get_tile_type_for_x_y_t get_type = get_tile_type_for_x_y;
+            int pixel_x = x * 16;
+            int pixel_y = y * 10;
 
-                ds_trampoline_end();
-                get_type(pixel_x + 8, pixel_y,      &data1);
-                ds_trampoline_start();
-
-                ds_trampoline_end();
-                get_type(pixel_x + 8, pixel_y + 10, &data2);
-                ds_trampoline_start();
-            }
+            char data1 = get_tile_type(pixel_x + 8, pixel_y     );
+            char data2 = get_tile_type(pixel_x + 8, pixel_y + 10);
 
             top_25 = logi_tab_contains(data1, 0x25);
             top_28 = logi_tab_contains(data1, 0x28);
@@ -1151,22 +1170,8 @@ char far pascal capisci_dove_muovere_il_pupo_key() {
 void far update_pupo_1() {
     ds_trampoline_start();
 
-    {
-        get_tile_type_for_x_y_t get_type = get_tile_type_for_x_y;
-        int px = *pupo_x;
-        int py = *pupo_y;
-
-        char far* top = pupo_tile_top;
-        char far* bottom = pupo_tile_bottom;
-        
-        ds_trampoline_end();
-        get_type(px, py,      top);
-        ds_trampoline_start();
-
-        ds_trampoline_end();
-        get_type(px, py + 10, bottom);
-        ds_trampoline_start();
-    }
+    *pupo_tile_top    = get_tile_type(*pupo_x, *pupo_y     );
+    *pupo_tile_bottom = get_tile_type(*pupo_x, *pupo_y + 10);
 
     {
         void (far pascal *controlla_sotto_piedi)(void far* ani, int top, int bottom, int x, int y, int new_x, int new_y)
@@ -1215,7 +1220,7 @@ void far update_pupo_1() {
                 void (far pascal *cosa_ho_di_fronte)(char far* ani, int x, int y, int nx, int ny)
                     = MK_FP(seg002, 0x114c);
 
-                int __ani = *pupo_current_ani;
+                char __ani = *pupo_current_ani;
                 int NX = *pupo_new_x;
                 int NY = *pupo_new_y;
                 int X = *pupo_x;
@@ -1334,22 +1339,16 @@ void far pascal update_pupo_4() {
         ds_trampoline_start();
 
         {
-            get_tile_type_for_x_y_t get_type = get_tile_type_for_x_y;
             void (far pascal *reset_array_bobs)() = MK_FP(seg013, 0x0685);
             void (far pascal *reset_background_ani)() = MK_FP(seg013, 0x4cf);
-            int x, y;
-            char far * tt = pupo_tile_top;
-            char far * tb = pupo_tile_bottom;
-            
+
             *pupo_new_x = *pupo_x;
             *pupo_new_y = *pupo_y;
 
-            x = *pupo_new_x;
-            y = *pupo_new_y;
+            *pupo_tile_top    = get_tile_type(*pupo_x, *pupo_y     );
+            *pupo_tile_bottom = get_tile_type(*pupo_x, *pupo_y + 10);
 
             ds_trampoline_end();
-            get_type(x, y,  tt);
-            get_type(x, y + 0xa,  tb);
             reset_array_bobs();
             reset_background_ani();
             ds_trampoline_start();
@@ -1613,7 +1612,6 @@ void init_pointers() {
     logi_tab_contains_theirs   = MK_FP(seg012, 0x0603);
     load_buffer_mat            = MK_FP(seg013, 0x154);
     render_background_layer    = MK_FP(seg013, 0x0244);
-    get_tile_type_for_x_y      = MK_FP(seg013, 0x061e);
     get_text_width             = MK_FP(seg015, 0x04fc);
     render_string              = MK_FP(seg015, 0x05f9);
     wait_vsync_theirs          = MK_FP(seg015, 0x1311);
@@ -1643,7 +1641,9 @@ void init_pointers() {
     patch_far_jmp(MK_FP(seg015, 0x0c23), &render_pause_box);
     patch_far_jmp(MK_FP(seg015, 0x0eca), &render_help_string);
     patch_far_jmp(MK_FP(seg002, 0x178d), &update_pupo);
-
+    patch_far_jmp(MK_FP(seg013, 0x061e), &get_tile_type_w);
+    patch_far_jmp(MK_FP(seg013, 0x05e6), &screen_to_tile_x);
+    patch_far_jmp(MK_FP(seg013, 0x0602), &screen_to_tile_y);
 }
 
 void main(int argc, char *argv[]) {
