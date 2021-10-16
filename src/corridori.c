@@ -409,6 +409,114 @@ char tr_keys_to_direction(bool down,
     return dpad_to_direction[dpad] + (fire ? 9 : 0);
 }
 
+typedef struct {
+    int the_room;
+    int the_ele;
+    int the_item;
+
+    int old_room;
+    int old_ele;
+    int old_item;
+
+    ray_textures **texts;
+    int texts_count;
+
+    tr_resources *resources;
+    tr_palette *palette;
+    tr_tilesets *tilesets;
+    uint8_t *bg_data;
+    uint32_t *room_data;
+    Texture2D *room_texture;
+} gfx_tool;
+
+void gfx_tool_init(gfx_tool *gfx,
+                   tr_resources *resources,
+                   tr_palette *palette,
+                   tr_tilesets *tilesets,
+                   ray_textures **texts,
+                   int texts_count,
+                   uint8_t *bg_data,
+                   uint32_t *room_data,
+                   Texture2D *room_texture
+            )
+{
+    gfx->the_room = 0;
+    gfx->the_ele  = 0;
+    gfx->the_item = 0;
+
+    gfx->old_room = gfx->the_room;
+    gfx->old_ele  = gfx->the_ele;
+    gfx->old_item = gfx->the_item;
+
+    gfx->texts = texts;
+    gfx->texts_count = texts_count;
+
+    gfx->resources = resources;
+    gfx->palette = palette;
+    gfx->tilesets = tilesets;
+
+    gfx->bg_data = bg_data;
+    gfx->room_data = room_data;
+    gfx->room_texture = room_texture;
+}
+
+void gfx_tool_do(gfx_tool *gfx) {
+    Texture2D *test_texture = &gfx->texts[gfx->the_ele]->textures[gfx->the_item];
+
+    if (IsKeyPressed(KEY_RIGHT))     { gfx->the_room += 1; }
+    if (IsKeyPressed(KEY_LEFT))      { gfx->the_room -= 1; }
+
+    if (IsKeyPressed(KEY_PAGE_UP))   { gfx->the_ele  += 1; }
+    if (IsKeyPressed(KEY_PAGE_DOWN)) { gfx->the_ele  -= 1; }
+
+    if (IsKeyPressed(KEY_UP))        { gfx->the_item += 1; }
+    if (IsKeyPressed(KEY_DOWN))      { gfx->the_item -= 1; }
+
+    gfx->the_room = MAX(MIN(gfx->the_room, 0x2b  - 1), 0);
+    gfx->the_ele  = MAX(MIN(gfx->the_ele, gfx->texts_count - 1), 0);
+    gfx->the_item = MAX(MIN(gfx->the_item, gfx->texts[gfx->the_ele]->count - 1), 0);
+
+    if (gfx->the_room != gfx->old_room) {
+        // TODO: sbomba qui
+        gfx->old_room = gfx->the_room;
+
+        render_background_layer(gfx->resources->room_roe,
+                                gfx->the_room,
+                                gfx->tilesets,
+                                gfx->bg_data);
+
+        for (int i = 0; i < GAME_SIZE_WIDTH * GAME_SIZE_HEIGHT; i++) {
+            gfx->room_data[i] = gfx->palette->color[gfx->bg_data[i]];
+        }
+
+        UpdateTexture(*gfx->room_texture, gfx->bg_data);
+    }
+
+    if (gfx->the_item != gfx->old_item) {
+        test_texture = &gfx->texts[gfx->the_ele]->textures[gfx->the_item];
+        gfx->old_item = gfx->the_item;
+    }
+
+    if (gfx->the_ele != gfx->old_ele) {
+        gfx->the_item = 0;
+
+        test_texture = &gfx->texts[gfx->the_ele]->textures[gfx->the_item];
+        gfx->old_ele = gfx->the_ele;
+        gfx->old_item = 0;
+    }
+
+    DrawTextureScaled(*test_texture, 100, 50, test_texture->width, test_texture->height);
+
+    char suca[0x100];
+
+    sprintf(suca, "ROOM %2x", gfx->the_room);
+    DrawText(suca, 20, 20, 20, PURPLE);
+    sprintf(suca, "ELE  %2x", gfx->the_ele);
+    DrawText(suca, 20, 40, 20, PURPLE);
+    sprintf(suca, "ITEM %2x", gfx->the_item);
+    DrawText(suca, 20, 60, 20, PURPLE);
+}
+
 int main() {
     InitWindow(GAME_SIZE_WIDTH  * GAME_SIZE_SCALE,
                GAME_SIZE_HEIGHT * GAME_SIZE_SCALE,
@@ -481,32 +589,32 @@ int main() {
 
     SetTextureFilter(room_texture, FILTER_POINT);
 
-    int the_room = 0;
-    int the_ele  = 0;
-    int the_item = 0;
+    gfx_tool gfx_tool;
 
-    int old_room = the_room;
-    int old_ele  = the_ele;
-    int old_item = the_item;
+    gfx_tool_init(&gfx_tool,
+                  &resources,
+                  &palette,
+                  &tilesets,
+                  texts,
+                  sizeof(texts) / sizeof(ray_textures *),
+                  &background[0],
+                  &data[0],
+                  &room_texture);
 
     bool show_types = false;
-
-    Texture2D *test_texture = &texts[the_ele]->textures[the_item];
+    bool show_gfx_tool = false;
 
     while (!WindowShouldClose()) {
         BeginDrawing();
         ClearBackground(BLACK);
 
-        if (IsKeyPressed(KEY_RIGHT))     { the_room += 1; }
-        if (IsKeyPressed(KEY_LEFT))      { the_room -= 1; }
+        if (IsKeyPressed(KEY_M)) {
+            show_types = !show_types;
+        }
 
-        if (IsKeyPressed(KEY_PAGE_UP))   { the_ele  += 1; }
-        if (IsKeyPressed(KEY_PAGE_DOWN)) { the_ele  -= 1; }
-
-        if (IsKeyPressed(KEY_UP))        { the_item += 1; }
-        if (IsKeyPressed(KEY_DOWN))      { the_item -= 1; }
-
-        if (IsKeyPressed(KEY_M))         { show_types = !show_types; }
+        if (IsKeyPressed(KEY_G)) {
+            show_gfx_tool = !show_gfx_tool;
+        }
 
         char direction = tr_keys_to_direction(
           IsKeyDown(KEY_DOWN),
@@ -516,51 +624,15 @@ int main() {
           IsKeyDown(KEY_LEFT_SHIFT) || IsKeyPressed(KEY_RIGHT_SHIFT)
         );
 
-        the_room = MAX(MIN(the_room, 0x2b  - 1), 0);
-        the_ele  = MAX(MIN(the_ele, sizeof(texts) / sizeof(ray_textures *) - 1), 0);
-        the_item = MAX(MIN(the_item, texts[the_ele]->count - 1), 0);
-
-        if (the_room != old_room) {
-            old_room = the_room;
-
-            render_background_layer(resources.room_roe, the_room, &tilesets, background);
-
-            for (int i = 0; i < sizeof(data) / sizeof(uint32_t); i++) {
-                data[i] = palette.color[background[i]];
-            }
-
-            UpdateTexture(room_texture, data);
-        }
-
-        if (the_item != old_item) {
-            test_texture = &texts[the_ele]->textures[the_item];
-            old_item = the_item;
-        }
-
-        if (the_ele != old_ele) {
-            the_item = 0;
-
-            test_texture = &texts[the_ele]->textures[the_item];
-            old_ele = the_ele;
-            old_item = 0;
-        }
-
         DrawTextureScaled(room_texture, 0, 0, GAME_SIZE_WIDTH, GAME_SIZE_HEIGHT);
-        DrawTextureScaled(*test_texture, 100, 50, test_texture->width, test_texture->height);
 
         char suca[0x100];
 
-        if (show_types) {
-            DrawTileTypes(&resources, the_room);
-        }
-        else {
-            sprintf(suca, "ROOM %2x", the_room);
-            DrawText(suca, 20, 20, 20, PURPLE);
-            sprintf(suca, "ELE  %2x", the_ele);
-            DrawText(suca, 20, 40, 20, PURPLE);
-            sprintf(suca, "ITEM %2x", the_item);
-            DrawText(suca, 20, 60, 20, PURPLE);
-        }
+        if (show_types)
+            DrawTileTypes(&resources, 0);
+
+        if (show_gfx_tool)
+            gfx_tool_do(&gfx_tool);
 
         sprintf(suca, "dir: %2x", direction);
         DrawText(suca, 20, 0, 20, GREEN);
