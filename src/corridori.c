@@ -69,7 +69,37 @@ typedef struct {
     uint8_t *tr_ele;
     uint8_t *ucci0_ele;
     uint8_t *ucci1_ele;
+
+    uint8_t *frames_tab;
+    uint8_t *animjoy_tab;
+    uint8_t *animofs_tab;
 } tr_resources;
+
+typedef struct {
+    uint16_t x;
+    uint16_t y;
+
+    uint8_t  ani;
+    uint8_t  ele_idx;
+
+    bool     flip;
+    int      countdown;
+
+    // - //
+
+    int8_t  x_delta;
+    int8_t  y_delta;
+
+    uint16_t new_x;
+    uint16_t new_y;
+
+    uint8_t  frame_nr;
+    uint16_t pupo_offset;
+
+    bool get_new_ani;
+    bool disable_ani;
+
+}  tr_pupo;
 
 // - //
 
@@ -122,6 +152,11 @@ void resources_load(tr_resources *resources) {
     resources->tr_ele     = load_file("GAME_DIR/AR1/IMG/TR.ELE");
     resources->ucci0_ele  = load_file("GAME_DIR/AR1/IMG/NUMERI.ELE");
     resources->ucci1_ele  = load_file("GAME_DIR/AR1/IMG/STATUS.ELE");
+
+    resources->frames_tab  = load_file("GAME_DIR/AR1/FIL/FRAMES.TAB");
+    resources->animjoy_tab = load_file("GAME_DIR/AR1/FIL/ANIMJOY.TAB");
+    resources->animofs_tab = load_file("GAME_DIR/AR1/FIL/ANIMOFS.TAB");
+
 }
 
 void palette_load_from_file(tr_palette *palette, tr_palette_file *file) {
@@ -321,11 +356,11 @@ void tr_graphics_init(tr_graphics *graphics, uint8_t *ele_file) {
 #define MAX(a, b) ((a) > (b)) ? (a) : (b)
 #define MIN(a, b) ((a) < (b)) ? (a) : (b)
 
-void DrawTextureScaled(Texture texture, int x, int y, int width, int height) {
+void DrawTextureScaled(Texture texture, int x, int y, int width, int height, bool flip) {
     Rectangle sourceRect = {
-        .x = 0,
+        .x = !flip ? 0 : width,
         .y = 0,
-        .width = width,
+        .width = width * (!flip ? 1 : -1),
         .height = height
     };
 
@@ -505,7 +540,7 @@ void gfx_tool_do(gfx_tool *gfx) {
         gfx->old_item = 0;
     }
 
-    DrawTextureScaled(*test_texture, 100, 50, test_texture->width, test_texture->height);
+    DrawTextureScaled(*test_texture, 100, 50, test_texture->width, test_texture->height, false);
 
     char suca[0x100];
 
@@ -517,12 +552,156 @@ void gfx_tool_do(gfx_tool *gfx) {
     DrawText(suca, 20, 60, 20, PURPLE);
 }
 
+uint8_t animjoy_ani_from_direction(uint8_t *animjoy, uint8_t ani, uint8_t direction) {
+    return animjoy[ani * 18] + direction;
+}
+
+uint16_t framestab_offset_for_ani(uint8_t *framestab, uint8_t ani) {
+    return from_big_endian(read16_unaligned(framestab + ani * 2));
+}
+
+void offset_from_ani(tr_pupo *pupo, tr_resources *resources) {
+    uint16_t *offs = (uint16_t *)resources->animofs_tab;
+    uint16_t  o1   = from_big_endian(offs[0]) + pupo->ani;
+    uint16_t  o2   = from_big_endian(offs[1]) + pupo->ani;
+    uint16_t  o3   = from_big_endian(offs[2]) + pupo->ani;
+    uint16_t  o4   = from_big_endian(offs[3]) + pupo->ani;
+
+    pupo->new_x = (
+       pupo->x +
+       *(int8_t *)(resources->animofs_tab + o1) +
+       *(int8_t *)(resources->animofs_tab + o3)
+    );
+
+    pupo->new_y = (
+       pupo->y +
+       *(int8_t *)(resources->animofs_tab + o2) +
+       *(int8_t *)(resources->animofs_tab + o4)
+    );
+}
+
+void update_pupo(tr_pupo *pupo, tr_resources *resources, uint8_t direction) {
+    char enemy_hit = 0;
+    char get_new_frame = 0;
+
+    do {
+        if (!enemy_hit)
+            get_new_frame = 0;
+
+        if (pupo->get_new_ani && !enemy_hit)
+        {
+            pupo->ani = resources->animjoy_tab[pupo->ani * 18 + direction];
+
+            pupo->get_new_ani = 0;
+            get_new_frame = 1;
+
+            // *pupo_tile_top    = get_tile_type(*pupo_x, *pupo_y     );
+            // *pupo_tile_bottom = get_tile_type(*pupo_x, *pupo_y + 10);
+            // controlla_sotto_piedi(ani, top, bot, x, y, nx, ny);
+
+            /*
+            if (*gun_bool == 0) {
+                int a = *pupo_current_ani;
+
+                *pupo_current_ani =
+                    (a == 0x47) ? 0x48:
+                    (a == 0x12) ? 0x13:
+                    a;
+            }
+             */
+
+//            int a = pupo->ani;
+//
+//            do {
+                offset_from_ani(pupo, resources);
+
+//                pupo->ani = cosa_ho_di_fronte(&__ani, X, Y, NX, NY);
+//                a = pupo->ani;
+//            } while (pupo->ani != a);
+
+        }
+
+        if (pupo->disable_ani) {
+            get_new_frame = 1;
+            pupo->disable_ani = 0;
+        }
+
+        // gsa_and_exit();
+
+        if (pupo->countdown == 0) {
+            if (get_new_frame) {
+                //*byte_1f4dc = 0;
+
+                uint8_t *off = resources->frames_tab + (pupo->ani * 2);
+                pupo->pupo_offset = from_big_endian(*(uint16_t *)(off));
+
+                uint16_t *offs = (uint16_t *)resources->animofs_tab;
+                uint16_t  o1   = from_big_endian(offs[0]) + pupo->ani;
+                uint16_t  o2   = from_big_endian(offs[1]) + pupo->ani;
+
+                pupo->x += *(int8_t *)(resources->animofs_tab + o1);
+                pupo->y += *(int8_t *)(resources->animofs_tab + o2);
+            }
+
+            uint8_t *frame_info = resources->frames_tab + pupo->pupo_offset;
+
+            uint8_t frame = frame_info[0];
+            uint8_t time  = frame_info[1];
+
+            if ((frame + time) != 0) {
+                uint8_t x_delta = frame_info[2];
+                uint8_t y_delta = frame_info[3];
+                uint8_t flip    = frame_info[4];
+
+                pupo->pupo_offset += 5; /* sizeof(frame_info_t) */
+                pupo->ele_idx  = frame;
+                pupo->countdown = (time + 3) / 4;
+                pupo->x_delta   = x_delta;
+                pupo->y_delta   = y_delta;
+                pupo->flip      = flip;
+            }
+            else {
+                pupo->get_new_ani = true;
+            }
+
+            if (pupo->get_new_ani) {
+                uint16_t *offs = (uint16_t *)resources->animofs_tab;
+                uint16_t  o3   = from_big_endian(offs[2]) + pupo->ani;
+                uint16_t  o4   = from_big_endian(offs[3]) + pupo->ani;
+
+                pupo->x += *(int8_t *)(resources->animofs_tab + o3);
+                pupo->y += *(int8_t *)(resources->animofs_tab + o4);
+
+                /*
+                if ((*to_set_pupo_x < 0) ||
+                    (*to_set_pupo_x > 319))
+                {
+                    *to_set_pupo_x = *pupo_x;
+                    *to_set_pupo_y = *pupo_y;
+                }
+                 */
+            }
+
+            // update_pupo_4();
+            // sub_1243d();
+
+        }
+    } while (pupo->get_new_ani);
+
+    // change_screen_boundary();
+    // sub_122f1();
+
+    if (!pupo->disable_ani) {
+        pupo->countdown--;
+    }
+}
+
 int main() {
     InitWindow(GAME_SIZE_WIDTH  * GAME_SIZE_SCALE,
                GAME_SIZE_HEIGHT * GAME_SIZE_SCALE,
                "Corridori");
 
-    SetTargetFPS(30);
+    SetTargetFPS(15);
 
     tr_resources resources;
     tr_palette   palette;
@@ -604,6 +783,18 @@ int main() {
     bool show_types = false;
     bool show_gfx_tool = false;
 
+    tr_pupo pupo;
+    memset(&pupo, 0, sizeof(pupo));
+
+    pupo.x = 0x08;
+    pupo.y = 0xa0;
+    pupo.ani = 0x03;
+    pupo.ele_idx = 0x00;
+    pupo.flip = 0;
+    pupo.countdown = 0;
+    pupo.frame_nr = 0;
+    pupo.get_new_ani = 1;
+
     while (!WindowShouldClose()) {
         BeginDrawing();
         ClearBackground(BLACK);
@@ -624,7 +815,21 @@ int main() {
           IsKeyDown(KEY_LEFT_SHIFT) || IsKeyPressed(KEY_RIGHT_SHIFT)
         );
 
-        DrawTextureScaled(room_texture, 0, 0, GAME_SIZE_WIDTH, GAME_SIZE_HEIGHT);
+        update_pupo(&pupo, &resources, direction);
+
+        DrawTextureScaled(room_texture, 0, 0, GAME_SIZE_WIDTH, GAME_SIZE_HEIGHT, false);
+
+        {
+            int x = pupo.x + pupo.x_delta;
+            int y = pupo.y + pupo.y_delta;
+            int w = tr_tex.textures[pupo.ele_idx].width;
+            int h = tr_tex.textures[pupo.ele_idx].height;
+
+            x -= w / 2;
+            y -= h;
+
+            DrawTextureScaled(tr_tex.textures[pupo.ele_idx], x, y, w, h, pupo.flip);
+        }
 
         char suca[0x100];
 
@@ -634,8 +839,18 @@ int main() {
         if (show_gfx_tool)
             gfx_tool_do(&gfx_tool);
 
-        sprintf(suca, "dir: %2x", direction);
-        DrawText(suca, 20, 0, 20, GREEN);
+        sprintf(suca, "dir:   %2x", direction);
+        DrawText(suca, 20,  0, 20, GREEN);
+        sprintf(suca, "ani:   %2x", pupo.ani);
+        DrawText(suca, 20, 20, 20, GREEN);
+        sprintf(suca, "frame: %2x", pupo.ele_idx);
+        DrawText(suca, 20, 40, 20, GREEN);
+        sprintf(suca, "ctd:   %2x", pupo.countdown);
+        DrawText(suca, 20, 60, 20, GREEN);
+        sprintf(suca, "pupo:   %4d %4d", pupo.x, pupo.y);
+        DrawText(suca, 20, 80, 20, GREEN);
+        sprintf(suca, "offs:   %4x", pupo.pupo_offset);
+        DrawText(suca, 20, 100, 20, GREEN);
 
         EndDrawing();
     }
