@@ -71,6 +71,14 @@ typedef struct {
     uint8_t *ucci1_ele;
 } tr_resources;
 
+// - //
+
+typedef struct {
+    int count;
+    Texture2D *textures;
+    uint32_t  **data;
+} ray_textures;
+
 uint16_t from_big_endian(uint16_t x) {
     return ((x & 0x00ff) << 8) | (x >> 8);
 }
@@ -217,8 +225,8 @@ uint32_t read32_unaligned(void *x) {
     return (h << 16) + l;
 }
 
-void tr_graphics_init(tr_graphics *graphics, uint8_t *ele_file, int col) {
-    graphics->count = (*(uint16_t *)ele_file) - 1;
+void tr_graphics_init(tr_graphics *graphics, uint8_t *ele_file) {
+    graphics->count = (*(uint16_t *)ele_file);
     graphics->items = calloc(graphics->count, sizeof(tr_image_8bpp));
 
     for (int i = 0; i < graphics->count; i++)
@@ -272,8 +280,8 @@ void tr_graphics_init(tr_graphics *graphics, uint8_t *ele_file, int col) {
 
                         for (int i = 0; i < count / 2; i++) {
                             uint8_t colors = *src++;
-                            uint8_t color1 = ((colors & 0x0f)     ) + col;
-                            uint8_t color2 = ((colors & 0xf0) >> 4) + col;
+                            uint8_t color1 = ((colors & 0x0f)     );
+                            uint8_t color2 = ((colors & 0xf0) >> 4);
 
                             printf("%02x ", color1);
                             printf("%02x ", color2);
@@ -290,7 +298,7 @@ void tr_graphics_init(tr_graphics *graphics, uint8_t *ele_file, int col) {
 
                         if (count & 1) {
                             uint color = *src++;
-                            uint color1 = (color & 0x0f) + col;
+                            uint color1 = (color & 0x0f);
 
                             printf("%02x ", color1);
 
@@ -353,6 +361,38 @@ void DrawTextureScaled(Texture texture, int x, int y, int width, int height) {
     DrawTexturePro(texture, sourceRect, destRect, (Vector2) { .x  = 0, .y = 0 }, 0, WHITE);
 }
 
+void tr_graphics_to_textures(ray_textures *texts,
+                             const tr_graphics *tr,
+                             const tr_palette *palette,
+                             int col)
+{
+    texts->count    = tr->count;
+    texts->textures = calloc(texts->count, sizeof(Texture2D));
+    texts->data     = calloc(texts->count, sizeof(uint32_t*));
+
+    for (int image = 0; image < tr->count; image++) {
+        tr_image_8bpp *img = &tr->items[image];
+        texts->data[image] = malloc(img->width * img->height * sizeof(uint32_t));
+
+        for (int pix = 0; pix < img->width * img->height; pix++) {
+            uint8_t color = img->pixels[pix];
+            uint8_t mask  = img->mask  [pix];
+
+            texts->data[image][pix] = mask == 0 ? 0 : palette->color[color + col];
+        }
+
+        texts->textures[image] = LoadTextureFromImage((Image) {
+            .data = texts->data[image],
+            .width = img->width,
+            .height = img->height,
+            .format = UNCOMPRESSED_R8G8B8A8,
+            .mipmaps = 1,
+        });
+
+        SetTextureFilter(texts->textures[image], FILTER_POINT);
+    }
+}
+
 int main() {
     InitWindow(GAME_SIZE_WIDTH  * GAME_SIZE_SCALE,
                GAME_SIZE_HEIGHT * GAME_SIZE_SCALE,
@@ -378,33 +418,42 @@ int main() {
         data[i] = palette.color[background[i]];
     }
 
-    tr_graphics tr;
-    tr_graphics_init(&tr, resources.tr_ele, 0);
+    tr_graphics status_ele;
+    tr_graphics numeri_ele;
+    tr_graphics k_ele;
+    tr_graphics tr_ele;
+    tr_graphics ucci0_ele;
+    tr_graphics ucci1_ele;
 
-    Texture2D *tr_ele_textures = calloc(tr.count, sizeof(Texture2D));
-    uint32_t **tr_ele_image_data = calloc(tr.count, sizeof(uint32_t*));
+    tr_graphics_init(&status_ele, resources.status_ele);
+    tr_graphics_init(&numeri_ele, resources.numeri_ele);
+    tr_graphics_init(&k_ele, resources.k_ele);
+    tr_graphics_init(&tr_ele, resources.tr_ele);
+    tr_graphics_init(&ucci0_ele, resources.ucci0_ele);
+    tr_graphics_init(&ucci1_ele, resources.ucci1_ele);
 
-    for (int image = 0; image < tr.count; image++) {
-        tr_image_8bpp *img = &tr.items[image];
-        tr_ele_image_data[image] = malloc(img->width * img->height * sizeof(uint32_t));
+    ray_textures status_tex;
+    ray_textures numeri_tex;
+    ray_textures k_tex;
+    ray_textures tr_tex;
+    ray_textures ucci0_tex;
+    ray_textures ucci1_tex;
 
-        for (int pix = 0; pix < img->width * img->height; pix++) {
-            uint8_t color = img->pixels[pix];
-            uint8_t mask  = img->mask  [pix];
+    tr_graphics_to_textures(&status_tex, &status_ele, &palette, 0xc1);
+    tr_graphics_to_textures(&numeri_tex, &numeri_ele, &palette, 0xc1);
+    tr_graphics_to_textures(&k_tex,      &k_ele,      &palette, 0xc1);
+    tr_graphics_to_textures(&tr_tex,     &tr_ele,     &palette, 0xc1);
+    tr_graphics_to_textures(&ucci0_tex,  &ucci0_ele,  &palette, 0xc1);
+    tr_graphics_to_textures(&ucci1_tex,  &ucci1_ele,  &palette, 0xc1);
 
-            tr_ele_image_data[image][pix] = mask == 0 ? 0 : palette.color[color + 0xc1];
-        }
-
-        tr_ele_textures[image] = LoadTextureFromImage((Image) {
-            .data = tr_ele_image_data[image],
-            .width = img->width,
-            .height = img->height,
-            .format = UNCOMPRESSED_R8G8B8A8,
-            .mipmaps = 1,
-        });
-
-        SetTextureFilter(tr_ele_textures[image], FILTER_POINT);
-    }
+    ray_textures *texts[] = {
+        &status_tex,
+        &numeri_tex,
+        &k_tex,
+        &tr_tex,
+        &ucci0_tex,
+        &ucci1_tex,
+    };
 
     Texture2D room_texture = LoadTextureFromImage((Image) {
         .data = &data,
@@ -417,24 +466,31 @@ int main() {
     SetTextureFilter(room_texture, FILTER_POINT);
 
     int the_room = 0;
-    int the_ele = 0;
-    int old_room = the_room;
-    int old_ele = the_ele;
+    int the_ele  = 0;
+    int the_item = 0;
 
-    Texture2D *ele_texture = &tr_ele_textures[the_ele];
+    int old_room = the_room;
+    int old_ele  = the_ele;
+    int old_item = the_item;
+
+    Texture2D *test_texture = &texts[the_ele]->textures[the_item];
 
     while (!WindowShouldClose()) {
         BeginDrawing();
         ClearBackground(BLACK);
 
-        if (IsKeyPressed(KEY_RIGHT))  { the_room += 1; }
-        if (IsKeyPressed(KEY_LEFT))   { the_room -= 1; }
+        if (IsKeyPressed(KEY_RIGHT))     { the_room += 1; }
+        if (IsKeyPressed(KEY_LEFT))      { the_room -= 1; }
 
-        if (IsKeyPressed(KEY_UP))     { the_ele += 1; }
-        if (IsKeyPressed(KEY_DOWN))   { the_ele -= 1; }
+        if (IsKeyPressed(KEY_PAGE_UP))   { the_ele  += 1; }
+        if (IsKeyPressed(KEY_PAGE_DOWN)) { the_ele  -= 1; }
 
-        the_room = MAX(MIN(the_room, 0x2b), 0);
-        the_ele  = MAX(MIN(the_ele, tr.count), 0);
+        if (IsKeyPressed(KEY_UP))        { the_item += 1; }
+        if (IsKeyPressed(KEY_DOWN))      { the_item -= 1; }
+
+        the_room = MAX(MIN(the_room, 0x2b  - 1), 0);
+        the_ele  = MAX(MIN(the_ele, sizeof(texts) / sizeof(ray_textures *) - 1), 0);
+        the_item = MAX(MIN(the_item, texts[the_ele]->count - 1), 0);
 
         if (the_room != old_room) {
             old_room = the_room;
@@ -448,20 +504,29 @@ int main() {
             UpdateTexture(room_texture, data);
         }
 
+        if (the_item != old_item) {
+            test_texture = &texts[the_ele]->textures[the_item];
+            old_item = the_item;
+        }
+
         if (the_ele != old_ele) {
-            ele_texture = &tr_ele_textures[the_ele];
+            the_item = 0;
+
+            test_texture = &texts[the_ele]->textures[the_item];
             old_ele = the_ele;
+            old_item = 0;
         }
 
         DrawTextureScaled(room_texture, 0, 0, GAME_SIZE_WIDTH, GAME_SIZE_HEIGHT);
-        DrawTextureScaled(*ele_texture, 20, 20, tr.items[the_ele].width, tr.items[the_ele].height);
-
+        DrawTextureScaled(*test_texture, 100, 50, test_texture->width, test_texture->height);
 
         char suca[0x100];
         sprintf(suca, "ROOM %2x", the_room);
         DrawText(suca, 20, 20, 30, PURPLE);
         sprintf(suca, "ELE  %2x", the_ele);
         DrawText(suca, 20, 50, 30, PURPLE);
+        sprintf(suca, "ITEM %2x", the_item);
+        DrawText(suca, 20, 80, 30, PURPLE);
 
         EndDrawing();
     }
