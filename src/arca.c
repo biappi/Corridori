@@ -111,7 +111,7 @@ char far* palette_mangling_counter;
 char far* disable_pupo_anim;
 int  far* pupo_palette_override;
 char far* current_room_number;
-
+char far* read_from_usc;
 
 
 /* last parameter pushed is last in arg list */
@@ -134,7 +134,6 @@ typedef void (far pascal *do_tiletype_actions_inner_t)(int boh);
 typedef void (far pascal *tiletype_action_t)(void far* ptr, int far* idx, int far* top);
 typedef void (far pascal *load_buffer_mat_t)(int x);
 
-
 render_ele_t render_ele;
 render_ele_t render_ele_flipped;
 wait_vsync_t wait_vsync_theirs;
@@ -153,7 +152,6 @@ mouse_get_status_t mouse_get_status;
 mouse_pointer_for_point_t mouse_pointer_for_point;
 do_tiletype_actions_inner_t do_tiletype_actions_inner_th;
 load_buffer_mat_t load_buffer_mat;
-
 int far pascal logi_tab_contains(int thing, int logi_tab_index);
 
 void wait_vsync() {
@@ -254,6 +252,13 @@ void vga_dump_word(int far* y, char far* str, int w) {
 
 #define MAX(a, b) ((a) > (b) ? a : b)
 #define MIN(a, b) ((a) < (b) ? a : b)
+
+char far pascal set_is_member(char to_check, char far* set) {
+    char bit  = 1 << (to_check & 7);
+    char byte = set[to_check / 8];
+
+    return !!(byte & bit);
+}
 
 char far pascal screen_to_tile_x(int screen_x) {
     int x = screen_x / TILES_WIDTH;
@@ -1394,25 +1399,59 @@ void far pascal update_pupo_4() {
     ds_trampoline_end();
 }
 
-void far pascal update_pupo_tail() {
-    ds_trampoline_start();
+void far pascal change_at_screen() {
+    char direction = *pupo_current_ani >= 0x35;
 
+    int pupo_real_x = *pupo_x + *pupo_x_delta;
+
+    if ((pupo_real_x > 319 && direction) ||
+        (pupo_real_x < 0 && !direction))
     {
-        void (far pascal *change_screen_boundary)() = MK_FP(seg002, 0x12b0);
-        void (far pascal *sub_122f1)() = MK_FP(seg002, 0x1391);
+        void far* stru_121f0 = MK_FP(seg002, 0x1290);
 
-        ds_trampoline_end();
-        change_screen_boundary();
-        sub_122f1();
-        ds_trampoline_start();
+        if (!set_is_member(*pupo_current_ani, stru_121f0)) {
+            *read_from_usc = 1;
 
-        if (!*disable_pupo_anim) {
-            *pupo_anim_countdown = *pupo_anim_countdown - 1;
+            if (*pupo_x > 0)
+                *pupo_new_x = *pupo_x - 320;
+            else
+                *pupo_new_x = *pupo_x + 320;
+
+            if (pupo_real_x > 0)
+                *pupo_new_x = 8;
+            else
+                *pupo_new_x = 312;
+
+            {
+                int y = *pupo_y - 0xa;
+                char new_room;
+
+                do {
+                    char tile_type;
+
+                    new_room = get_tile_type(*pupo_x, y);
+                    y += 0xa;
+
+                    tile_type = get_tile_type(*pupo_x, y);
+                    y += 0xa;
+
+                    if (logi_tab_contains(tile_type, 0x25))
+                        break;
+                } while (y <= 0xc7);
+
+                *pupo_x = *pupo_new_x;
+
+                {
+                    void (far pascal *real_change_room)(int room)
+                         = MK_FP(seg002, 0x02cb);
+
+                    ds_trampoline_end();
+                    real_change_room(new_room);
+                    ds_trampoline_start();
+                }
+            }
         }
-
     }
-
-    ds_trampoline_end();
 }
 
 void far pascal update_pupo() {
@@ -1505,14 +1544,7 @@ void far pascal update_pupo() {
                 }
                 else {
                     if (*byte_1f4dc == 4) {
-                        char (far pascal *set_is_member)(char item, void far* set) = MK_FP(seg021, 0x09d7);
-                        char is_boh;
-
-                        ds_trampoline_end();
-                        is_boh = set_is_member(*pupo_current_ani, MK_FP(seg002, 0x176d));
-                        ds_trampoline_start();
-
-                        if (is_boh) {
+                        if (set_is_member(*pupo_current_ani, MK_FP(seg002, 0x176d))) {
                             void (far pascal *mangle_pu_gun)() = MK_FP(seg011, 0x0619);
                             void (far pascal *reset_clicked_button)() = MK_FP(seg004, 0x0000);
 
@@ -1527,8 +1559,22 @@ void far pascal update_pupo() {
         }
     } while (*get_new_ani);
 
+
+    {
+        void (far pascal *sub_122f1)() = MK_FP(seg002, 0x1391);
+
+        change_at_screen();
+
+        ds_trampoline_end();
+        sub_122f1();
+        ds_trampoline_start();
+
+        if (!*disable_pupo_anim) {
+            *pupo_anim_countdown = *pupo_anim_countdown - 1;
+        }
+    }
+
     ds_trampoline_end();
-    update_pupo_tail();
 }
 
 void far pascal add_enemy_to_bobs(int enemy_id) {
@@ -1696,6 +1742,10 @@ void init_pointers() {
     ucci_image_content       = MK_FP(dseg, 0x2dce);
     enemy_flip               = MK_FP(dseg, 0x2de8);
     bobs_to_hit_mouse        = MK_FP(dseg, 0x3768);
+    read_from_usc            = MK_FP(dseg, 0x08fa);
+
+
+    /* functions */
 
     mouse_pointer_for_point    = MK_FP(seg004, 0x078a);
     mouse_click_event          = MK_FP(seg004, 0x0851);
@@ -1716,7 +1766,6 @@ void init_pointers() {
     gfx_2                      = MK_FP(seg015, 0x1595);
     render_ele                 = MK_FP(seg015, 0x1b8e);
     render_ele_flipped         = MK_FP(seg015, 0x1bc3);
-
 
 
     patch_far_jmp(MK_FP(seg002, 0x0000), &capisci_dove_muovere_il_pupo_key); 
@@ -1742,6 +1791,9 @@ void init_pointers() {
     patch_far_jmp(MK_FP(seg013, 0x0b64), &render_bobs_in_background);
     patch_far_jmp(MK_FP(seg015, 0x0c23), &render_pause_box);
     patch_far_jmp(MK_FP(seg015, 0x0eca), &render_help_string);
+/*
+    patch_far_jmp(MK_FP(seg002, 0x12b0), &change_at_screen);
+*/
 }
 
 void main(int argc, char *argv[]) {
