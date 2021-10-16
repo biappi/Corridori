@@ -79,6 +79,8 @@ typedef struct {
     uint32_t  **data;
 } ray_textures;
 
+// - //
+
 uint16_t from_big_endian(uint16_t x) {
     return ((x & 0x00ff) << 8) | (x >> 8);
 }
@@ -231,13 +233,11 @@ void tr_graphics_init(tr_graphics *graphics, uint8_t *ele_file) {
 
     for (int i = 0; i < graphics->count; i++)
     {
+        tr_image_8bpp *dst_item = &graphics->items[i];
+
         int           offset    = (i * 4) + 2;
         uint8_t       *src_offset = ele_file + offset;
         uint8_t       *src_item = ele_file + 2 + read32_unaligned(src_offset);
-
-        tr_image_8bpp *dst_item = &graphics->items[i];
-
-        printf("\n\nELE %02x\n\n", i);
 
         dst_item->width  = read16_unaligned(src_item + 0 * 2);
         dst_item->height = read16_unaligned(src_item + 1 * 2);
@@ -248,10 +248,6 @@ void tr_graphics_init(tr_graphics *graphics, uint8_t *ele_file) {
 
         memset(dst_item->pixels, 0, size);
         memset(dst_item->mask,   0, size);
-
-        uint8_t *end = dst_item->pixels + (size);
-
-        int y = 0;
 
         {
             uint8_t *src = src_item + 5;
@@ -272,8 +268,6 @@ void tr_graphics_init(tr_graphics *graphics, uint8_t *ele_file) {
 
                     x_left -= skip;
 
-                    for (int i = 0; i < skip; i++) printf("   ");
-
                     uint8_t count = *src++;
                     if (count != 0xff) {
                         consecutive_ffs = 0;
@@ -283,16 +277,8 @@ void tr_graphics_init(tr_graphics *graphics, uint8_t *ele_file) {
                             uint8_t color1 = ((colors & 0x0f)     );
                             uint8_t color2 = ((colors & 0xf0) >> 4);
 
-                            printf("%02x ", color1);
-                            printf("%02x ", color2);
-
-                            if (dst < end) {
-                                *dst++ = color1; *msk++ = 1;
-                                *dst++ = color2; *msk++ = 1;
-                            }
-                            else {
-                                printf("DIOCAN");
-                            }
+                            *dst++ = color1; *msk++ = 1;
+                            *dst++ = color2; *msk++ = 1;
                             x_left -= 2;
                         }
 
@@ -300,14 +286,7 @@ void tr_graphics_init(tr_graphics *graphics, uint8_t *ele_file) {
                             uint color = *src++;
                             uint color1 = (color & 0x0f);
 
-                            printf("%02x ", color1);
-
-                            if (dst < end) {
-                                *dst++ = color1; *msk++ = 1;
-                            }
-                            else {
-                                printf("DIOCAN");
-                            }
+                            *dst++ = color1; *msk++ = 1;
 
                             x_left--;
                         }
@@ -321,14 +300,8 @@ void tr_graphics_init(tr_graphics *graphics, uint8_t *ele_file) {
                 }
                 else {
                     dst += x_left; msk += x_left;
-                    for (int i = 0; i < x_left; i++) printf("   ");
-
-                    printf("|  line: %x", y);
 
                     x_left = dst_item->width;
-
-                    printf("\n");
-                    y++;
 
                     consecutive_ffs++;
                     if (consecutive_ffs == 3) {
