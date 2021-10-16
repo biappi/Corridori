@@ -377,10 +377,24 @@ int main() {
     tr_palette   palette;
     tr_tilesets  tilesets;
 
+    tr_graphics status_ele;
+    tr_graphics numeri_ele;
+    tr_graphics k_ele;
+    tr_graphics tr_ele;
+    tr_graphics ucci0_ele;
+    tr_graphics ucci1_ele;
+
     resources_load(&resources);
 
     palette_init(&palette, &resources);
     tilesets_init(&tilesets, &resources);
+
+    tr_graphics_init(&status_ele, resources.status_ele);
+    tr_graphics_init(&numeri_ele, resources.numeri_ele);
+    tr_graphics_init(&k_ele, resources.k_ele);
+    tr_graphics_init(&tr_ele, resources.tr_ele);
+    tr_graphics_init(&ucci0_ele, resources.ucci0_ele);
+    tr_graphics_init(&ucci1_ele, resources.ucci1_ele);
 
     uint32_t data[GAME_SIZE_WIDTH * GAME_SIZE_HEIGHT];
     uint8_t background[GAME_SIZE_WIDTH * GAME_SIZE_HEIGHT];
@@ -390,20 +404,6 @@ int main() {
     for (int i = 0; i < sizeof(data) / sizeof(uint32_t); i++) {
         data[i] = palette.color[background[i]];
     }
-
-    tr_graphics status_ele;
-    tr_graphics numeri_ele;
-    tr_graphics k_ele;
-    tr_graphics tr_ele;
-    tr_graphics ucci0_ele;
-    tr_graphics ucci1_ele;
-
-    tr_graphics_init(&status_ele, resources.status_ele);
-    tr_graphics_init(&numeri_ele, resources.numeri_ele);
-    tr_graphics_init(&k_ele, resources.k_ele);
-    tr_graphics_init(&tr_ele, resources.tr_ele);
-    tr_graphics_init(&ucci0_ele, resources.ucci0_ele);
-    tr_graphics_init(&ucci1_ele, resources.ucci1_ele);
 
     ray_textures status_tex;
     ray_textures numeri_tex;
