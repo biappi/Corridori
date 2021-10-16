@@ -39,7 +39,20 @@ typedef struct {
 } tr_tilesets;
 
 typedef struct {
+    int width;
+    int height;
+    uint8_t *pixels;
+    uint8_t *mask;
+} tr_image_8bpp;
+
+typedef struct {
+    int count;
+    tr_image_8bpp *items;
+} tr_graphics;
+
+typedef struct {
     tr_palette_file *arcade_pal;
+
     uint8_t *room_roe;
     uint8_t *buffer1;
     uint8_t *buffer2;
@@ -49,6 +62,13 @@ typedef struct {
     uint8_t *buffer6;
     uint8_t *bufferA;
     uint8_t *bufferB;
+
+    uint8_t *status_ele;
+    uint8_t *numeri_ele;
+    uint8_t *k_ele;
+    uint8_t *tr_ele;
+    uint8_t *ucci0_ele;
+    uint8_t *ucci1_ele;
 } tr_resources;
 
 uint16_t from_big_endian(uint16_t x) {
@@ -75,6 +95,7 @@ void *load_file(char *path) {
 
 void resources_load(tr_resources *resources) {
     resources->arcade_pal = load_file("GAME_DIR/AR1/STA/ARCADE.PAL");
+
     resources->room_roe   = load_file("GAME_DIR/AR1/MAP/ROOM.ROE");
     resources->buffer1    = load_file("GAME_DIR/AR1/STA/BUFFER1.MAT");
     resources->buffer2    = load_file("GAME_DIR/AR1/STA/BUFFER2.MAT");
@@ -84,6 +105,13 @@ void resources_load(tr_resources *resources) {
     resources->buffer6    = load_file("GAME_DIR/AR1/STA/BUFFER6.MAT");
     resources->bufferA    = load_file("GAME_DIR/AR1/STA/BUFFERA.MAT");
     resources->bufferB    = load_file("GAME_DIR/AR1/STA/BUFFERB.MAT");
+
+    resources->status_ele = load_file("GAME_DIR/AR1/UCC/UCCI0.ELE");
+    resources->numeri_ele = load_file("GAME_DIR/AR1/UCC/UCCI1.ELE");
+    resources->k_ele      = load_file("GAME_DIR/AR1/IMG/K.ELE");
+    resources->tr_ele     = load_file("GAME_DIR/AR1/IMG/TR.ELE");
+    resources->ucci0_ele  = load_file("GAME_DIR/AR1/IMG/NUMERI.ELE");
+    resources->ucci1_ele  = load_file("GAME_DIR/AR1/IMG/STATUS.ELE");
 }
 
 void palette_load_from_file(tr_palette *palette, tr_palette_file *file) {
@@ -175,8 +203,155 @@ void render_background_layer(uint8_t *room_file, int room, tr_tilesets *sets, ui
     }
 }
 
+uint16_t read16_unaligned(void *x) {
+    uint8_t *b = (uint8_t *)x;
+    uint8_t l = *(b + 0);
+    uint8_t h = *(b + 1);
+    return (h << 8) + l;
+}
+
+uint32_t read32_unaligned(void *x) {
+    uint16_t *b = (uint16_t *)x;
+    uint16_t l = read16_unaligned((uint16_t *)(b + 0));
+    uint16_t h = read16_unaligned((uint16_t *)(b + 1));
+    return (h << 16) + l;
+}
+
+void tr_graphics_init(tr_graphics *graphics, uint8_t *ele_file, int col) {
+    graphics->count = (*(uint16_t *)ele_file) - 1;
+    graphics->items = calloc(graphics->count, sizeof(tr_image_8bpp));
+
+    for (int i = 0; i < graphics->count; i++)
+    {
+        int           offset    = (i * 4) + 2;
+        uint8_t       *src_offset = ele_file + offset;
+        uint8_t       *src_item = ele_file + 2 + read32_unaligned(src_offset);
+
+        tr_image_8bpp *dst_item = &graphics->items[i];
+
+        printf("\n\nELE %02x\n\n", i);
+
+        dst_item->width  = read16_unaligned(src_item + 0 * 2);
+        dst_item->height = read16_unaligned(src_item + 1 * 2);
+
+        int size = dst_item->width * dst_item->height;
+        dst_item->pixels = malloc(size);
+        dst_item->mask   = malloc(size);
+
+        memset(dst_item->pixels, 0, size);
+        memset(dst_item->mask,   0, size);
+
+        uint8_t *end = dst_item->pixels + (size);
+
+        int y = 0;
+
+        {
+            uint8_t *src = src_item + 5;
+            uint8_t *dst = dst_item->pixels;
+            uint8_t *msk = dst_item->mask;
+
+            int x_left = dst_item->width;
+
+            int consecutive_ffs = 0;
+
+            while (1) {
+                uint8_t skip = *src++;
+
+                if (skip != 0xff) {
+                    consecutive_ffs = 0;
+                    dst += skip;
+                    msk += skip;
+
+                    x_left -= skip;
+
+                    for (int i = 0; i < skip; i++) printf("   ");
+
+                    uint8_t count = *src++;
+                    if (count != 0xff) {
+                        consecutive_ffs = 0;
+
+                        for (int i = 0; i < count / 2; i++) {
+                            uint8_t colors = *src++;
+                            uint8_t color1 = ((colors & 0x0f)     ) + col;
+                            uint8_t color2 = ((colors & 0xf0) >> 4) + col;
+
+                            printf("%02x ", color1);
+                            printf("%02x ", color2);
+
+                            if (dst < end) {
+                                *dst++ = color1; *msk++ = 1;
+                                *dst++ = color2; *msk++ = 1;
+                            }
+                            else {
+                                printf("DIOCAN");
+                            }
+                            x_left -= 2;
+                        }
+
+                        if (count & 1) {
+                            uint color = *src++;
+                            uint color1 = (color & 0x0f) + col;
+
+                            printf("%02x ", color1);
+
+                            if (dst < end) {
+                                *dst++ = color1; *msk++ = 1;
+                            }
+                            else {
+                                printf("DIOCAN");
+                            }
+
+                            x_left--;
+                        }
+                    }
+                    else {
+                        consecutive_ffs++;
+                        if (consecutive_ffs == 3) {
+                            break;
+                        }
+                    }
+                }
+                else {
+                    dst += x_left; msk += x_left;
+                    for (int i = 0; i < x_left; i++) printf("   ");
+
+                    printf("|  line: %x", y);
+
+                    x_left = dst_item->width;
+
+                    printf("\n");
+                    y++;
+
+                    consecutive_ffs++;
+                    if (consecutive_ffs == 3) {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
 #define MAX(a, b) ((a) > (b)) ? (a) : (b)
 #define MIN(a, b) ((a) < (b)) ? (a) : (b)
+
+void DrawTextureScaled(Texture texture, int x, int y, int width, int height) {
+    Rectangle sourceRect = {
+        .x = 0,
+        .y = 0,
+        .width = width,
+        .height = height
+    };
+
+    Rectangle destRect = {
+        .x = x * GAME_SIZE_SCALE,
+        .y = y * GAME_SIZE_SCALE,
+        .width = width  * GAME_SIZE_SCALE,
+        .height = height * GAME_SIZE_SCALE
+    };
+
+    DrawTexturePro(texture, sourceRect, destRect, (Vector2) { .x  = 0, .y = 0 }, 0, WHITE);
+}
 
 int main() {
     InitWindow(GAME_SIZE_WIDTH  * GAME_SIZE_SCALE,
@@ -199,66 +374,94 @@ int main() {
 
     render_background_layer(resources.room_roe, 0, &tilesets, background);
 
-    Image image = {
+    for (int i = 0; i < sizeof(data) / sizeof(uint32_t); i++) {
+        data[i] = palette.color[background[i]];
+    }
+
+    tr_graphics tr;
+    tr_graphics_init(&tr, resources.tr_ele, 0);
+
+    Texture2D *tr_ele_textures = calloc(tr.count, sizeof(Texture2D));
+    uint32_t **tr_ele_image_data = calloc(tr.count, sizeof(uint32_t*));
+
+    for (int image = 0; image < tr.count; image++) {
+        tr_image_8bpp *img = &tr.items[image];
+        tr_ele_image_data[image] = malloc(img->width * img->height * sizeof(uint32_t));
+
+        for (int pix = 0; pix < img->width * img->height; pix++) {
+            uint8_t color = img->pixels[pix];
+            uint8_t mask  = img->mask  [pix];
+
+            tr_ele_image_data[image][pix] = mask == 0 ? 0 : palette.color[color + 0xc1];
+        }
+
+        tr_ele_textures[image] = LoadTextureFromImage((Image) {
+            .data = tr_ele_image_data[image],
+            .width = img->width,
+            .height = img->height,
+            .format = UNCOMPRESSED_R8G8B8A8,
+            .mipmaps = 1,
+        });
+
+        SetTextureFilter(tr_ele_textures[image], FILTER_POINT);
+    }
+
+    Texture2D room_texture = LoadTextureFromImage((Image) {
         .data = &data,
         .width = GAME_SIZE_WIDTH,
         .height = GAME_SIZE_HEIGHT,
         .format = UNCOMPRESSED_R8G8B8A8,
         .mipmaps = 1,
-    };
+    });
 
-    for (int i = 0; i < sizeof(data) / sizeof(uint32_t); i++) {
-        data[i] = palette.color[background[i]];
-    }
+    SetTextureFilter(room_texture, FILTER_POINT);
 
-    Texture2D texture = LoadTextureFromImage(image);
-    SetTextureFilter(texture, FILTER_POINT);
+    int the_room = 0;
+    int the_ele = 0;
+    int old_room = the_room;
+    int old_ele = the_ele;
 
-    int selection = 0;
-    int oldselection = 0;
+    Texture2D *ele_texture = &tr_ele_textures[the_ele];
 
     while (!WindowShouldClose()) {
         BeginDrawing();
         ClearBackground(BLACK);
 
-        if (IsKeyPressed(KEY_RIGHT))  { selection += 1; }
-        if (IsKeyPressed(KEY_LEFT))   { selection -= 1; }
+        if (IsKeyPressed(KEY_RIGHT))  { the_room += 1; }
+        if (IsKeyPressed(KEY_LEFT))   { the_room -= 1; }
 
-        selection = MAX(MIN(selection, 0x2b), 0);
+        if (IsKeyPressed(KEY_UP))     { the_ele += 1; }
+        if (IsKeyPressed(KEY_DOWN))   { the_ele -= 1; }
 
-        if (selection != oldselection) {
-            oldselection = selection;
+        the_room = MAX(MIN(the_room, 0x2b), 0);
+        the_ele  = MAX(MIN(the_ele, tr.count), 0);
 
-            render_background_layer(resources.room_roe, selection, &tilesets, background);
+        if (the_room != old_room) {
+            old_room = the_room;
+
+            render_background_layer(resources.room_roe, the_room, &tilesets, background);
 
             for (int i = 0; i < sizeof(data) / sizeof(uint32_t); i++) {
                 data[i] = palette.color[background[i]];
             }
 
-            UpdateTexture(texture, data);
+            UpdateTexture(room_texture, data);
         }
 
+        if (the_ele != old_ele) {
+            ele_texture = &tr_ele_textures[the_ele];
+            old_ele = the_ele;
+        }
 
-        Rectangle sourceRect = {
-            .x = 0,
-            .y = 0,
-            .width = GAME_SIZE_WIDTH,
-            .height = GAME_SIZE_HEIGHT
-        };
-
-        Rectangle destRect = {
-            .x = 0,
-            .y = 0,
-            .width = GAME_SIZE_WIDTH  * GAME_SIZE_SCALE,
-            .height = GAME_SIZE_HEIGHT * GAME_SIZE_SCALE
-        };
-
-        DrawTexturePro(texture, sourceRect, destRect, (Vector2) { .x  = 0, .y = 0 }, 0, WHITE);
+        DrawTextureScaled(room_texture, 0, 0, GAME_SIZE_WIDTH, GAME_SIZE_HEIGHT);
+        DrawTextureScaled(*ele_texture, 20, 20, tr.items[the_ele].width, tr.items[the_ele].height);
 
 
         char suca[0x100];
-        sprintf(suca, "ROOM %2x", selection);
+        sprintf(suca, "ROOM %2x", the_room);
         DrawText(suca, 20, 20, 30, PURPLE);
+        sprintf(suca, "ELE  %2x", the_ele);
+        DrawText(suca, 20, 50, 30, PURPLE);
 
         EndDrawing();
     }
@@ -267,4 +470,3 @@ int main() {
 
     return 0;
 }
-
