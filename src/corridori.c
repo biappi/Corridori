@@ -152,13 +152,18 @@ void tilesets_init(tr_tilesets *tilesets, tr_resources *resources) {
     tilesets->sets[0xB] = resources->bufferB;
 }
 
+uint8_t room_get_mat_file(uint8_t *room_file, int room, int pos) {
+    int offset = (room * 0x04f4) + 0x0004 + (pos * 2) + 1;
+    return *(room_file + offset);
+}
+
 uint16_t room_get_tile_id(uint8_t *room_file, int room, int pos) {
     int offset = (room * 0x04f4) + 0x0024 + (pos * 2);
     return from_big_endian(*(uint16_t *)(room_file + offset));
 }
 
-uint8_t room_get_mat_file(uint8_t *room_file, int room, int pos) {
-    int offset = (room * 0x04f4) + 0x0004 + (pos * 2) + 1;
+uint16_t room_get_tile_type(uint8_t *room_file, int room, int pos) {
+    int offset = (room * 0x04f4) + 0x0364 + pos;
     return *(room_file + offset);
 }
 
@@ -366,6 +371,25 @@ void tr_graphics_to_textures(ray_textures *texts,
     }
 }
 
+static void DrawTileTypes(const tr_resources *resources, int the_room) {
+    for (int t_y = 0; t_y < GAME_TILES_HEIGHT; t_y++) {
+        for (int t_x = 0; t_x < GAME_TILES_WIDTH; t_x++) {
+            int x = GAME_SIZE_SCALE * t_x * TILE_WIDTH;
+            int y = GAME_SIZE_SCALE * t_y * TILE_HEIGHT;
+
+            uint8_t type = room_get_tile_type(resources->room_roe,
+                                              the_room,
+                                              t_y * GAME_TILES_WIDTH + t_x);
+
+            char str[0x100];
+            sprintf(str, "%2x", type);
+
+            if (type != 0)
+                DrawText(str, x, y, 20, GREEN);
+        }
+    }
+}
+
 int main() {
     InitWindow(GAME_SIZE_WIDTH  * GAME_SIZE_SCALE,
                GAME_SIZE_HEIGHT * GAME_SIZE_SCALE,
@@ -446,6 +470,8 @@ int main() {
     int old_ele  = the_ele;
     int old_item = the_item;
 
+    int show_types = 0;
+
     Texture2D *test_texture = &texts[the_ele]->textures[the_item];
 
     while (!WindowShouldClose()) {
@@ -460,6 +486,8 @@ int main() {
 
         if (IsKeyPressed(KEY_UP))        { the_item += 1; }
         if (IsKeyPressed(KEY_DOWN))      { the_item -= 1; }
+
+        if (IsKeyPressed(KEY_M))         { show_types = !show_types; }
 
         the_room = MAX(MIN(the_room, 0x2b  - 1), 0);
         the_ele  = MAX(MIN(the_ele, sizeof(texts) / sizeof(ray_textures *) - 1), 0);
@@ -493,13 +521,18 @@ int main() {
         DrawTextureScaled(room_texture, 0, 0, GAME_SIZE_WIDTH, GAME_SIZE_HEIGHT);
         DrawTextureScaled(*test_texture, 100, 50, test_texture->width, test_texture->height);
 
-        char suca[0x100];
-        sprintf(suca, "ROOM %2x", the_room);
-        DrawText(suca, 20, 20, 30, PURPLE);
-        sprintf(suca, "ELE  %2x", the_ele);
-        DrawText(suca, 20, 50, 30, PURPLE);
-        sprintf(suca, "ITEM %2x", the_item);
-        DrawText(suca, 20, 80, 30, PURPLE);
+        if (show_types) {
+            DrawTileTypes(&resources, the_room);
+        }
+        else {
+            char suca[0x100];
+            sprintf(suca, "ROOM %2x", the_room);
+            DrawText(suca, 20, 20, 30, PURPLE);
+            sprintf(suca, "ELE  %2x", the_ele);
+            DrawText(suca, 20, 50, 30, PURPLE);
+            sprintf(suca, "ITEM %2x", the_item);
+            DrawText(suca, 20, 80, 30, PURPLE);
+        }
 
         EndDrawing();
     }
