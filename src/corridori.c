@@ -390,6 +390,25 @@ static void DrawTileTypes(const tr_resources *resources, int the_room) {
     }
 }
 
+char tr_keys_to_direction(bool down,
+                          bool up,
+                          bool left,
+                          bool right,
+                          bool fire)
+{
+    static char dpad_to_direction[0x10] = {
+        0, 3, 7, 0, 1, 2, 8, 1, 5, 4, 6, 5, 0, 3, 4, 0
+    };
+
+    char dpad =
+        (!!down  << 3) |
+        (!!up    << 2) |
+        (!!left  << 1) |
+        (!!right << 0);
+
+    return dpad_to_direction[dpad] + (fire ? 9 : 0);
+}
+
 int main() {
     InitWindow(GAME_SIZE_WIDTH  * GAME_SIZE_SCALE,
                GAME_SIZE_HEIGHT * GAME_SIZE_SCALE,
@@ -470,7 +489,7 @@ int main() {
     int old_ele  = the_ele;
     int old_item = the_item;
 
-    int show_types = 0;
+    bool show_types = false;
 
     Texture2D *test_texture = &texts[the_ele]->textures[the_item];
 
@@ -488,6 +507,14 @@ int main() {
         if (IsKeyPressed(KEY_DOWN))      { the_item -= 1; }
 
         if (IsKeyPressed(KEY_M))         { show_types = !show_types; }
+
+        char direction = tr_keys_to_direction(
+          IsKeyDown(KEY_DOWN),
+          IsKeyDown(KEY_UP),
+          IsKeyDown(KEY_LEFT),
+          IsKeyDown(KEY_RIGHT),
+          IsKeyDown(KEY_LEFT_SHIFT) || IsKeyPressed(KEY_RIGHT_SHIFT)
+        );
 
         the_room = MAX(MIN(the_room, 0x2b  - 1), 0);
         the_ele  = MAX(MIN(the_ele, sizeof(texts) / sizeof(ray_textures *) - 1), 0);
@@ -521,18 +548,22 @@ int main() {
         DrawTextureScaled(room_texture, 0, 0, GAME_SIZE_WIDTH, GAME_SIZE_HEIGHT);
         DrawTextureScaled(*test_texture, 100, 50, test_texture->width, test_texture->height);
 
+        char suca[0x100];
+
         if (show_types) {
             DrawTileTypes(&resources, the_room);
         }
         else {
-            char suca[0x100];
             sprintf(suca, "ROOM %2x", the_room);
-            DrawText(suca, 20, 20, 30, PURPLE);
+            DrawText(suca, 20, 20, 20, PURPLE);
             sprintf(suca, "ELE  %2x", the_ele);
-            DrawText(suca, 20, 50, 30, PURPLE);
+            DrawText(suca, 20, 40, 20, PURPLE);
             sprintf(suca, "ITEM %2x", the_item);
-            DrawText(suca, 20, 80, 30, PURPLE);
+            DrawText(suca, 20, 60, 20, PURPLE);
         }
+
+        sprintf(suca, "dir: %2x", direction);
+        DrawText(suca, 20, 0, 20, GREEN);
 
         EndDrawing();
     }
