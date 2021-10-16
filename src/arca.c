@@ -1177,6 +1177,18 @@ char far pascal capisci_dove_muovere_il_pupo_key() {
     return direction;
 }
 
+void far pascal offset_from_ani(int ani, int x, int y, int far* nx, int far* ny) {
+    char far* animofs = *animofs_tab_file;
+
+    int array0 = from_big_endian(*(int far*)(animofs + 0));
+    int array1 = from_big_endian(*(int far*)(animofs + 2));
+    int array2 = from_big_endian(*(int far*)(animofs + 4));
+    int array3 = from_big_endian(*(int far*)(animofs + 6));
+
+    *nx = x + *(animofs + array2 + ani) + *(animofs + array0 + ani);
+    *ny = y + *(animofs + array3 + ani) + *(animofs + array1 + ani);
+}
+
 void far update_pupo_1() {
     ds_trampoline_start();
 
@@ -1213,18 +1225,7 @@ void far update_pupo_1() {
         int a = *pupo_current_ani;
 
         do {
-            void (far pascal *offset_from_ani)(int ani, int x, int y, int far* nx, int far* ny)
-                = MK_FP(seg002, 0x01c1);
-
-            int x = *pupo_x;
-            int y = *pupo_y;
-            int far* nx = pupo_new_x;
-            int far* ny = pupo_new_y;
-            int A = *pupo_current_ani;
-
-            ds_trampoline_end();
-            offset_from_ani(A, x, y, nx, ny);
-            ds_trampoline_start();
+            offset_from_ani(*pupo_current_ani, *pupo_x, *pupo_y, pupo_new_x, pupo_new_y);
 
             {
                 void (far pascal *cosa_ho_di_fronte)(char far* ani, int x, int y, int nx, int ny)
@@ -1411,13 +1412,6 @@ void far pascal update_pupo_tail() {
 
     }
 
-    ds_trampoline_end();
-}
-
-void far pascal update_pupo_5() {
-    ds_trampoline_start();
-    *pupo_anim_countdown = 0;
-    *pupo_current_ani = *pupo_current_ani > 0x35 ? 0x51: 0x1c;
     ds_trampoline_end();
 }
 
