@@ -113,6 +113,11 @@ typedef struct {
     bool read_from_usc;
 }  tr_pupo;
 
+typedef struct {
+    int frame;
+    int countdown;
+} tr_bg;
+
 // - //
 
 typedef struct {
@@ -279,12 +284,30 @@ void render_background_tile(int tile_x,
     }
 }
 
-void render_background_layer(uint8_t *room_file, int room, tr_tilesets *sets, uint8_t *dst) {
+uint16_t adjust_bg_tile_animation(uint16_t tile, int frame) {
+    if ((tile & 0xf000) != 0x9000)
+        return tile;
+
+    if (tile & 0x0800) {
+        frame = 3;
+    }
+    else {
+        if ((tile & 0x0400) && (frame == 3)) {
+            tile = tile | 0x0800;
+        }
+    }
+
+    return (tile & 0xfffc) | (frame & 0x0003);
+}
+
+void render_background_layer(uint8_t *room_file, int room, tr_tilesets *sets, uint8_t *dst, int frame) {
     for (int i = 0; i < GAME_TILES_WIDTH * GAME_TILES_HEIGHT; i++) {
         int tile_x = i % 0x14;
         int tile_y = i / 0x14;
 
         int tile_id = room_get_tile_id(room_file, room, i);
+        tile_id = adjust_bg_tile_animation(tile_id, frame);
+
         int file_id = ((tile_id & 0xf000) >> 12);
         int set_id = room_get_mat_file(room_file, room, file_id);
 
@@ -818,8 +841,8 @@ void ray_bg_renderer_init(ray_bg_renderer *bg, tr_resources *resources, tr_tiles
     SetTextureFilter(bg->texture, FILTER_POINT);
 }
 
-void ray_bg_render_room(ray_bg_renderer *bg, int room_nr) {
-    render_background_layer(bg->resources->room_roe, room_nr, bg->tilesets, bg->background);
+void ray_bg_render_room(ray_bg_renderer *bg, int room_nr, int frame) {
+    render_background_layer(bg->resources->room_roe, room_nr, bg->tilesets, bg->background, frame);
 
     for (int i = 0; i < GAME_SIZE_WIDTH * GAME_SIZE_HEIGHT; i++) {
         bg->data[i] = bg->palette->color[bg->background[i]];
@@ -828,12 +851,32 @@ void ray_bg_render_room(ray_bg_renderer *bg, int room_nr) {
     UpdateTexture(bg->texture, bg->data);
 }
 
+bool bg_step(tr_bg *bg) {
+    bool ret = false;
+
+    bg->countdown = MAX(0, MIN(4, bg->countdown));
+    bg->countdown--;
+
+    if (bg->countdown <= 0) {
+        bg->frame++;
+        bg->countdown = 4;
+        ret = true;
+    }
+
+    if (bg->frame >= 4) {
+        bg->frame = 0;
+        ret = true;
+    }
+
+    return  ret;
+}
+
 int main() {
     InitWindow(GAME_SIZE_WIDTH  * GAME_SIZE_SCALE,
                GAME_SIZE_HEIGHT * GAME_SIZE_SCALE,
                "Corridori");
 
-    SetTargetFPS(15);
+    SetTargetFPS(20);
 
     tr_resources resources;
     tr_palette   palette;
@@ -879,7 +922,7 @@ int main() {
                          &tilesets,
                          &palette);
 
-    bool show_types = false;
+    tr_bg bg;
 
     tr_pupo pupo;
     memset(&pupo, 0, sizeof(pupo));
@@ -894,7 +937,10 @@ int main() {
     pupo.get_new_ani = 1;
 
     int rendered_room = 0;
-    ray_bg_render_room(&bg_renderer, 0);
+    ray_bg_render_room(&bg_renderer, 0, 0);
+
+
+    bool show_types = false;
 
     while (!WindowShouldClose()) {
         BeginDrawing();
@@ -914,8 +960,10 @@ int main() {
 
         update_pupo(&pupo, &resources, direction);
 
-        if (rendered_room != pupo.current_room) {
-            ray_bg_render_room(&bg_renderer, pupo.current_room);
+        bool redraw_bg = bg_step(&bg);
+
+        if ((rendered_room != pupo.current_room) || redraw_bg) {
+            ray_bg_render_room(&bg_renderer, pupo.current_room, bg.frame);
             rendered_room = pupo.current_room;
         }
 
