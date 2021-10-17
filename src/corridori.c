@@ -70,14 +70,19 @@ typedef struct {
     uint8_t *ucci0_ele;
     uint8_t *ucci1_ele;
 
+    uint8_t *logi_tab;
     uint8_t *frames_tab;
     uint8_t *animjoy_tab;
     uint8_t *animofs_tab;
+
+    uint8_t *dsp;
+    uint8_t *usc;
+    uint8_t *prt;
 } tr_resources;
 
 typedef struct {
-    uint16_t x;
-    uint16_t y;
+    int16_t x;
+    int16_t y;
 
     uint8_t  ani;
     uint8_t  ele_idx;
@@ -90,8 +95,11 @@ typedef struct {
     int8_t  x_delta;
     int8_t  y_delta;
 
-    uint16_t new_x;
-    uint16_t new_y;
+    int16_t new_x;
+    int16_t new_y;
+
+    int16_t to_set_x;
+    int16_t to_set_y;
 
     uint8_t  frame_nr;
     uint16_t pupo_offset;
@@ -99,6 +107,10 @@ typedef struct {
     bool get_new_ani;
     bool disable_ani;
 
+    // definitely not for her
+
+    int  current_room;
+    bool read_from_usc;
 }  tr_pupo;
 
 // - //
@@ -108,6 +120,16 @@ typedef struct {
     Texture2D *textures;
     uint32_t  **data;
 } ray_textures;
+
+typedef struct {
+    uint32_t data[GAME_SIZE_WIDTH * GAME_SIZE_HEIGHT];
+    uint8_t background[GAME_SIZE_WIDTH * GAME_SIZE_HEIGHT];
+
+    tr_resources *resources;
+    tr_palette   *palette;
+    tr_tilesets  *tilesets;
+    Texture2D     texture;
+} ray_bg_renderer;
 
 // - //
 
@@ -153,10 +175,14 @@ void resources_load(tr_resources *resources) {
     resources->ucci0_ele  = load_file("GAME_DIR/AR1/IMG/NUMERI.ELE");
     resources->ucci1_ele  = load_file("GAME_DIR/AR1/IMG/STATUS.ELE");
 
+    resources->logi_tab    = load_file("GAME_DIR/AR1/FIL/LOGITAB.TAB");
     resources->frames_tab  = load_file("GAME_DIR/AR1/FIL/FRAMES.TAB");
     resources->animjoy_tab = load_file("GAME_DIR/AR1/FIL/ANIMJOY.TAB");
     resources->animofs_tab = load_file("GAME_DIR/AR1/FIL/ANIMOFS.TAB");
 
+    resources->dsp         = load_file("GAME_DIR/AR1/FIL/DSP");
+    resources->usc         = load_file("GAME_DIR/AR1/FIL/USC");
+    resources->prt         = load_file("GAME_DIR/AR1/FIL/PRT");
 }
 
 void palette_load_from_file(tr_palette *palette, tr_palette_file *file) {
@@ -187,6 +213,19 @@ void tilesets_init(tr_tilesets *tilesets, tr_resources *resources) {
     tilesets->sets[0xB] = resources->bufferB;
 }
 
+#define MAX(a, b) ((a) > (b)) ? (a) : (b)
+#define MIN(a, b) ((a) < (b)) ? (a) : (b)
+
+uint8_t screen_to_tile_x(int screen_x) {
+    int x = screen_x / TILE_WIDTH;
+    return MIN(MAX(x, 0), 19);
+}
+
+uint8_t screen_to_tile_y(int screen_y) {
+    int y = screen_y / TILE_HEIGHT;
+    return MIN(MAX(y, 0), 20);
+}
+
 uint8_t room_get_mat_file(uint8_t *room_file, int room, int pos) {
     int offset = (room * 0x04f4) + 0x0004 + (pos * 2) + 1;
     return *(room_file + offset);
@@ -200,6 +239,11 @@ uint16_t room_get_tile_id(uint8_t *room_file, int room, int pos) {
 uint16_t room_get_tile_type(uint8_t *room_file, int room, int pos) {
     int offset = (room * 0x04f4) + 0x0364 + pos;
     return *(room_file + offset);
+}
+
+uint16_t room_get_tile_type_xy(uint8_t *room_file, int room, int x, int y) {
+    int pos = (screen_to_tile_y(y) * GAME_TILES_WIDTH) + screen_to_tile_x(x);
+    return room_get_tile_type(room_file, room, pos);
 }
 
 void render_background_tile(int tile_x,
@@ -353,9 +397,6 @@ void tr_graphics_init(tr_graphics *graphics, uint8_t *ele_file) {
     }
 }
 
-#define MAX(a, b) ((a) > (b)) ? (a) : (b)
-#define MIN(a, b) ((a) < (b)) ? (a) : (b)
-
 void DrawTextureScaled(Texture texture, int x, int y, int width, int height, bool flip) {
     Rectangle sourceRect = {
         .x = !flip ? 0 : width,
@@ -444,121 +485,38 @@ char tr_keys_to_direction(bool down,
     return dpad_to_direction[dpad] + (fire ? 9 : 0);
 }
 
-typedef struct {
-    int the_room;
-    int the_ele;
-    int the_item;
+bool set_is_member(char to_check, uint8_t *set) {
+    char bit  = 1 << (to_check & 7);
+    char byte = set[to_check / 8];
 
-    int old_room;
-    int old_ele;
-    int old_item;
-
-    ray_textures **texts;
-    int texts_count;
-
-    tr_resources *resources;
-    tr_palette *palette;
-    tr_tilesets *tilesets;
-    uint8_t *bg_data;
-    uint32_t *room_data;
-    Texture2D *room_texture;
-} gfx_tool;
-
-void gfx_tool_init(gfx_tool *gfx,
-                   tr_resources *resources,
-                   tr_palette *palette,
-                   tr_tilesets *tilesets,
-                   ray_textures **texts,
-                   int texts_count,
-                   uint8_t *bg_data,
-                   uint32_t *room_data,
-                   Texture2D *room_texture
-            )
-{
-    gfx->the_room = 0;
-    gfx->the_ele  = 0;
-    gfx->the_item = 0;
-
-    gfx->old_room = gfx->the_room;
-    gfx->old_ele  = gfx->the_ele;
-    gfx->old_item = gfx->the_item;
-
-    gfx->texts = texts;
-    gfx->texts_count = texts_count;
-
-    gfx->resources = resources;
-    gfx->palette = palette;
-    gfx->tilesets = tilesets;
-
-    gfx->bg_data = bg_data;
-    gfx->room_data = room_data;
-    gfx->room_texture = room_texture;
+    return !!(byte & bit);
 }
 
-void gfx_tool_do(gfx_tool *gfx) {
-    Texture2D *test_texture = &gfx->texts[gfx->the_ele]->textures[gfx->the_item];
+bool logi_tab_contains(uint8_t *logitab, int thing, int logi_tab_index) {
+    uint16_t offset;
+    uint8_t  *data;
+    bool     retval = false;
 
-    if (IsKeyPressed(KEY_RIGHT))     { gfx->the_room += 1; }
-    if (IsKeyPressed(KEY_LEFT))      { gfx->the_room -= 1; }
+    thing &= 0xff;
+    logi_tab_index &= 0xff;
 
-    if (IsKeyPressed(KEY_PAGE_UP))   { gfx->the_ele  += 1; }
-    if (IsKeyPressed(KEY_PAGE_DOWN)) { gfx->the_ele  -= 1; }
+    offset = read16_unaligned(logitab + logi_tab_index * 2);
+    offset = from_big_endian(offset);
 
-    if (IsKeyPressed(KEY_UP))        { gfx->the_item += 1; }
-    if (IsKeyPressed(KEY_DOWN))      { gfx->the_item -= 1; }
+    data = (logitab + offset);
 
-    gfx->the_room = MAX(MIN(gfx->the_room, 0x2b  - 1), 0);
-    gfx->the_ele  = MAX(MIN(gfx->the_ele, gfx->texts_count - 1), 0);
-    gfx->the_item = MAX(MIN(gfx->the_item, gfx->texts[gfx->the_ele]->count - 1), 0);
-
-    if (gfx->the_room != gfx->old_room) {
-        // TODO: sbomba qui
-        gfx->old_room = gfx->the_room;
-
-        render_background_layer(gfx->resources->room_roe,
-                                gfx->the_room,
-                                gfx->tilesets,
-                                gfx->bg_data);
-
-        for (int i = 0; i < GAME_SIZE_WIDTH * GAME_SIZE_HEIGHT; i++) {
-            gfx->room_data[i] = gfx->palette->color[gfx->bg_data[i]];
+    while (*data != 0xff) {
+        if (*data == thing) {
+            retval = true;
+            break;
         }
 
-        UpdateTexture(*gfx->room_texture, gfx->bg_data);
+        data++;
     }
 
-    if (gfx->the_item != gfx->old_item) {
-        test_texture = &gfx->texts[gfx->the_ele]->textures[gfx->the_item];
-        gfx->old_item = gfx->the_item;
-    }
-
-    if (gfx->the_ele != gfx->old_ele) {
-        gfx->the_item = 0;
-
-        test_texture = &gfx->texts[gfx->the_ele]->textures[gfx->the_item];
-        gfx->old_ele = gfx->the_ele;
-        gfx->old_item = 0;
-    }
-
-    DrawTextureScaled(*test_texture, 100, 50, test_texture->width, test_texture->height, false);
-
-    char suca[0x100];
-
-    sprintf(suca, "ROOM %2x", gfx->the_room);
-    DrawText(suca, 20, 20, 20, PURPLE);
-    sprintf(suca, "ELE  %2x", gfx->the_ele);
-    DrawText(suca, 20, 40, 20, PURPLE);
-    sprintf(suca, "ITEM %2x", gfx->the_item);
-    DrawText(suca, 20, 60, 20, PURPLE);
+    return retval;
 }
 
-uint8_t animjoy_ani_from_direction(uint8_t *animjoy, uint8_t ani, uint8_t direction) {
-    return animjoy[ani * 18] + direction;
-}
-
-uint16_t framestab_offset_for_ani(uint8_t *framestab, uint8_t ani) {
-    return from_big_endian(read16_unaligned(framestab + ani * 2));
-}
 
 void offset_from_ani(tr_pupo *pupo, tr_resources *resources) {
     uint16_t *offs = (uint16_t *)resources->animofs_tab;
@@ -578,6 +536,154 @@ void offset_from_ani(tr_pupo *pupo, tr_resources *resources) {
        *(int8_t *)(resources->animofs_tab + o2) +
        *(int8_t *)(resources->animofs_tab + o4)
     );
+}
+
+void change_room(tr_pupo *pupo, tr_resources *resources, int room_to_change) {
+    char previous_room = pupo->current_room;
+
+    // reset_clicked_button();
+
+    pupo->new_x = pupo->x;
+    pupo->new_y = pupo->y;
+
+//    previous_room = *no_previous_room ? 0 : *current_room_number;
+//    *wanted_room = room_to_change;
+
+//    if (!*need_to_save_arc_lzr && !*maybe_exit_related) {
+//        gsa_and_exit_room(*wanted_room);
+//    }
+
+    pupo->new_x = pupo->x;
+    pupo->new_y = pupo->y;
+
+
+    pupo->current_room = room_to_change;
+//    if (*vita >= 0x800) {
+//        if (!*no_previous_room) {
+//            room_to_change = *wanted_room;
+//            get_room_from_files(*wanted_room);
+//            calls_funcptr_1();
+//        }
+//    }
+//    else
+    {
+//        room_to_change = *wanted_room;
+//        get_room_from_files(*wanted_room);
+
+        if (pupo->read_from_usc) {
+            uint8_t *current_usc = resources->usc;
+
+            while (1) {
+                uint8_t room_from = *(current_usc + 0);
+                uint8_t room_to   = *(current_usc + 1);
+
+                if (room_from == 0xff && room_to == 0xff) {
+                    break;
+                }
+
+                if ((room_from == previous_room) &&
+                    (room_to == room_to_change))
+                {
+                    int y_from = from_big_endian(read16_unaligned(current_usc + 4));
+                    int y_to   = from_big_endian(read16_unaligned(current_usc + 2));
+
+                    if (y_from == pupo->new_x) {
+                        pupo->new_y = y_to;
+                        pupo->y     = y_to;
+                        break;
+                    }
+                }
+
+                current_usc += 6;
+            }
+        }
+        else {
+            /* read from prt */
+        }
+
+        pupo->to_set_x = pupo->new_x;
+        pupo->to_set_y = pupo->new_y;
+
+        // do_tiletype_actions_inner(0xffff);
+    }
+
+    // calls_funcptr_1();
+
+    // *pupo_tile_top    = get_tile_type(*pupo_new_x, *pupo_new_y     );
+    // *pupo_tile_bottom = get_tile_type(*pupo_new_x, *pupo_new_y + 10);
+
+    // if (!*read_from_usc) {
+    // }
+
+    pupo->read_from_usc = false;
+
+    // *no_previous_room = 0;
+
+    // reset_array_bobs();
+    // check_and_load_ucci();
+    // reset_background_ani();
+
+    // if (*vita <= 0x800) {
+    //     animate_and_render_background();
+    //     draw_punti_faccia();
+    //     draw_stars();
+    // }
+
+    // copy_bg_to_vga();
+
+    // (*swivar_block_1)[*current_room_number + 0x14] = 1;
+
+    // if (!*should_stop_gameloop && !*disable_pupo_anim)
+    //     maybe_fade(1);
+}
+
+
+void change_at_screen(tr_pupo *pupo, tr_resources *resources) {
+    static uint8_t stru_121f0[] = {
+        0x0E, 0x00, 0x0C, 0x00, 0x00, 0x00, 0x00, 0x1C,
+        0x80, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    };
+
+    char direction = pupo->ani >= 0x35;
+
+    int pupo_real_x = pupo->x + pupo->x_delta;
+
+    if ((pupo_real_x > 319 && direction) ||
+        (pupo_real_x < 0 && !direction))
+    {
+        if (!set_is_member(pupo->ani, stru_121f0)) {
+            pupo->read_from_usc = true;
+
+            pupo->new_x = pupo->x > 0 ? pupo->x - 320 : pupo->x + 320;
+            pupo->x = pupo_real_x > 0 ? 312 : 8;
+
+
+            {
+                int y = pupo->y - 0xa;
+                char new_room;
+                char tile_type;
+
+                do {
+
+                    new_room = room_get_tile_type_xy(resources->room_roe, pupo->current_room, pupo->x, y);
+
+                    y += 0xa;
+
+                    tile_type = room_get_tile_type_xy(resources->room_roe, pupo->current_room, pupo->x, y);
+
+                    y += 0xa;
+
+                    if (logi_tab_contains(resources->logi_tab, tile_type, 0x25))
+                        break;
+                } while (y <= 0xc7);
+
+                pupo->x = pupo->new_x;
+                change_room(pupo, resources, new_room);
+            }
+        }
+    }
 }
 
 void update_pupo(tr_pupo *pupo, tr_resources *resources, uint8_t direction) {
@@ -672,14 +778,12 @@ void update_pupo(tr_pupo *pupo, tr_resources *resources, uint8_t direction) {
                 pupo->x += *(int8_t *)(resources->animofs_tab + o3);
                 pupo->y += *(int8_t *)(resources->animofs_tab + o4);
 
-                /*
-                if ((*to_set_pupo_x < 0) ||
-                    (*to_set_pupo_x > 319))
+                if ((pupo->to_set_x < 0) ||
+                    (pupo->to_set_x > 319))
                 {
-                    *to_set_pupo_x = *pupo_x;
-                    *to_set_pupo_y = *pupo_y;
+                    pupo->to_set_x = pupo->x;
+                    pupo->to_set_x = pupo->y;
                 }
-                 */
             }
 
             // update_pupo_4();
@@ -688,12 +792,40 @@ void update_pupo(tr_pupo *pupo, tr_resources *resources, uint8_t direction) {
         }
     } while (pupo->get_new_ani);
 
-    // change_screen_boundary();
+    change_at_screen(pupo, resources);
+
     // sub_122f1();
 
     if (!pupo->disable_ani) {
         pupo->countdown--;
     }
+}
+
+
+void ray_bg_renderer_init(ray_bg_renderer *bg, tr_resources *resources, tr_tilesets *tilesets, tr_palette *palette) {
+    bg->resources = resources;
+    bg->palette = palette;
+    bg->tilesets = tilesets;
+
+    bg->texture = LoadTextureFromImage((Image) {
+        .data = &bg->data,
+        .width = GAME_SIZE_WIDTH,
+        .height = GAME_SIZE_HEIGHT,
+        .format = UNCOMPRESSED_R8G8B8A8,
+        .mipmaps = 1,
+    });
+
+    SetTextureFilter(bg->texture, FILTER_POINT);
+}
+
+void ray_bg_render_room(ray_bg_renderer *bg, int room_nr) {
+    render_background_layer(bg->resources->room_roe, room_nr, bg->tilesets, bg->background);
+
+    for (int i = 0; i < GAME_SIZE_WIDTH * GAME_SIZE_HEIGHT; i++) {
+        bg->data[i] = bg->palette->color[bg->background[i]];
+    }
+
+    UpdateTexture(bg->texture, bg->data);
 }
 
 int main() {
@@ -726,15 +858,6 @@ int main() {
     tr_graphics_init(&ucci0_ele, resources.ucci0_ele);
     tr_graphics_init(&ucci1_ele, resources.ucci1_ele);
 
-    uint32_t data[GAME_SIZE_WIDTH * GAME_SIZE_HEIGHT];
-    uint8_t background[GAME_SIZE_WIDTH * GAME_SIZE_HEIGHT];
-
-    render_background_layer(resources.room_roe, 0, &tilesets, background);
-
-    for (int i = 0; i < sizeof(data) / sizeof(uint32_t); i++) {
-        data[i] = palette.color[background[i]];
-    }
-
     ray_textures status_tex;
     ray_textures numeri_tex;
     ray_textures k_tex;
@@ -749,39 +872,14 @@ int main() {
     tr_graphics_to_textures(&ucci0_tex,  &ucci0_ele,  &palette, 0xc1);
     tr_graphics_to_textures(&ucci1_tex,  &ucci1_ele,  &palette, 0xc1);
 
-    ray_textures *texts[] = {
-        &status_tex,
-        &numeri_tex,
-        &k_tex,
-        &tr_tex,
-        &ucci0_tex,
-        &ucci1_tex,
-    };
+    ray_bg_renderer bg_renderer;
 
-    Texture2D room_texture = LoadTextureFromImage((Image) {
-        .data = &data,
-        .width = GAME_SIZE_WIDTH,
-        .height = GAME_SIZE_HEIGHT,
-        .format = UNCOMPRESSED_R8G8B8A8,
-        .mipmaps = 1,
-    });
-
-    SetTextureFilter(room_texture, FILTER_POINT);
-
-    gfx_tool gfx_tool;
-
-    gfx_tool_init(&gfx_tool,
-                  &resources,
-                  &palette,
-                  &tilesets,
-                  texts,
-                  sizeof(texts) / sizeof(ray_textures *),
-                  &background[0],
-                  &data[0],
-                  &room_texture);
+    ray_bg_renderer_init(&bg_renderer,
+                         &resources,
+                         &tilesets,
+                         &palette);
 
     bool show_types = false;
-    bool show_gfx_tool = false;
 
     tr_pupo pupo;
     memset(&pupo, 0, sizeof(pupo));
@@ -795,16 +893,15 @@ int main() {
     pupo.frame_nr = 0;
     pupo.get_new_ani = 1;
 
+    int rendered_room = 0;
+    ray_bg_render_room(&bg_renderer, 0);
+
     while (!WindowShouldClose()) {
         BeginDrawing();
         ClearBackground(BLACK);
 
         if (IsKeyPressed(KEY_M)) {
             show_types = !show_types;
-        }
-
-        if (IsKeyPressed(KEY_G)) {
-            show_gfx_tool = !show_gfx_tool;
         }
 
         char direction = tr_keys_to_direction(
@@ -817,7 +914,12 @@ int main() {
 
         update_pupo(&pupo, &resources, direction);
 
-        DrawTextureScaled(room_texture, 0, 0, GAME_SIZE_WIDTH, GAME_SIZE_HEIGHT, false);
+        if (rendered_room != pupo.current_room) {
+            ray_bg_render_room(&bg_renderer, pupo.current_room);
+            rendered_room = pupo.current_room;
+        }
+
+        DrawTextureScaled(bg_renderer.texture, 0, 0, GAME_SIZE_WIDTH, GAME_SIZE_HEIGHT, false);
 
         {
             int x = pupo.x + pupo.x_delta;
@@ -835,9 +937,6 @@ int main() {
 
         if (show_types)
             DrawTileTypes(&resources, 0);
-
-        if (show_gfx_tool)
-            gfx_tool_do(&gfx_tool);
 
         sprintf(suca, "dir:   %2x", direction);
         DrawText(suca, 20,  0, 20, GREEN);
