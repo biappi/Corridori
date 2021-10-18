@@ -121,6 +121,9 @@ char far* should_stop_gameloop;
 char far* far* dsp_file;
 char far* far* usc_file;
 char far* far* prt_file;
+char far* far* sostani_file;
+
+
 
 /* last parameter pushed is last in arg list */
 typedef void (far pascal *render_ele_t) (int x, int y, void far* ele, int boh);
@@ -1218,7 +1221,73 @@ void far pascal copy_bg_to_vga() {
     impl();
     ds_trampoline_start();
 }
-    
+
+void far pascal cosa_ho_in_fronte(char far* ani, int x, int y, int nx, int ny) {
+    char far* sostani = *sostani_file;
+    int offset = *(int far*)(sostani + 2);
+    char far* sostani_item = sostani + from_big_endian(offset);
+
+    char new_ani = *ani;
+    char changed = 0;
+
+    char ani_from_file;
+    char logitab_idx;
+    char x_offset;
+
+    char not_found = 0;
+
+    int xoff, i;
+
+    int incr;
+    unsigned char oldani;
+
+    do {
+        changed = 0;
+        not_found = 0;
+
+        while (1) {
+            oldani = *(sostani_item);
+
+            if (oldani == 0xff) {
+                not_found = 1;
+                break;
+            }
+
+            if (oldani == new_ani)
+                break;
+
+            sostani_item += 4;
+        }
+
+        if (not_found)
+            continue;
+
+        ani_from_file = *(sostani_item + 1);
+        logitab_idx = *(sostani_item + 2);
+        x_offset = *(sostani_item + 3);
+
+        xoff = nx - x + x_offset;
+        xoff = xoff >  0x40 ? xoff + 0x10 : xoff;
+        xoff = xoff < -0x40 ? xoff - 0x10 : xoff;
+
+        incr = xoff < 0 ? 0x10 : -0x10;
+
+        while (xoff != 0) {
+            char tile_type = get_tile_type(x + xoff, y);
+
+            if (logi_tab_contains(tile_type, logitab_idx)) {
+                new_ani = ani_from_file;
+                changed = 1;
+                break;
+            }
+
+            xoff += incr;
+        }
+    } while (changed);
+
+    *ani = new_ani;
+}
+
 void far pascal offset_from_ani(int ani, int x, int y, int far* nx, int far* ny) {
     char far* animofs = *animofs_tab_file;
 
@@ -1279,9 +1348,12 @@ void far update_pupo_1() {
                 int X = *pupo_x;
                 int Y = *pupo_y;
 
+/*
                 ds_trampoline_end();
                 cosa_ho_di_fronte(&__ani, X, Y, NX, NY);
                 ds_trampoline_start();
+*/
+                cosa_ho_in_fronte(&__ani, X, Y, NX, NY);
 
                 *pupo_current_ani = __ani;
                 a = __ani;
@@ -1983,7 +2055,7 @@ void init_pointers() {
     dsp_file                 = MK_FP(dseg, 0x0920);
     usc_file                 = MK_FP(dseg, 0x0924);
     prt_file                 = MK_FP(dseg, 0x0928);
-
+    sostani_file             = MK_FP(dseg, 0x092c);
 
 
     /* functions */
