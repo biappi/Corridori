@@ -74,6 +74,7 @@ typedef struct {
     uint8_t *frames_tab;
     uint8_t *animjoy_tab;
     uint8_t *animofs_tab;
+    uint8_t *sostani_tab;
 
     uint8_t *dsp;
     uint8_t *usc;
@@ -184,6 +185,7 @@ void resources_load(tr_resources *resources) {
     resources->frames_tab  = load_file("GAME_DIR/AR1/FIL/FRAMES.TAB");
     resources->animjoy_tab = load_file("GAME_DIR/AR1/FIL/ANIMJOY.TAB");
     resources->animofs_tab = load_file("GAME_DIR/AR1/FIL/ANIMOFS.TAB");
+    resources->sostani_tab = load_file("GAME_DIR/AR1/FIL/SOSTANI.TAB");
 
     resources->dsp         = load_file("GAME_DIR/AR1/FIL/DSP");
     resources->usc         = load_file("GAME_DIR/AR1/FIL/USC");
@@ -709,6 +711,71 @@ void change_at_screen(tr_pupo *pupo, tr_resources *resources) {
     }
 }
 
+void cosa_ho_di_fronte(tr_pupo *pupo, tr_resources* resources, uint8_t *ani, int x, int y, int nx, int ny) {
+    uint8_t  *sostani = resources->sostani_tab;
+    uint16_t  offset  = from_big_endian(read16_unaligned(sostani + 2));
+
+    uint8_t  *sostani_item = sostani + offset;
+
+    uint8_t new_ani = *ani;
+
+    uint8_t ani_from_file;
+    uint8_t logitab_idx;
+    char x_offset;
+
+    bool not_found = false;
+    bool changed   = false;
+
+    uint8_t oldani;
+
+    do {
+        changed = false;
+        not_found = false;
+
+        while (1) {
+            oldani = *(sostani_item);
+
+            if (oldani == 0xff) {
+                not_found = true;
+                break;
+            }
+
+            if (oldani == new_ani)
+                break;
+
+            sostani_item += 4;
+        }
+
+        if (not_found)
+            continue;
+
+        ani_from_file = *(sostani_item + 1);
+        logitab_idx = *(sostani_item + 2);
+        x_offset = *(sostani_item + 3);
+
+        int xoff = nx - x + x_offset;
+        xoff = xoff >  0x40 ? xoff + 0x10 : xoff;
+        xoff = xoff < -0x40 ? xoff - 0x10 : xoff;
+
+        int incr = xoff < 0 ? 0x10 : -0x10;
+
+        while (xoff != 0) {
+            uint16_t tile_type = room_get_tile_type_xy(resources->room_roe, pupo->current_room, x + xoff, y);
+
+            if (logi_tab_contains(resources->logi_tab, tile_type, logitab_idx)) {
+                new_ani = ani_from_file;
+                changed = 1;
+                break;
+            }
+
+            xoff += incr;
+        }
+    } while (changed);
+
+    *ani = new_ani;
+}
+
+
 void update_pupo(tr_pupo *pupo, tr_resources *resources, uint8_t direction) {
     char enemy_hit = 0;
     char get_new_frame = 0;
@@ -739,15 +806,20 @@ void update_pupo(tr_pupo *pupo, tr_resources *resources, uint8_t direction) {
             }
              */
 
-//            int a = pupo->ani;
-//
-//            do {
+            int a = pupo->ani;
+
+            do {
                 offset_from_ani(pupo, resources);
 
-//                pupo->ani = cosa_ho_di_fronte(&__ani, X, Y, NX, NY);
-//                a = pupo->ani;
-//            } while (pupo->ani != a);
-
+                cosa_ho_di_fronte(pupo,
+                                  resources,
+                                  &(pupo->ani),
+                                  pupo->x,
+                                  pupo->y,
+                                  pupo->new_x,
+                                  pupo->new_y);
+                a = pupo->ani;
+            } while (pupo->ani != a);
         }
 
         if (pupo->disable_ani) {
@@ -984,7 +1056,7 @@ int main() {
         char suca[0x100];
 
         if (show_types)
-            DrawTileTypes(&resources, 0);
+            DrawTileTypes(&resources, pupo.current_room);
 
         sprintf(suca, "dir:   %2x", direction);
         DrawText(suca, 20,  0, 20, GREEN);
