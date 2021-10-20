@@ -43,6 +43,9 @@ int  far* frames_tab_file_seg;
 int  far* frames_tab_file_off;
 char far* get_new_ani;
 char far* byte_1f4dc;
+char far* byte_1f4e6;
+char far* byte_1f4e8;
+char far* byte_1f4e9;
 int  far* pupo_offset;
 void far* far* bobs_ele_item;
 int  far* bobs_sizeof;
@@ -122,6 +125,7 @@ char far* far* dsp_file;
 char far* far* usc_file;
 char far* far* prt_file;
 char far* far* sostani_file;
+char far* counter_caduta;
 
 
 
@@ -1222,6 +1226,203 @@ void far pascal copy_bg_to_vga() {
     ds_trampoline_start();
 }
 
+void far pascal controlla_sotto_piedi(
+    char far* ani,
+    int top,
+    int bottom,
+    int x,
+    int y,
+    int new_x,
+    int new_y
+) {
+    char direction = *pupo_current_ani >= 0x35;
+    char var2 = 0;
+
+    goto original;
+    return;
+
+    if (*byte_1f4e6 == 0 && top == 0xfc) {
+        /* loc_11e91 */
+        goto original;
+    }
+
+    if (logi_tab_contains(bottom, 0x25)) {
+        /* loc_11ea8 */
+        goto original;
+    }
+
+    if (*byte_1f4e6 < 0) {
+        /* loc_11ecf */
+        goto original;
+    }
+
+    if (top == 9) {
+        /* fai cade */
+        goto original;
+    }
+
+    if (top == 0) {
+        /* loc_11d10 */
+        goto original;
+    }
+
+    if (*counter_caduta > 0) {
+        /* loc_11f3c */
+        goto original;
+    }
+
+    #if 0
+    if (*byte_1f4e8 < 0) {
+        *byte_1f4e8 = *byte_1f4e8 - 1;
+        if (set_is_member(*ani, MK_FP(seg002, 0x0E79))) {
+            /* set ani 38_3 */
+            var2 = 1;
+        }
+    }
+
+    if (!var2) {
+        if (*byte_1f4e9 > 0) {
+            *byte_1f4e9 = *byte_1f4e9 - 1;
+        }
+        if (set_is_member(*ani, MK_FP(seg002, 0x0e99))) {
+            /* set ani 38_3 */
+            var2 = 1;
+        }
+    }
+
+    if (var2) {
+        void (far pascal *cambia_il_salto)(char far* ani, char tile_top)
+            = MK_FP(seg002, 0x022a);
+
+        ds_trampoline_end();
+        cambia_il_salto(ani, top);
+        ds_trampoline_start();
+    }
+    #endif 
+    if ((*ani == 0x12) || (*ani == 0x13)) {
+        /* sub_11a14 */
+    }
+
+    if ((*ani == 0x47) || (*ani == 0x48)) {
+        /* sub_11a3d */
+    }
+
+    if (set_is_member(*ani, MK_FP(seg002, 0x0e79))) {
+        /* loc_11ff6 */
+        goto original;
+    }
+
+    if (set_is_member(*ani, MK_FP(seg002, 0x0e99))) {
+        /* loc_12011 */
+        goto original;
+    }
+
+    if (*ani == 0x14) {
+        /* loc_12027 */
+        goto original;
+    }
+
+    if (*ani == 0x49) {
+        /* loc_12036 */
+        goto original;
+    }
+
+    if (*ani == 0x8) {
+        /* loc_12045 */
+        goto original;
+    }
+
+    if (*ani == 0x9) {
+        /* loc_12054 */
+        goto original;
+    }
+
+    if (*ani == 0x3d) {
+        /* loc_12063 */
+        goto original;
+    }
+
+    if (*ani == 0x3e) {
+        /* loc_12072 */
+        goto original;
+    }
+
+    if (*ani == 0x10) {
+        /* loc_1207d */
+        goto original;
+    }
+
+    if (*ani == 0x45) {
+        /* loc_12088 */
+        goto original;
+    }
+
+    if ((*ani == 0x1f) ||
+        (*ani == 0x20) ||
+        (*ani == 0x54))
+    {
+        /* loc_12094 */
+        goto original;
+    }
+
+    if ((*ani == 0x21) ||
+        (*ani == 0x55))
+    {
+        /* loc_120a3 */
+        goto original;
+    }
+
+    return;
+
+original:
+
+    {
+        void (far pascal *controlla_sotto_piedi)(void far* ani, int top, int bottom, int x, int y, int new_x, int new_y)
+            = MK_FP(seg002, 0x0eb9);
+
+        ds_trampoline_end();
+        controlla_sotto_piedi(ani, top, bottom, x, y, new_x, new_y);
+        ds_trampoline_start();
+
+        return;
+    }
+}
+
+void far pascal cambia_il_salto(unsigned char far* ani, int top) {
+    ds_trampoline_start();
+
+    {
+        char far* sostani = *sostani_file;
+        int offset = *(int far*)(sostani);
+        char far* sostani_item = sostani + from_big_endian(offset);
+
+        unsigned char oldani;
+
+        while (1) {
+            oldani = *(sostani_item);
+
+            if (oldani == 0xff) {
+                break;
+            }
+
+            if (oldani == *ani)
+            {
+                char logitab_index;
+                unsigned char new_ani;
+
+                logitab_index = *(sostani_item + 1);
+                new_ani = *(sostani_item + 2);
+
+                if (logi_tab_contains(top, logitab_index))
+                    *ani = new_ani;
+            }
+
+            sostani_item += 3;
+        }
+    }
+    ds_trampoline_end();
+}
+
 void far pascal cosa_ho_in_fronte(char far* ani, int x, int y, int nx, int ny) {
     char far* sostani = *sostani_file;
     int offset = *(int far*)(sostani + 2);
@@ -1306,22 +1507,15 @@ void far update_pupo_1() {
     *pupo_tile_top    = get_tile_type(*pupo_x, *pupo_y     );
     *pupo_tile_bottom = get_tile_type(*pupo_x, *pupo_y + 10);
 
-    {
-        void (far pascal *controlla_sotto_piedi)(void far* ani, int top, int bottom, int x, int y, int new_x, int new_y)
-            = MK_FP(seg002, 0x0eb9);
-
-        void far* ani = pupo_current_ani;
-        int top = *pupo_tile_top;
-        int bot = *pupo_tile_bottom;
-        int x = *pupo_x;
-        int y = *pupo_y;
-        int nx = *pupo_new_x;
-        int ny = *pupo_new_y;
-
-        ds_trampoline_end();
-        controlla_sotto_piedi(ani, top, bot, x, y, nx, ny);
-        ds_trampoline_start();
-    }
+    controlla_sotto_piedi(
+        pupo_current_ani,
+        *pupo_tile_top,
+        *pupo_tile_bottom,
+        *pupo_x,
+        *pupo_y,
+        *pupo_new_x,
+        *pupo_new_y
+    );
 
     if (*gun_bool == 0) {
         int a = *pupo_current_ani;
@@ -1869,12 +2063,14 @@ void far pascal update_pupo() {
         gfx_2_t g2 = gfx_2;
 
         ds_trampoline_end();
-        g2(200, 190, 319, 199, 50);
+        g2(150, 190, 319, 199, 50);
         ds_trampoline_start();
         format_word(suca, *pupo_x);
         bg_dump(200, 190, suca);
         format_word(suca, *pupo_y - 10);
         bg_dump(250, 190, suca);
+        format_word(suca, *pupo_current_ani);
+        bg_dump(150, 190, suca);
     }
 
     ds_trampoline_end();
@@ -1975,6 +2171,7 @@ void init_pointers() {
     pupo_x_delta             = MK_FP(dseg, 0x094f);
     pupo_y_delta             = MK_FP(dseg, 0x0950);
     pupo_offset              = MK_FP(dseg, 0x0952);
+    byte_1f4e6               = MK_FP(dseg, 0x0956);
     pupo_palette_override    = MK_FP(dseg, 0x095a);
     tr_ele_file              = MK_FP(dseg, 0x095e);
     pupo_tile_top            = MK_FP(dseg, 0x0954);
@@ -2056,6 +2253,10 @@ void init_pointers() {
     usc_file                 = MK_FP(dseg, 0x0924);
     prt_file                 = MK_FP(dseg, 0x0928);
     sostani_file             = MK_FP(dseg, 0x092c);
+    counter_caduta           = MK_FP(dseg, 0x0957);
+    byte_1f4e8               = MK_FP(dseg, 0x0958);
+    byte_1f4e9               = MK_FP(dseg, 0x0959);
+
 
 
     /* functions */
@@ -2104,6 +2305,7 @@ void init_pointers() {
     patch_far_jmp(MK_FP(seg013, 0x0b64), &render_bobs_in_background);
     patch_far_jmp(MK_FP(seg015, 0x0c23), &render_pause_box);
     patch_far_jmp(MK_FP(seg015, 0x0eca), &render_help_string);
+    patch_far_jmp(MK_FP(seg002, 0x022a), &cambia_il_salto);
 }
 
 void main(int argc, char *argv[]) {
