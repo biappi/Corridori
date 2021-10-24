@@ -127,7 +127,7 @@ char far* far* usc_file;
 char far* far* prt_file;
 char far* far* sostani_file;
 char far* counter_caduta;
-
+char far* has_to_adjust_ani;
 
 
 /* last parameter pushed is last in arg list */
@@ -1274,11 +1274,27 @@ void far pascal controlla_sotto_piedi(
 
     if (logi_tab_contains(bottom, 0x25)) {
         /* loc_11ea8 */
-        vga_dump(10, 10, "NOPE 2"); while (1);
-        goto original;
+        vga_dump(10, 10, "NOPE 2");
+
+        *byte_1f4e6 = *byte_1f4e6 - 1;
+        if ((*byte_1f4e6 == 0) &&
+            (*has_to_adjust_ani != 0))
+        {
+            void (far pascal *reset_pupo_caduta)() = MK_FP(seg002, 0x7b1);
+
+            ds_trampoline_end();
+            reset_pupo_caduta();
+            ds_trampoline_start();
+        }
+        else {
+            *ani = direction ? 0x67 : 0x32;
+            *counter_caduta = *counter_caduta + 1;
+        }
+
+        return;
     }
 
-    if (*byte_1f4e6 < 0) {
+    if (*byte_1f4e6 > 0) {
         /* loc_11ecf */
         vga_dump(10, 10, "NOPE 3"); while (1);
         goto original;
@@ -1299,14 +1315,21 @@ void far pascal controlla_sotto_piedi(
 
     if (*counter_caduta > 0) {
         /* loc_11f3c */
-        vga_dump(10, 10, "NOPE 5"); while (1);
-        goto original;
+        vga_dump(10, 10, "NOPE 5");
+
+        if (*counter_caduta > 8) {
+            *ani = direction ? 0x68 : 0x33;
+        }
+
+        *counter_caduta = 0;
+        return;
     }
 
     if (*byte_1f4e8 < 0) {
         *byte_1f4e8 = *byte_1f4e8 - 1;
         if (set_is_member(*ani, MK_FP(seg002, 0x0E79))) {
             /* set ani 38_3 */
+            vga_dump(10, 10, "NOPE 99"); while (1);
             var2 = 1;
         }
     }
@@ -1317,6 +1340,7 @@ void far pascal controlla_sotto_piedi(
         }
         if (set_is_member(*ani, MK_FP(seg002, 0x0e99))) {
             /* set ani 38_3 */
+            vga_dump(10, 10, "NOPE 66"); while (1);
             var2 = 1;
         }
     }
@@ -2405,7 +2429,7 @@ void init_pointers() {
     counter_caduta           = MK_FP(dseg, 0x0957);
     byte_1f4e8               = MK_FP(dseg, 0x0958);
     byte_1f4e9               = MK_FP(dseg, 0x0959);
-
+    has_to_adjust_ani        = MK_FP(dseg, 0x0972);
 
 
     /* functions */
