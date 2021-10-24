@@ -46,6 +46,7 @@ char far* byte_1f4dc;
 char far* byte_1f4e6;
 char far* byte_1f4e8;
 char far* byte_1f4e9;
+char far* byte_1f4ec;
 int  far* pupo_offset;
 void far* far* bobs_ele_item;
 int  far* bobs_sizeof;
@@ -173,6 +174,8 @@ reset_clicked_button_t reset_clicked_button;
 
 
 int far pascal logi_tab_contains(int thing, int logi_tab_index);
+void far pascal cambia_il_salto(unsigned char far* ani, int top);
+void far pascal change_room(int room_to_change);
 
 void wait_vsync() {
     asm mov dx, 0x03da;
@@ -352,9 +355,19 @@ void far pascal draw_highlight_under_cursor() {
                 }
             }
 
-            if (data1) {
+            if (logi_tab_contains(data1, 0x25)) {
                 char *suca = "xx";
-                format_byte(suca, data1);
+                format_byte(suca, 0x25);
+                vga_dump(pixel_x, pixel_y, suca);
+            }
+            if (logi_tab_contains(data1, 0x26)) {
+                char *suca = "xx";
+                format_byte(suca, 0x26);
+                vga_dump(pixel_x, pixel_y, suca);
+            }
+            if (logi_tab_contains(data1, 0x28)) {
+                char *suca = "xx";
+                format_byte(suca, 0x28);
                 vga_dump(pixel_x, pixel_y, suca);
             }
         }
@@ -1226,8 +1239,9 @@ void far pascal copy_bg_to_vga() {
     ds_trampoline_start();
 }
 
+
 void far pascal controlla_sotto_piedi(
-    char far* ani,
+    unsigned char far* ani,
     int top,
     int bottom,
     int x,
@@ -1236,42 +1250,59 @@ void far pascal controlla_sotto_piedi(
     int new_y
 ) {
     char direction = *pupo_current_ani >= 0x35;
-    char var2 = 0;
+    int  var2 = 0;
+    char tile_type;
 
-    goto original;
-    return;
+    unsigned char top_copy = top; /* stack corruption?!?! */
+
+        char *suca = "xxxx";
+
+        format_word(suca, top);
+        vga_dump(10, 18, suca);
+        format_word(suca, *ani);
+        vga_dump(50, 18, suca);
+        wait_vsync();
+        wait_vsync();
+        wait_vsync();
+        wait_vsync();
 
     if (*byte_1f4e6 == 0 && top == 0xfc) {
         /* loc_11e91 */
+        vga_dump(10, 10, "NOPE 1"); while (1);
         goto original;
     }
 
     if (logi_tab_contains(bottom, 0x25)) {
         /* loc_11ea8 */
+        vga_dump(10, 10, "NOPE 2"); while (1);
         goto original;
     }
 
     if (*byte_1f4e6 < 0) {
         /* loc_11ecf */
+        vga_dump(10, 10, "NOPE 3"); while (1);
         goto original;
     }
 
     if (top == 9) {
         /* fai cade */
+        vga_dump(10, 10, "NOPE 4"); while (1);
         goto original;
     }
 
     if (top == 0) {
-        /* loc_11d10 */
-        goto original;
+        *ani = direction ? 0x67 : 0x32;
+        *counter_caduta = *counter_caduta + 1;
+        return;
+
     }
 
     if (*counter_caduta > 0) {
         /* loc_11f3c */
+        vga_dump(10, 10, "NOPE 5"); while (1);
         goto original;
     }
 
-    #if 0
     if (*byte_1f4e8 < 0) {
         *byte_1f4e8 = *byte_1f4e8 - 1;
         if (set_is_member(*ani, MK_FP(seg002, 0x0E79))) {
@@ -1290,71 +1321,103 @@ void far pascal controlla_sotto_piedi(
         }
     }
 
-    if (var2) {
-        void (far pascal *cambia_il_salto)(char far* ani, char tile_top)
-            = MK_FP(seg002, 0x022a);
+    if (!var2) {
+        int top_copy = top;
 
         ds_trampoline_end();
-        cambia_il_salto(ani, top);
+        cambia_il_salto(ani, top_copy);
         ds_trampoline_start();
     }
-    #endif 
+
     if ((*ani == 0x12) || (*ani == 0x13)) {
         /* sub_11a14 */
+        vga_dump(10, 10, "NOPE 6"); while (1);
     }
 
     if ((*ani == 0x47) || (*ani == 0x48)) {
         /* sub_11a3d */
+        vga_dump(10, 10, "NOPE 7"); while (1);
     }
 
     if (set_is_member(*ani, MK_FP(seg002, 0x0e79))) {
         /* loc_11ff6 */
+        vga_dump(10, 10, "NOPE 8"); while (1);
         goto original;
     }
 
     if (set_is_member(*ani, MK_FP(seg002, 0x0e99))) {
         /* loc_12011 */
+        vga_dump(10, 10, "NOPE 9"); while (1);
         goto original;
     }
 
     if (*ani == 0x14) {
         /* loc_12027 */
+        vga_dump(10, 10, "NOPE 10"); while (1);
         goto original;
     }
 
     if (*ani == 0x49) {
         /* loc_12036 */
+        vga_dump(10, 10, "NOPE 11"); while (1);
         goto original;
     }
 
     if (*ani == 0x8) {
         /* loc_12045 */
+        vga_dump(10, 10, "NOPE 12"); while (1);
         goto original;
     }
 
     if (*ani == 0x9) {
         /* loc_12054 */
+        vga_dump(10, 10, "NOPE 13"); while (1);
         goto original;
     }
 
     if (*ani == 0x3d) {
         /* loc_12063 */
+        vga_dump(10, 10, "NOPE 14"); while (1);
         goto original;
     }
 
     if (*ani == 0x3e) {
         /* loc_12072 */
+        vga_dump(10, 10, "NOPE 15"); while (1);
         goto original;
     }
 
     if (*ani == 0x10) {
-        /* loc_1207d */
-        goto original;
+        if (logi_tab_contains(top_copy, 0x26) ||
+            logi_tab_contains(top_copy, 0x28))
+         {
+            if (new_x - 10 >= 0) {
+                tile_type = get_tile_type(new_x - 10, new_y);
+
+                if (tile_type == top_copy) {
+                    *ani = 0x1d;
+                }
+            }
+        }
+
+        return;
     }
 
     if (*ani == 0x45) {
         /* loc_12088 */
-        goto original;
+        if (logi_tab_contains(top_copy, 0x26) ||
+            logi_tab_contains(top_copy, 0x28))
+         {
+            if ((new_x + 10) < 320) {
+                tile_type = get_tile_type(new_x + 10, new_y);
+
+                if (tile_type == top_copy) {
+                    *ani = 0x52;
+                }
+            }
+        }
+
+        return;
     }
 
     if ((*ani == 0x1f) ||
@@ -1362,19 +1425,76 @@ void far pascal controlla_sotto_piedi(
         (*ani == 0x54))
     {
         /* loc_12094 */
-        goto original;
+        vga_dump(10, 10, "NOPE 18");
+
+        format_word(suca, top_copy);
+        vga_dump(100, 0, suca);
+
+        /* eventually_change_room(); */
+        if (logi_tab_contains(top_copy, 0x28)) {
+            reset_clicked_button_t rese = reset_clicked_button;
+            unsigned char the_ani = *ani;
+
+            *wanted_room = *current_room_number;
+
+            ds_trampoline_end();
+            do_tiletype_actions(top_copy - 0xc0);
+            rese();
+            ds_trampoline_start();
+            calls_funcptr_1();
+
+            if (*wanted_room != *current_room_number) {
+                ds_trampoline_end();
+                change_room(*wanted_room);
+                ds_trampoline_start();
+            }
+
+            if (the_ani != *ani) {
+                *ani = 0x22;
+            }
+        }
+        else {
+            if (top_copy == 0xa8) {
+                *ani = 0x20;
+            }
+            else if (top_copy == 0xfe) {
+                *ani = 0x54;
+            }
+            else {
+                *byte_1f4ec = 0;
+            }
+        }
+
+        return;
     }
 
     if ((*ani == 0x21) ||
         (*ani == 0x55))
     {
         /* loc_120a3 */
-        goto original;
+        /* check_tile_switch_room(); */
+
+        char pupo_tile = get_tile_type(new_x, new_y);
+
+        vga_dump(10, 10, "NOPE 19");
+
+        if (!logi_tab_contains(pupo_tile, 0x25) ||
+            !logi_tab_contains(pupo_tile, 0x27))
+        {
+            tile_type = get_tile_type(new_x, new_y - 0x0a);
+
+            ds_trampoline_end();
+            change_room(tile_type);
+            ds_trampoline_start();
+        }
+    
+        return;
     }
 
-    return;
 
 original:
+    return;
+
 
     {
         void (far pascal *controlla_sotto_piedi)(void far* ani, int top, int bottom, int x, int y, int new_x, int new_y)
@@ -1806,7 +1926,35 @@ void far pascal change_room(int room_to_change) {
             }
         }
         else {
-            /* read from prt */
+            char far* current_prt = *prt_file;
+
+            while (1) {
+                unsigned char room_from = *(current_prt + 0);
+                unsigned char room_to   = *(current_prt + 1);
+
+                if (room_from == 0xff && room_to == 0xff) {
+                    break;
+                }
+
+                if ((room_from == previous_room) &&
+                    (room_to == room_to_change))
+                {
+                    int x_from = from_big_endian(*(int far*)(current_prt + 2));
+                    int y_from = from_big_endian(*(int far*)(current_prt + 4));
+
+                    if ((x_from == *pupo_new_x) &&
+                        (y_from == *pupo_new_y))
+                    {
+                        int x_to = from_big_endian(*(int far*)(current_prt + 6));
+                        int y_to = from_big_endian(*(int far*)(current_prt + 8));
+
+                        *pupo_x = *pupo_new_x = x_to;
+                        *pupo_y = *pupo_new_y = y_to;
+                    }
+                }
+
+                current_prt += 10;
+            }
         }
 
         *to_set_pupo_x = *pupo_new_x;
@@ -2166,6 +2314,7 @@ void init_pointers() {
     frames_tab_file_seg      = MK_FP(dseg, 0x0938);
     frames_tab_file_off      = MK_FP(dseg, 0x093a);
     byte_1f4dc               = MK_FP(dseg, 0x094c);
+    byte_1f4ec               = MK_FP(dseg, 0x095c);
     pupo_current_frame       = MK_FP(dseg, 0x094d);
     pupo_flip                = MK_FP(dseg, 0x094e);
     pupo_x_delta             = MK_FP(dseg, 0x094f);
