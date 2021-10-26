@@ -351,10 +351,17 @@ void far pascal draw_highlight_under_cursor() {
                     thing[2] = top_28 ? '1' : '.';
                     thing[3] = bottom_25 ? '1' : '.';
 
-                    vga_dump(pixel_x, pixel_y, thing);
                 }
             }
 
+            if (data1 != 0x00)
+            {
+                char *suca = "xx";
+                format_byte(suca, data1);
+                vga_dump(pixel_x, pixel_y, suca);
+            }
+
+            /*
             if (logi_tab_contains(data1, 0x25)) {
                 char *suca = "xx";
                 format_byte(suca, 0x25);
@@ -370,6 +377,7 @@ void far pascal draw_highlight_under_cursor() {
                 format_byte(suca, 0x28);
                 vga_dump(pixel_x, pixel_y, suca);
             }
+            */
         }
     }
 
@@ -1012,13 +1020,14 @@ void far pascal do_tiletype_actions_inner(unsigned int boh) {
     void far* ptr2;
     int type;
 
-    ds_trampoline_start();
+    int YYY = 0;
+
+    boh = boh & 0xff;
 
     idx = boh == 0xff ? 0    : boh;
     top = boh == 0xff ? 0x3f : boh;
 
     for (i = idx; i <= top; i++) {
-
         if ((*swivar_block_2)[i] == 0)
             continue;
 
@@ -1034,57 +1043,15 @@ void far pascal do_tiletype_actions_inner(unsigned int boh) {
 
             ac = ((tiletype_action_t far*)tiletype_actions)[type - 1];
 
-            if (0)
-            {
-                char *dc_i   = "i    xx";
-                char *dc_swi = "swi  xxxx:xxxx";
-                char *dc_toc = "ac   xxxx:xxxx";
-                char *dc_p1  = "p1   xxxx:xxxx";
-                char *dc_p2  = "p2   xxxx:xxxx";
-                char *diocan = "type xxxx";
-                char Y = 0;
-
-                format_byte(dc_i + 5, i);
-                vga_dump(0, Y, dc_i);
-                Y += 8;
-
-                format_ptr(dc_swi + 5, swi_file_elements);
-                vga_dump(0, Y, dc_swi);
-                Y += 8;
-
-                format_ptr(dc_p1 + 5, ptr1);
-                vga_dump(0, Y, dc_p1);
-                Y += 8;
-
-                format_ptr(dc_p2 + 5, ptr2);
-                vga_dump(0, Y, dc_p2);
-                Y += 8;
-
-                format_word(diocan + 5, type);
-                vga_dump(0, Y, diocan);
-                Y += 8;
-
-                format_ptr(dc_toc + 5, ac);
-                vga_dump(0, Y, dc_toc);
-                Y += 8;
-
-                wait_vsync();
-                wait_vsync();
-                wait_vsync();
-
-                while(1);
-            }
-
             ds_trampoline_end();
             ac(ptr2, &i, &top);
             ds_trampoline_start();
         }
     }
-
-    ds_trampoline_end();
 }
 
 void far pascal do_tiletype_actions(char boh) {
+    int YYY = 90;
 
     if (boh > 0x3f)
         return;
@@ -1092,17 +1059,9 @@ void far pascal do_tiletype_actions(char boh) {
     ds_trampoline_start();
 
     if ((*swivar_block_2)[boh] == 0) {
-        do_tiletype_actions_inner_t in = do_tiletype_actions_inner_th;
-
         (*swivar_block_2)[boh] = 1;
 
-        ds_trampoline_end();
-        if (1) {
-            in(boh);
-        } else {
-            do_tiletype_actions_inner(boh);
-        }
-        ds_trampoline_start();
+        do_tiletype_actions_inner(boh);
     }
 
     ds_trampoline_end();
@@ -1984,13 +1943,7 @@ void far pascal change_room(int room_to_change) {
         *to_set_pupo_x = *pupo_new_x;
         *to_set_pupo_y = *pupo_new_y;
 
-        {
-            do_tiletype_actions_inner_t in = do_tiletype_actions_inner_th;
-
-            ds_trampoline_end();
-            in(0xffff);
-            ds_trampoline_start();
-        }
+        do_tiletype_actions_inner(0xffff);
     }
 
     calls_funcptr_1();
