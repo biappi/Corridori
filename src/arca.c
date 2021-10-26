@@ -393,7 +393,7 @@ void far pascal draw_highlight_under_cursor() {
     ds_trampoline_end();
 }
 
-int from_big_endian(int x) {
+int from_big_endian(unsigned int x) {
     return x = ((x & 0x00ff) << 8) | ((x & 0xff00) >> 8);
 }
 
@@ -1012,6 +1012,63 @@ void far pascal mouse_pointer_draw() {
     ds_trampoline_end();
 }
 
+
+void far pascal tiletype_action_8(void far* swi_ptr, int far* idx, int far* top) {
+
+    ds_trampoline_start();
+    {
+
+        unsigned char far* swi_element = (unsigned char far*)swi_ptr;
+
+        unsigned int count;
+        unsigned int i;
+
+        vga_dump(100, 100, "OTTO");
+
+        count = *(unsigned int far*)(swi_element + 0);
+        count = from_big_endian(count);
+
+        swi_element = swi_element + 2;
+
+        for (i = 0; i < count; i++) {
+            unsigned int xy     = from_big_endian(*(unsigned int *)(swi_element + 0));
+            unsigned int room   = from_big_endian(*(unsigned int *)(swi_element + 2));
+            unsigned int tileid = from_big_endian(*(unsigned int *)(swi_element + 4));
+
+            if (room == *current_room_number) {
+                unsigned int x = xy % 20;
+                unsigned int y = xy / 20;
+
+                tiles_ids[y * 0x14 + x] = tileid;
+            }
+
+            swi_element = swi_element + 6;
+        }
+
+        count = *(unsigned int far*)(swi_element + 0);
+        count = from_big_endian(count);
+
+        swi_element = swi_element + 2;
+
+        for (i = 0; i < count; i++) {
+            unsigned int  xy       = from_big_endian(*(unsigned int *)(swi_element + 0));
+            unsigned char room     = *(swi_element + 2);
+            unsigned char tiletype = *(swi_element + 3);
+
+            if (room == *current_room_number) {
+                unsigned int x = xy % 20;
+                unsigned int y = xy / 20;
+
+                tiles_types[y * 0x14 + x] = tiletype;
+            }
+
+            swi_element = swi_element + 4;
+        }
+    }
+
+    ds_trampoline_end();
+}
+
 void far pascal do_tiletype_actions_inner(unsigned int boh) {
     int idx;
     int top;
@@ -1040,6 +1097,10 @@ void far pascal do_tiletype_actions_inner(unsigned int boh) {
             tiletype_action_t ac;
 
             *background_ani_frame = 0;
+
+            if (type == 8) {
+                tiletype_action_8(ptr2, &i, &top);
+            }
 
             ac = ((tiletype_action_t far*)tiletype_actions)[type - 1];
 
