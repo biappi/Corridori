@@ -128,7 +128,7 @@ typedef struct {
     bool swivar2[0x40];
 
     void *swi_elements[0x40];
-}  tr_pupo;
+}  tr_game;
 
 typedef struct {
     int frame;
@@ -251,14 +251,14 @@ void tilesets_init(tr_tilesets *tilesets, tr_resources *resources) {
     tilesets->sets[0xB] = resources->bufferB;
 }
 
-void swi_elements_init(tr_pupo *pupo, tr_resources *resources) {
+void swi_elements_init(tr_game *game, tr_resources *resources) {
     uint8_t *swi = resources->swi;
 
     for (int i = 0; i < 0x40; i++) {
         uint16_t type  = from_big_endian(read16_unaligned(swi + 0)); (type = type);
         uint16_t count = from_big_endian(read16_unaligned(swi + 2));
 
-        pupo->swi_elements[i] = swi;
+        game->swi_elements[i] = swi;
         swi += count;
     }
 }
@@ -585,27 +585,27 @@ bool logi_tab_contains(uint8_t *logitab, int thing, int logi_tab_index) {
 }
 
 
-void offset_from_ani(tr_pupo *pupo, tr_resources *resources) {
+void offset_from_ani(tr_game *game, tr_resources *resources) {
     uint16_t *offs = (uint16_t *)resources->animofs_tab;
-    uint16_t  o1   = from_big_endian(offs[0]) + pupo->ani;
-    uint16_t  o2   = from_big_endian(offs[1]) + pupo->ani;
-    uint16_t  o3   = from_big_endian(offs[2]) + pupo->ani;
-    uint16_t  o4   = from_big_endian(offs[3]) + pupo->ani;
+    uint16_t  o1   = from_big_endian(offs[0]) + game->ani;
+    uint16_t  o2   = from_big_endian(offs[1]) + game->ani;
+    uint16_t  o3   = from_big_endian(offs[2]) + game->ani;
+    uint16_t  o4   = from_big_endian(offs[3]) + game->ani;
 
-    pupo->new_x = (
-       pupo->x +
+    game->new_x = (
+       game->x +
        *(int8_t *)(resources->animofs_tab + o1) +
        *(int8_t *)(resources->animofs_tab + o3)
     );
 
-    pupo->new_y = (
-       pupo->y +
+    game->new_y = (
+       game->y +
        *(int8_t *)(resources->animofs_tab + o2) +
        *(int8_t *)(resources->animofs_tab + o4)
     );
 }
 
-void tiletype_action_8(tr_pupo *pupo, tr_resources *resources, void *swi_ptr, uint16_t *idx, uint16_t *top) {
+void tiletype_action_8(tr_game *game, tr_resources *resources, void *swi_ptr, uint16_t *idx, uint16_t *top) {
     uint8_t *swi_element = (uint8_t *)swi_ptr;
 
     uint16_t count = read16_unaligned(swi_element + 0);
@@ -618,12 +618,12 @@ void tiletype_action_8(tr_pupo *pupo, tr_resources *resources, void *swi_ptr, ui
         uint16_t room   = from_big_endian(read16_unaligned(swi_element + 2));
         uint16_t tileid = from_big_endian(read16_unaligned(swi_element + 4));
 
-        if (room == pupo->current_room) {
+        if (room == game->current_room) {
             unsigned int x = xy % 20;
             unsigned int y = xy / 20;
 
             room_set_tile_id_tile_x_tile_y(resources->room_roe,
-                                           pupo->current_room,
+                                           game->current_room,
                                            x,
                                            y,
                                            tileid);
@@ -642,14 +642,14 @@ void tiletype_action_8(tr_pupo *pupo, tr_resources *resources, void *swi_ptr, ui
         uint8_t  room     = *(swi_element + 2);
         uint8_t  tiletype = *(swi_element + 3);
 
-        if (room == pupo->current_room) {
+        if (room == game->current_room) {
             unsigned int x = xy % 20;
             unsigned int y = xy / 20;
 
             printf(" changing tile type: xy %4x room %4x tileid %4x -- %2x %2x\n", xy, room, tiletype, x, y);
 
             room_set_tile_type_tile_x_tile_y(resources->room_roe,
-                                             pupo->current_room,
+                                             game->current_room,
                                              x,
                                              y,
                                              tiletype);
@@ -659,17 +659,17 @@ void tiletype_action_8(tr_pupo *pupo, tr_resources *resources, void *swi_ptr, ui
     }
 }
 
-void do_tiletype_actions_inner(tr_pupo *pupo, tr_resources *resources, uint16_t boh) {
+void do_tiletype_actions_inner(tr_game *game, tr_resources *resources, uint16_t boh) {
     boh = boh & 0xff;
 
     uint16_t idx = boh == 0xff ? 0    : boh;
     uint16_t top = boh == 0xff ? 0x3f : boh;
 
     for (uint16_t i = idx; i <= top; i++) {
-        if (!pupo->swivar2[i])
+        if (!game->swivar2[i])
             continue;
 
-        void     *ptr1 = pupo->swi_elements[i];
+        void     *ptr1 = game->swi_elements[i];
         uint8_t  *ptr2 = (((uint8_t *)ptr1) + 4);
 
         uint16_t  type = read16_unaligned(ptr1);
@@ -679,7 +679,7 @@ void do_tiletype_actions_inner(tr_pupo *pupo, tr_resources *resources, uint16_t 
 //            *background_ani_frame = 0;
 
             if (type == 8) {
-                tiletype_action_8(pupo, resources, ptr2, &i, &top);
+                tiletype_action_8(game, resources, ptr2, &i, &top);
             }
             else {
                 printf("%02x No tiletype action yet", type);
@@ -688,24 +688,24 @@ void do_tiletype_actions_inner(tr_pupo *pupo, tr_resources *resources, uint16_t 
     }
 }
 
-void do_tiletype_actions(tr_pupo *pupo, tr_resources *resources, char boh) {
+void do_tiletype_actions(tr_game *game, tr_resources *resources, char boh) {
     if (boh > 0x3f)
         return;
 
-    if (pupo->swivar2[boh] == false) {
-        pupo->swivar2[boh] = true;
+    if (game->swivar2[boh] == false) {
+        game->swivar2[boh] = true;
 
-        do_tiletype_actions_inner(pupo, resources, boh);
+        do_tiletype_actions_inner(game, resources, boh);
     }
 }
 
-void change_room(tr_pupo *pupo, tr_resources *resources, int room_to_change) {
-    char previous_room = pupo->current_room;
+void change_room(tr_game *game, tr_resources *resources, int room_to_change) {
+    char previous_room = game->current_room;
 
     // reset_clicked_button();
 
-    pupo->new_x = pupo->x;
-    pupo->new_y = pupo->y;
+    game->new_x = game->x;
+    game->new_y = game->y;
 
 //    previous_room = *no_previous_room ? 0 : *current_room_number;
 //    *wanted_room = room_to_change;
@@ -714,11 +714,11 @@ void change_room(tr_pupo *pupo, tr_resources *resources, int room_to_change) {
 //        gsa_and_exit_room(*wanted_room);
 //    }
 
-    pupo->new_x = pupo->x;
-    pupo->new_y = pupo->y;
+    game->new_x = game->x;
+    game->new_y = game->y;
 
 
-    pupo->current_room = room_to_change;
+    game->current_room = room_to_change;
 //    if (*vita >= 0x800) {
 //        if (!*no_previous_room) {
 //            room_to_change = *wanted_room;
@@ -731,7 +731,7 @@ void change_room(tr_pupo *pupo, tr_resources *resources, int room_to_change) {
 //        room_to_change = *wanted_room;
 //        get_room_from_files(*wanted_room);
 
-        if (pupo->read_from_usc) {
+        if (game->read_from_usc) {
             uint8_t *current_usc = resources->usc;
 
             while (1) {
@@ -748,9 +748,9 @@ void change_room(tr_pupo *pupo, tr_resources *resources, int room_to_change) {
                     int y_from = from_big_endian(read16_unaligned(current_usc + 4));
                     int y_to   = from_big_endian(read16_unaligned(current_usc + 2));
 
-                    if (y_from == pupo->new_x) {
-                        pupo->new_y = y_to;
-                        pupo->y     = y_to;
+                    if (y_from == game->new_x) {
+                        game->new_y = y_to;
+                        game->y     = y_to;
                         break;
                     }
                 }
@@ -762,10 +762,10 @@ void change_room(tr_pupo *pupo, tr_resources *resources, int room_to_change) {
             /* read from prt */
         }
 
-        pupo->to_set_x = pupo->new_x;
-        pupo->to_set_y = pupo->new_y;
+        game->to_set_x = game->new_x;
+        game->to_set_y = game->new_y;
 
-        do_tiletype_actions_inner(pupo, resources, 0xffff);
+        do_tiletype_actions_inner(game, resources, 0xffff);
     }
 
     // calls_funcptr_1();
@@ -776,7 +776,7 @@ void change_room(tr_pupo *pupo, tr_resources *resources, int room_to_change) {
     // if (!*read_from_usc) {
     // }
 
-    pupo->read_from_usc = false;
+    game->read_from_usc = false;
 
     // *no_previous_room = 0;
 
@@ -799,7 +799,7 @@ void change_room(tr_pupo *pupo, tr_resources *resources, int room_to_change) {
 }
 
 
-void change_at_screen(tr_pupo *pupo, tr_resources *resources) {
+void change_at_screen(tr_game *game, tr_resources *resources) {
     static uint8_t stru_121f0[] = {
         0x0E, 0x00, 0x0C, 0x00, 0x00, 0x00, 0x00, 0x1C,
         0x80, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -807,32 +807,32 @@ void change_at_screen(tr_pupo *pupo, tr_resources *resources) {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     };
 
-    char direction = pupo->ani >= 0x35;
+    char direction = game->ani >= 0x35;
 
-    int pupo_real_x = pupo->x + pupo->x_delta;
+    int pupo_real_x = game->x + game->x_delta;
 
     if ((pupo_real_x > 319 && direction) ||
         (pupo_real_x < 0 && !direction))
     {
-        if (!set_is_member(pupo->ani, stru_121f0)) {
-            pupo->read_from_usc = true;
+        if (!set_is_member(game->ani, stru_121f0)) {
+            game->read_from_usc = true;
 
-            pupo->new_x = pupo->x > 0 ? pupo->x - 320 : pupo->x + 320;
-            pupo->x = pupo_real_x > 0 ? 312 : 8;
+            game->new_x = game->x > 0 ? game->x - 320 : game->x + 320;
+            game->x = pupo_real_x > 0 ? 312 : 8;
 
 
             {
-                int y = pupo->y - 0xa;
+                int y = game->y - 0xa;
                 char new_room;
                 char tile_type;
 
                 do {
 
-                    new_room = room_get_tile_type_xy(resources->room_roe, pupo->current_room, pupo->x, y);
+                    new_room = room_get_tile_type_xy(resources->room_roe, game->current_room, game->x, y);
 
                     y += 0xa;
 
-                    tile_type = room_get_tile_type_xy(resources->room_roe, pupo->current_room, pupo->x, y);
+                    tile_type = room_get_tile_type_xy(resources->room_roe, game->current_room, game->x, y);
 
                     y += 0xa;
 
@@ -840,14 +840,14 @@ void change_at_screen(tr_pupo *pupo, tr_resources *resources) {
                         break;
                 } while (y <= 0xc7);
 
-                pupo->x = pupo->new_x;
-                change_room(pupo, resources, new_room);
+                game->x = game->new_x;
+                change_room(game, resources, new_room);
             }
         }
     }
 }
 
-void cosa_ho_di_fronte(tr_pupo *pupo, tr_resources* resources, uint8_t *ani, int x, int y, int nx, int ny) {
+void cosa_ho_di_fronte(tr_game *game, tr_resources* resources, uint8_t *ani, int x, int y, int nx, int ny) {
     uint8_t  *sostani = resources->sostani_tab;
     uint16_t  offset  = from_big_endian(read16_unaligned(sostani + 2));
 
@@ -896,7 +896,7 @@ void cosa_ho_di_fronte(tr_pupo *pupo, tr_resources* resources, uint8_t *ani, int
         int incr = xoff < 0 ? 0x10 : -0x10;
 
         while (xoff != 0) {
-            uint16_t tile_type = room_get_tile_type_xy(resources->room_roe, pupo->current_room, x + xoff, y);
+            uint16_t tile_type = room_get_tile_type_xy(resources->room_roe, game->current_room, x + xoff, y);
 
             if (logi_tab_contains(resources->logi_tab, tile_type, logitab_idx)) {
                 new_ani = ani_from_file;
@@ -945,7 +945,7 @@ void cambia_il_salto(tr_resources *resources, uint8_t *ani, int top) {
 }
 
 void controlla_sotto_piedi(
-    tr_pupo *pupo,
+    tr_game *game,
     tr_resources *resources,
     uint8_t  *ani_ptr,
     uint16_t top,
@@ -955,7 +955,7 @@ void controlla_sotto_piedi(
     uint16_t new_x,
     uint16_t new_y
 ) {
-    bool direction = pupo->ani >= 0x35;
+    bool direction = game->ani >= 0x35;
 
     int  var2 = 0;
     uint8_t tile_type;
@@ -970,7 +970,7 @@ void controlla_sotto_piedi(
 
     if (logi_tab_contains(resources->logi_tab, bottom, 0x25)) {
         /* loc_11ea8 */
-        pupo->byte_1f4e6 = pupo->byte_1f4e6 - 1;
+        game->byte_1f4e6 = game->byte_1f4e6 - 1;
 
 #if 0
         if ((pupo->byte_1f4e6 == 0) &&
@@ -986,7 +986,7 @@ void controlla_sotto_piedi(
 #endif
         {
             *ani_ptr = direction ? 0x67 : 0x32;
-            pupo->counter_caduta = pupo->counter_caduta + 1;
+            game->counter_caduta = game->counter_caduta + 1;
         }
 
         return;
@@ -1008,18 +1008,18 @@ void controlla_sotto_piedi(
 
     if (top == 0) {
         *ani_ptr = direction ? 0x67 : 0x32;
-        pupo->counter_caduta = pupo->counter_caduta + 1;
+        game->counter_caduta = game->counter_caduta + 1;
         return;
     }
 
-    if (pupo->counter_caduta > 0) {
+    if (game->counter_caduta > 0) {
         /* loc_11f3c */
 
-        if (pupo->counter_caduta > 8) {
+        if (game->counter_caduta > 8) {
             *ani_ptr = direction ? 0x68 : 0x33;
         }
 
-        pupo->counter_caduta = 0;
+        game->counter_caduta = 0;
         return;
     }
 
@@ -1118,7 +1118,7 @@ void controlla_sotto_piedi(
          {
             if (new_x - 10 >= 0) {
                 tile_type = room_get_tile_type_xy(resources->room_roe,
-                                                  pupo->current_room,
+                                                  game->current_room,
                                                   new_x - 10,
                                                   new_y);
 
@@ -1138,7 +1138,7 @@ void controlla_sotto_piedi(
          {
             if ((new_x + 10) < 320) {
                 tile_type = room_get_tile_type_xy(resources->room_roe,
-                                                  pupo->current_room,
+                                                  game->current_room,
                                                   new_x + 10,
                                                   new_y);
 
@@ -1161,7 +1161,7 @@ void controlla_sotto_piedi(
         if (logi_tab_contains(resources->logi_tab, top, 0x28)) {
             uint8_t the_ani = *ani_ptr;
 
-            pupo->wanted_room = pupo->current_room;
+            game->wanted_room = game->current_room;
 
             /*
             do_tiletype_actions(top_copy - 0xc0);
@@ -1169,8 +1169,8 @@ void controlla_sotto_piedi(
             calls_funcptr_1();
             */
 
-            if (pupo->wanted_room != pupo->current_room) {
-                change_room(pupo, resources, pupo->wanted_room);
+            if (game->wanted_room != game->current_room) {
+                change_room(game, resources, game->wanted_room);
             }
 
             if (the_ani != *ani_ptr) {
@@ -1199,7 +1199,7 @@ void controlla_sotto_piedi(
         /* check_tile_switch_room(); */
 
         char pupo_tile = room_get_tile_type_xy(resources->room_roe,
-                                               pupo->current_room,
+                                               game->current_room,
                                                new_x,
                                                new_y);
 
@@ -1207,11 +1207,11 @@ void controlla_sotto_piedi(
             !logi_tab_contains(resources->logi_tab, pupo_tile, 0x27))
         {
             tile_type = room_get_tile_type_xy(resources->room_roe,
-                                              pupo->current_room,
+                                              game->current_room,
                                               new_x,
                                               new_y - 0x0a);
 
-            change_room(pupo, resources, tile_type);
+            change_room(game, resources, tile_type);
         }
 
         return;
@@ -1219,7 +1219,7 @@ void controlla_sotto_piedi(
 
 }
 
-void update_pupo(tr_pupo *pupo, tr_resources *resources, uint8_t direction, int force_ani) {
+void update_pupo(tr_game *game, tr_resources *resources, uint8_t direction, int force_ani) {
     char enemy_hit = 0;
     char get_new_frame = 0;
 
@@ -1227,37 +1227,37 @@ void update_pupo(tr_pupo *pupo, tr_resources *resources, uint8_t direction, int 
         if (!enemy_hit)
             get_new_frame = 0;
 
-        if (pupo->get_new_ani && !enemy_hit)
+        if (game->get_new_ani && !enemy_hit)
         {
-            pupo->ani = resources->animjoy_tab[pupo->ani * 18 + direction];
+            game->ani = resources->animjoy_tab[game->ani * 18 + direction];
             if (force_ani > 0x10000) {
-                pupo->ani = force_ani - 0x10000;
-                pupo->x = 150;
-                pupo->y = 0xa0;
+                game->ani = force_ani - 0x10000;
+                game->x = 150;
+                game->y = 0xa0;
             }
 
-            pupo->get_new_ani = 0;
+            game->get_new_ani = 0;
             get_new_frame = 1;
 
-            pupo->tile_top = room_get_tile_type_xy(resources->room_roe,
-                                                   pupo->current_room,
-                                                   pupo->x,
-                                                   pupo->y);
+            game->tile_top = room_get_tile_type_xy(resources->room_roe,
+                                                   game->current_room,
+                                                   game->x,
+                                                   game->y);
 
-            pupo->tile_bottom = room_get_tile_type_xy(resources->room_roe,
-                                                   pupo->current_room,
-                                                   pupo->x,
-                                                   pupo->y + 10);
+            game->tile_bottom = room_get_tile_type_xy(resources->room_roe,
+                                                   game->current_room,
+                                                   game->x,
+                                                   game->y + 10);
 
-            controlla_sotto_piedi(pupo,
+            controlla_sotto_piedi(game,
                                   resources,
-                                  &pupo->ani,
-                                  pupo->tile_top,
-                                  pupo->tile_bottom,
-                                  pupo->x,
-                                  pupo->y,
-                                  pupo->new_x,
-                                  pupo->new_y);
+                                  &game->ani,
+                                  game->tile_top,
+                                  game->tile_bottom,
+                                  game->x,
+                                  game->y,
+                                  game->new_x,
+                                  game->new_y);
 
             /*
             if (*gun_bool == 0) {
@@ -1270,45 +1270,45 @@ void update_pupo(tr_pupo *pupo, tr_resources *resources, uint8_t direction, int 
             }
              */
 
-            int a = pupo->ani;
+            int a = game->ani;
 
             do {
-                offset_from_ani(pupo, resources);
+                offset_from_ani(game, resources);
 
-                cosa_ho_di_fronte(pupo,
+                cosa_ho_di_fronte(game,
                                   resources,
-                                  &(pupo->ani),
-                                  pupo->x,
-                                  pupo->y,
-                                  pupo->new_x,
-                                  pupo->new_y);
-                a = pupo->ani;
-            } while (pupo->ani != a);
+                                  &(game->ani),
+                                  game->x,
+                                  game->y,
+                                  game->new_x,
+                                  game->new_y);
+                a = game->ani;
+            } while (game->ani != a);
         }
 
-        if (pupo->disable_ani) {
+        if (game->disable_ani) {
             get_new_frame = 1;
-            pupo->disable_ani = 0;
+            game->disable_ani = 0;
         }
 
         // gsa_and_exit();
 
-        if (pupo->countdown == 0) {
+        if (game->countdown == 0) {
             if (get_new_frame) {
                 //*byte_1f4dc = 0;
 
-                uint8_t *off = resources->frames_tab + (pupo->ani * 2);
-                pupo->pupo_offset = from_big_endian(*(uint16_t *)(off));
+                uint8_t *off = resources->frames_tab + (game->ani * 2);
+                game->pupo_offset = from_big_endian(*(uint16_t *)(off));
 
                 uint16_t *offs = (uint16_t *)resources->animofs_tab;
-                uint16_t  o1   = from_big_endian(offs[0]) + pupo->ani;
-                uint16_t  o2   = from_big_endian(offs[1]) + pupo->ani;
+                uint16_t  o1   = from_big_endian(offs[0]) + game->ani;
+                uint16_t  o2   = from_big_endian(offs[1]) + game->ani;
 
-                pupo->x += *(int8_t *)(resources->animofs_tab + o1);
-                pupo->y += *(int8_t *)(resources->animofs_tab + o2);
+                game->x += *(int8_t *)(resources->animofs_tab + o1);
+                game->y += *(int8_t *)(resources->animofs_tab + o2);
             }
 
-            uint8_t *frame_info = resources->frames_tab + pupo->pupo_offset;
+            uint8_t *frame_info = resources->frames_tab + game->pupo_offset;
 
             uint8_t frame = frame_info[0];
             uint8_t time  = frame_info[1];
@@ -1318,62 +1318,62 @@ void update_pupo(tr_pupo *pupo, tr_resources *resources, uint8_t direction, int 
                 uint8_t y_delta = frame_info[3];
                 uint8_t flip    = frame_info[4];
 
-                pupo->pupo_offset += 5; /* sizeof(frame_info_t) */
-                pupo->ele_idx  = frame;
-                pupo->countdown = (time + 3) / 4;
-                pupo->x_delta   = x_delta;
-                pupo->y_delta   = y_delta;
-                pupo->flip      = flip;
+                game->pupo_offset += 5; /* sizeof(frame_info_t) */
+                game->ele_idx  = frame;
+                game->countdown = (time + 3) / 4;
+                game->x_delta   = x_delta;
+                game->y_delta   = y_delta;
+                game->flip      = flip;
             }
             else {
-                pupo->get_new_ani = true;
+                game->get_new_ani = true;
             }
 
-            if (pupo->get_new_ani) {
+            if (game->get_new_ani) {
                 uint16_t *offs = (uint16_t *)resources->animofs_tab;
-                uint16_t  o3   = from_big_endian(offs[2]) + pupo->ani;
-                uint16_t  o4   = from_big_endian(offs[3]) + pupo->ani;
+                uint16_t  o3   = from_big_endian(offs[2]) + game->ani;
+                uint16_t  o4   = from_big_endian(offs[3]) + game->ani;
 
-                pupo->x += *(int8_t *)(resources->animofs_tab + o3);
-                pupo->y += *(int8_t *)(resources->animofs_tab + o4);
+                game->x += *(int8_t *)(resources->animofs_tab + o3);
+                game->y += *(int8_t *)(resources->animofs_tab + o4);
 
-                if ((pupo->to_set_x < 0) ||
-                    (pupo->to_set_x > 319))
+                if ((game->to_set_x < 0) ||
+                    (game->to_set_x > 319))
                 {
-                    pupo->to_set_x = pupo->x;
-                    pupo->to_set_x = pupo->y;
+                    game->to_set_x = game->x;
+                    game->to_set_x = game->y;
                 }
             }
 
-            pupo->byte_1f4dc = pupo->byte_1f4dc + 1;
+            game->byte_1f4dc = game->byte_1f4dc + 1;
 
-            if ((pupo->tile_top & 0xf0) == 0xd0)
+            if ((game->tile_top & 0xf0) == 0xd0)
             {
 
-                char type = (pupo->tile_top & 0x0f) + 0xc;
+                char type = (game->tile_top & 0x0f) + 0xc;
 
-                do_tiletype_actions(pupo, resources, type);
+                do_tiletype_actions(game, resources, type);
                 // reset_clicked_button();
                 // calls_funcptr_1();
 
                 {
-                    pupo->new_x = pupo->x;
-                    pupo->new_y = pupo->y;
+                    game->new_x = game->x;
+                    game->new_y = game->y;
 
-                    pupo->tile_top    = room_get_tile_type_xy(resources->room_roe,
-                                                              pupo->current_room,
-                                                              pupo->x,
-                                                              pupo->y);
+                    game->tile_top    = room_get_tile_type_xy(resources->room_roe,
+                                                              game->current_room,
+                                                              game->x,
+                                                              game->y);
 
-                    pupo->tile_bottom = room_get_tile_type_xy(resources->room_roe,
-                                                              pupo->current_room,
-                                                              pupo->x,
-                                                              pupo->y + 10);
+                    game->tile_bottom = room_get_tile_type_xy(resources->room_roe,
+                                                              game->current_room,
+                                                              game->x,
+                                                              game->y + 10);
 
                     // reset_array_bobs();
                     // reset_background_ani();
 
-                    if (pupo->vita > 0x800) {
+                    if (game->vita > 0x800) {
                         // animate_and_render_background();
                         // draw_stars();
                         // draw_punti_faccia();
@@ -1385,7 +1385,7 @@ void update_pupo(tr_pupo *pupo, tr_resources *resources, uint8_t direction, int 
                         // select_pal(1, 0);
                         // install_ucci();
 
-                        pupo->palette_mangling = 2;
+                        game->palette_mangling = 2;
                     }
                 }
             }
@@ -1394,14 +1394,14 @@ void update_pupo(tr_pupo *pupo, tr_resources *resources, uint8_t direction, int 
             // sub_1243d();
 
         }
-    } while (pupo->get_new_ani);
+    } while (game->get_new_ani);
 
-    change_at_screen(pupo, resources);
+    change_at_screen(game, resources);
 
     // sub_122f1();
 
-    if (!pupo->disable_ani) {
-        pupo->countdown--;
+    if (!game->disable_ani) {
+        game->countdown--;
     }
 }
 
@@ -1505,7 +1505,7 @@ int main() {
 
     tr_bg bg;
 
-    tr_pupo pupo;
+    tr_game pupo;
     memset(&pupo, 0, sizeof(pupo));
 
     pupo.x = 0x08;
