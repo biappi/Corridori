@@ -958,7 +958,7 @@ void controlla_sotto_piedi(
     bool direction = pupo->ani >= 0x35;
 
     int  var2 = 0;
-    char tile_type;
+    uint8_t tile_type;
 
 #if 0
     if (*byte_1f4e6 == 0 && top == 0xfc) {
@@ -1219,7 +1219,7 @@ void controlla_sotto_piedi(
 
 }
 
-void update_pupo(tr_pupo *pupo, tr_resources *resources, uint8_t direction) {
+void update_pupo(tr_pupo *pupo, tr_resources *resources, uint8_t direction, int force_ani) {
     char enemy_hit = 0;
     char get_new_frame = 0;
 
@@ -1230,6 +1230,11 @@ void update_pupo(tr_pupo *pupo, tr_resources *resources, uint8_t direction) {
         if (pupo->get_new_ani && !enemy_hit)
         {
             pupo->ani = resources->animjoy_tab[pupo->ani * 18 + direction];
+            if (force_ani > 0x10000) {
+                pupo->ani = force_ani - 0x10000;
+                pupo->x = 150;
+                pupo->y = 0xa0;
+            }
 
             pupo->get_new_ani = 0;
             get_new_frame = 1;
@@ -1517,9 +1522,11 @@ int main() {
     int rendered_room = 0;
     ray_bg_render_room(&bg_renderer, 0, 0);
 
+    int dbg_ani = 0;
 
     bool show_types  = true;
     bool show_anidbg = false;
+    bool show_dbg_ani = false;
 
     while (!WindowShouldClose()) {
         BeginDrawing();
@@ -1533,15 +1540,35 @@ int main() {
             show_anidbg = !show_anidbg;
         }
 
+        if (IsKeyPressed(KEY_I)) {
+            show_dbg_ani = !show_dbg_ani;
+        }
+
         char direction = tr_keys_to_direction(
-          IsKeyDown(KEY_DOWN),
-          IsKeyDown(KEY_UP),
-          IsKeyDown(KEY_LEFT),
-          IsKeyDown(KEY_RIGHT),
-          IsKeyDown(KEY_LEFT_SHIFT) || IsKeyPressed(KEY_RIGHT_SHIFT)
+            IsKeyDown(KEY_DOWN),
+            IsKeyDown(KEY_UP),
+            IsKeyDown(KEY_LEFT),
+            IsKeyDown(KEY_RIGHT),
+            IsKeyDown(KEY_LEFT_SHIFT) || IsKeyPressed(KEY_RIGHT_SHIFT)
         );
 
-        update_pupo(&pupo, &resources, direction);
+        if (show_dbg_ani) {
+            if (IsKeyPressed(KEY_LEFT)) dbg_ani++;
+            if (IsKeyPressed(KEY_RIGHT)) dbg_ani--;
+
+            direction = tr_keys_to_direction(
+              false,
+              false,
+              false,
+              false,
+              false
+            );
+
+            update_pupo(&pupo, &resources, direction, 0x10000 + dbg_ani);
+        }
+        else {
+            update_pupo(&pupo, &resources, direction, 0);
+        }
 
         bool redraw_bg = bg_step(&bg);
 
@@ -1566,6 +1593,11 @@ int main() {
 
         char suca[0x100];
 
+        if (show_dbg_ani) {
+            sprintf(suca, "dbg_ani:   %4x", dbg_ani);
+            DrawText(suca, 0, 100, 40, PINK);
+        }
+        else {
         if (show_types)
             DrawTileTypes(&resources, pupo.current_room);
 
@@ -1583,7 +1615,7 @@ int main() {
             sprintf(suca, "offs:   %4x", pupo.pupo_offset);
             DrawText(suca, 20, 100, 20, GREEN);
         }
-
+        }
         EndDrawing();
     }
 
