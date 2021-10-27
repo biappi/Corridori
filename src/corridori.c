@@ -123,8 +123,8 @@ typedef struct {
     int  wanted_room;
     bool read_from_usc;
 
-    uint16_t tile_top;
-    uint16_t tile_bottom;
+    tr_tiletype tile_top;
+    tr_tiletype tile_bottom;
 
     uint8_t  byte_1f4dc;
     uint8_t  byte_1f4e6;
@@ -313,12 +313,12 @@ void room_set_tile_id_tile_x_tile_y(uint8_t *room_file, int room, int x, int y, 
     *ptr = from_big_endian(type);
 }
 
-uint8_t room_get_tile_type(uint8_t *room_file, int room, int pos) {
+tr_tiletype room_get_tile_type(uint8_t *room_file, int room, int pos) {
     int offset = (room * 0x04f4) + 0x0364 + pos;
-    return *(room_file + offset);
+    return (tr_tiletype) { *(room_file + offset) };
 }
 
-uint8_t room_get_tile_type_xy(uint8_t *room_file, int room, int x, int y) {
+tr_tiletype room_get_tile_type_xy(uint8_t *room_file, int room, int x, int y) {
     int pos = (screen_to_tile_y(y) * GAME_TILES_WIDTH) + screen_to_tile_x(x);
     return room_get_tile_type(room_file, room, pos);
 }
@@ -540,14 +540,14 @@ static void DrawTileTypes(const tr_resources *resources, int the_room) {
             int x = GAME_SIZE_SCALE * t_x * TILE_WIDTH;
             int y = GAME_SIZE_SCALE * t_y * TILE_HEIGHT;
 
-            uint8_t type = room_get_tile_type(resources->room_roe,
-                                              the_room,
-                                              t_y * GAME_TILES_WIDTH + t_x);
+            tr_tiletype type = room_get_tile_type(resources->room_roe,
+                                                  the_room,
+                                                  t_y * GAME_TILES_WIDTH + t_x);
 
             char str[0x100];
-            sprintf(str, "%2x", type);
+            sprintf(str, "%2x", type.tiletype);
 
-            if (type != 0)
+            if (type.tiletype != 0)
                 DrawText(str, x, y, 20, GREEN);
         }
     }
@@ -848,11 +848,11 @@ void change_at_screen(tr_game *game, tr_resources *resources) {
 
                 do {
 
-                    new_room = room_get_tile_type_xy(resources->room_roe, game->current_room, game->x, y);
+                    new_room = room_get_tile_type_xy(resources->room_roe, game->current_room, game->x, y).tiletype;
 
                     y += 0xa;
 
-                    tile_type = room_get_tile_type_xy(resources->room_roe, game->current_room, game->x, y);
+                    tile_type = room_get_tile_type_xy(resources->room_roe, game->current_room, game->x, y).tiletype;
 
                     y += 0xa;
 
@@ -916,9 +916,9 @@ void cosa_ho_di_fronte(tr_game *game, tr_resources* resources, uint8_t *ani, int
         int incr = xoff < 0 ? 0x10 : -0x10;
 
         while (xoff != 0) {
-            uint16_t tile_type = room_get_tile_type_xy(resources->room_roe, game->current_room, x + xoff, y);
+            tr_tiletype tiletype = room_get_tile_type_xy(resources->room_roe, game->current_room, x + xoff, y);
 
-            if (logi_tab_contains(resources->logi_tab, tile_type, logitab_idx)) {
+            if (logi_tab_contains(resources->logi_tab, tiletype.tiletype, logitab_idx)) {
                 new_ani = ani_from_file;
                 changed = 1;
                 break;
@@ -931,7 +931,7 @@ void cosa_ho_di_fronte(tr_game *game, tr_resources* resources, uint8_t *ani, int
     *ani = new_ani;
 }
 
-void cambia_il_salto(tr_resources *resources, uint8_t *ani, int top) {
+void cambia_il_salto(tr_resources *resources, uint8_t *ani, tr_tiletype top) {
     int offset = *(uint16_t *)(resources->sostani_tab);
     uint8_t *sostani_item = resources->sostani_tab + from_big_endian(offset);
 
@@ -953,7 +953,7 @@ void cambia_il_salto(tr_resources *resources, uint8_t *ani, int top) {
 
             // printf("  top: %2x oldani: %2x newani: %2x logiidx: %2x\n", top, oldani, new_ani, logitab_index);
 
-            if (logi_tab_contains(resources->logi_tab, top, logitab_index))
+            if (logi_tab_contains(resources->logi_tab, top.tiletype, logitab_index))
                 *ani = new_ani;
 
         }
@@ -968,8 +968,8 @@ void controlla_sotto_piedi(
     tr_game *game,
     tr_resources *resources,
     uint8_t  *ani_ptr,
-    uint16_t top,
-    uint16_t bottom,
+    tr_tiletype top,
+    tr_tiletype bottom,
     uint16_t x,
     uint16_t y,
     uint16_t new_x,
@@ -978,7 +978,7 @@ void controlla_sotto_piedi(
     bool direction = game->ani >= 0x35;
 
     int  var2 = 0;
-    uint8_t tile_type;
+    tr_tiletype tile_type;
 
 #if 0
     if (*byte_1f4e6 == 0 && top == 0xfc) {
@@ -988,7 +988,7 @@ void controlla_sotto_piedi(
     }
 #endif
 
-    if (logi_tab_contains(resources->logi_tab, bottom, 0x25)) {
+    if (logi_tab_contains(resources->logi_tab, bottom.tiletype, 0x25)) {
         /* loc_11ea8 */
         game->byte_1f4e6 = game->byte_1f4e6 - 1;
 
@@ -1026,7 +1026,7 @@ void controlla_sotto_piedi(
     }
 #endif
 
-    if (top == 0) {
+    if (top.tiletype == 0) {
         *ani_ptr = direction ? 0x67 : 0x32;
         game->counter_caduta = game->counter_caduta + 1;
         return;
@@ -1133,8 +1133,8 @@ void controlla_sotto_piedi(
 
 
     if (*ani_ptr == 0x10) {
-        if (logi_tab_contains(resources->logi_tab, top, 0x26) ||
-            logi_tab_contains(resources->logi_tab, top, 0x28))
+        if (logi_tab_contains(resources->logi_tab, top.tiletype, 0x26) ||
+            logi_tab_contains(resources->logi_tab, top.tiletype, 0x28))
          {
             if (new_x - 10 >= 0) {
                 tile_type = room_get_tile_type_xy(resources->room_roe,
@@ -1142,7 +1142,7 @@ void controlla_sotto_piedi(
                                                   new_x - 10,
                                                   new_y);
 
-                if (tile_type == top) {
+                if (tile_type.tiletype == top.tiletype) {
                     *ani_ptr = 0x1d;
                 }
             }
@@ -1153,8 +1153,8 @@ void controlla_sotto_piedi(
 
     if (*ani_ptr == 0x45) {
         /* loc_12088 */
-        if (logi_tab_contains(resources->logi_tab, top, 0x26) ||
-            logi_tab_contains(resources->logi_tab, top, 0x28))
+        if (logi_tab_contains(resources->logi_tab, top.tiletype, 0x26) ||
+            logi_tab_contains(resources->logi_tab, top.tiletype, 0x28))
          {
             if ((new_x + 10) < 320) {
                 tile_type = room_get_tile_type_xy(resources->room_roe,
@@ -1162,7 +1162,7 @@ void controlla_sotto_piedi(
                                                   new_x + 10,
                                                   new_y);
 
-                if (tile_type == top) {
+                if (tile_type.tiletype == top.tiletype) {
                     *ani_ptr = 0x52;
                 }
             }
@@ -1178,7 +1178,7 @@ void controlla_sotto_piedi(
         /* loc_12094 */
 
         /* eventually_change_room(); */
-        if (logi_tab_contains(resources->logi_tab, top, 0x28)) {
+        if (logi_tab_contains(resources->logi_tab, top.tiletype, 0x28)) {
             uint8_t the_ani = *ani_ptr;
 
             game->wanted_room = game->current_room;
@@ -1198,10 +1198,10 @@ void controlla_sotto_piedi(
             }
         }
         else {
-            if (top == 0xa8) {
+            if (top.tiletype == 0xa8) {
                 *ani_ptr = 0x20;
             }
-            else if (top == 0xfe) {
+            else if (top.tiletype == 0xfe) {
                 *ani_ptr = 0x54;
             }
             else {
@@ -1218,20 +1218,20 @@ void controlla_sotto_piedi(
         /* loc_120a3 */
         /* check_tile_switch_room(); */
 
-        char pupo_tile = room_get_tile_type_xy(resources->room_roe,
-                                               game->current_room,
-                                               new_x,
-                                               new_y);
+        tr_tiletype pupo_tile = room_get_tile_type_xy(resources->room_roe,
+                                                      game->current_room,
+                                                      new_x,
+                                                      new_y);
 
-        if (!logi_tab_contains(resources->logi_tab, pupo_tile, 0x25) ||
-            !logi_tab_contains(resources->logi_tab, pupo_tile, 0x27))
+        if (!logi_tab_contains(resources->logi_tab, pupo_tile.tiletype, 0x25) ||
+            !logi_tab_contains(resources->logi_tab, pupo_tile.tiletype, 0x27))
         {
             tile_type = room_get_tile_type_xy(resources->room_roe,
                                               game->current_room,
                                               new_x,
                                               new_y - 0x0a);
 
-            change_room(game, resources, tile_type);
+            change_room(game, resources, tile_type.tiletype);
         }
 
         return;
@@ -1367,10 +1367,10 @@ void update_pupo(tr_game *game, tr_resources *resources, uint8_t direction, int 
 
             game->byte_1f4dc = game->byte_1f4dc + 1;
 
-            if ((game->tile_top & 0xf0) == 0xd0)
+            if ((game->tile_top.tiletype & 0xf0) == 0xd0)
             {
 
-                char type = (game->tile_top & 0x0f) + 0xc;
+                char type = (game->tile_top.tiletype & 0x0f) + 0xc;
 
                 do_tiletype_actions(game, resources, type);
                 // reset_clicked_button();
