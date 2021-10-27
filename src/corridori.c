@@ -79,6 +79,7 @@ typedef struct {
     uint8_t *dsp;
     uint8_t *usc;
     uint8_t *prt;
+    uint8_t *swi;
 } tr_resources;
 
 typedef struct {
@@ -111,7 +112,22 @@ typedef struct {
     // definitely not for her
 
     int  current_room;
+    int  wanted_room;
     bool read_from_usc;
+
+    uint16_t tile_top;
+    uint16_t tile_bottom;
+
+    uint8_t  byte_1f4dc;
+    uint8_t  byte_1f4e6;
+    uint8_t  counter_caduta;
+    uint16_t vita;
+
+    uint16_t palette_mangling;
+
+    bool swivar2[0x40];
+
+    void *swi_elements[0x40];
 }  tr_pupo;
 
 typedef struct {
@@ -141,6 +157,20 @@ typedef struct {
 
 uint16_t from_big_endian(uint16_t x) {
     return ((x & 0x00ff) << 8) | (x >> 8);
+}
+
+uint16_t read16_unaligned(void *x) {
+    uint8_t *b = (uint8_t *)x;
+    uint8_t l = *(b + 0);
+    uint8_t h = *(b + 1);
+    return (h << 8) + l;
+}
+
+uint32_t read32_unaligned(void *x) {
+    uint16_t *b = (uint16_t *)x;
+    uint16_t l = read16_unaligned((uint16_t *)(b + 0));
+    uint16_t h = read16_unaligned((uint16_t *)(b + 1));
+    return (h << 16) + l;
 }
 
 void *load_file(char *path) {
@@ -190,6 +220,7 @@ void resources_load(tr_resources *resources) {
     resources->dsp         = load_file("GAME_DIR/AR1/FIL/DSP");
     resources->usc         = load_file("GAME_DIR/AR1/FIL/USC");
     resources->prt         = load_file("GAME_DIR/AR1/FIL/PRT");
+    resources->swi         = load_file("GAME_DIR/AR1/FIL/SWI");
 }
 
 void palette_load_from_file(tr_palette *palette, tr_palette_file *file) {
@@ -220,6 +251,18 @@ void tilesets_init(tr_tilesets *tilesets, tr_resources *resources) {
     tilesets->sets[0xB] = resources->bufferB;
 }
 
+void swi_elements_init(tr_pupo *pupo, tr_resources *resources) {
+    uint8_t *swi = resources->swi;
+
+    for (int i = 0; i < 0x40; i++) {
+        uint16_t type  = from_big_endian(read16_unaligned(swi + 0)); (type = type);
+        uint16_t count = from_big_endian(read16_unaligned(swi + 2));
+
+        pupo->swi_elements[i] = swi;
+        swi += count;
+    }
+}
+
 #define MAX(a, b) ((a) > (b)) ? (a) : (b)
 #define MIN(a, b) ((a) < (b)) ? (a) : (b)
 
@@ -243,14 +286,27 @@ uint16_t room_get_tile_id(uint8_t *room_file, int room, int pos) {
     return from_big_endian(*(uint16_t *)(room_file + offset));
 }
 
-uint16_t room_get_tile_type(uint8_t *room_file, int room, int pos) {
+void room_set_tile_id_tile_x_tile_y(uint8_t *room_file, int room, int x, int y, uint16_t type) {
+    int pos = (y * GAME_TILES_WIDTH) + x;
+    int offset = (room * 0x04f4) + 0x0024 + (pos * 2);
+    uint16_t *ptr = (uint16_t *)(room_file + offset);
+    *ptr = from_big_endian(type);
+}
+
+uint8_t room_get_tile_type(uint8_t *room_file, int room, int pos) {
     int offset = (room * 0x04f4) + 0x0364 + pos;
     return *(room_file + offset);
 }
 
-uint16_t room_get_tile_type_xy(uint8_t *room_file, int room, int x, int y) {
+uint8_t room_get_tile_type_xy(uint8_t *room_file, int room, int x, int y) {
     int pos = (screen_to_tile_y(y) * GAME_TILES_WIDTH) + screen_to_tile_x(x);
     return room_get_tile_type(room_file, room, pos);
+}
+
+void room_set_tile_type_tile_x_tile_y(uint8_t *room_file, int room, int x, int y, uint8_t type) {
+    int pos = y * GAME_TILES_WIDTH + x;
+    int offset = (room * 0x04f4) + 0x0364 + pos;
+    *(room_file + offset) = type;
 }
 
 void render_background_tile(int tile_x,
@@ -320,20 +376,6 @@ void render_background_layer(uint8_t *room_file, int room, tr_tilesets *sets, ui
 
         render_background_tile(tile_x, tile_y, tile_id, src, dst);
     }
-}
-
-uint16_t read16_unaligned(void *x) {
-    uint8_t *b = (uint8_t *)x;
-    uint8_t l = *(b + 0);
-    uint8_t h = *(b + 1);
-    return (h << 8) + l;
-}
-
-uint32_t read32_unaligned(void *x) {
-    uint16_t *b = (uint16_t *)x;
-    uint16_t l = read16_unaligned((uint16_t *)(b + 0));
-    uint16_t h = read16_unaligned((uint16_t *)(b + 1));
-    return (h << 16) + l;
 }
 
 void tr_graphics_init(tr_graphics *graphics, uint8_t *ele_file) {
@@ -563,6 +605,100 @@ void offset_from_ani(tr_pupo *pupo, tr_resources *resources) {
     );
 }
 
+void tiletype_action_8(tr_pupo *pupo, tr_resources *resources, void *swi_ptr, uint16_t *idx, uint16_t *top) {
+    uint8_t *swi_element = (uint8_t *)swi_ptr;
+
+    uint16_t count = read16_unaligned(swi_element + 0);
+    count = from_big_endian(count);
+
+    swi_element = swi_element + 2;
+
+    for (int i = 0; i < count; i++) {
+        uint16_t xy     = from_big_endian(read16_unaligned(swi_element + 0));
+        uint16_t room   = from_big_endian(read16_unaligned(swi_element + 2));
+        uint16_t tileid = from_big_endian(read16_unaligned(swi_element + 4));
+
+        if (room == pupo->current_room) {
+            unsigned int x = xy % 20;
+            unsigned int y = xy / 20;
+
+            room_set_tile_id_tile_x_tile_y(resources->room_roe,
+                                           pupo->current_room,
+                                           x,
+                                           y,
+                                           tileid);
+        }
+
+        swi_element = swi_element + 6;
+    }
+
+    count = read16_unaligned(swi_element + 0);
+    count = from_big_endian(count);
+
+    swi_element = swi_element + 2;
+
+    for (int i = 0; i < count; i++) {
+        uint16_t xy       = from_big_endian(read16_unaligned(swi_element + 0));
+        uint8_t  room     = *(swi_element + 2);
+        uint8_t  tiletype = *(swi_element + 3);
+
+        if (room == pupo->current_room) {
+            unsigned int x = xy % 20;
+            unsigned int y = xy / 20;
+
+            printf(" changing tile type: xy %4x room %4x tileid %4x -- %2x %2x\n", xy, room, tiletype, x, y);
+
+            room_set_tile_type_tile_x_tile_y(resources->room_roe,
+                                             pupo->current_room,
+                                             x,
+                                             y,
+                                             tiletype);
+        }
+
+        swi_element = swi_element + 4;
+    }
+}
+
+void do_tiletype_actions_inner(tr_pupo *pupo, tr_resources *resources, uint16_t boh) {
+    boh = boh & 0xff;
+
+    uint16_t idx = boh == 0xff ? 0    : boh;
+    uint16_t top = boh == 0xff ? 0x3f : boh;
+
+    for (uint16_t i = idx; i <= top; i++) {
+        if (!pupo->swivar2[i])
+            continue;
+
+        void     *ptr1 = pupo->swi_elements[i];
+        uint8_t  *ptr2 = (((uint8_t *)ptr1) + 4);
+
+        uint16_t  type = read16_unaligned(ptr1);
+        type = from_big_endian(type);
+
+        if (type != 0) {
+//            *background_ani_frame = 0;
+
+            if (type == 8) {
+                tiletype_action_8(pupo, resources, ptr2, &i, &top);
+            }
+            else {
+                printf("%02x No tiletype action yet", type);
+            }
+        }
+    }
+}
+
+void do_tiletype_actions(tr_pupo *pupo, tr_resources *resources, char boh) {
+    if (boh > 0x3f)
+        return;
+
+    if (pupo->swivar2[boh] == false) {
+        pupo->swivar2[boh] = true;
+
+        do_tiletype_actions_inner(pupo, resources, boh);
+    }
+}
+
 void change_room(tr_pupo *pupo, tr_resources *resources, int room_to_change) {
     char previous_room = pupo->current_room;
 
@@ -629,7 +765,7 @@ void change_room(tr_pupo *pupo, tr_resources *resources, int room_to_change) {
         pupo->to_set_x = pupo->new_x;
         pupo->to_set_y = pupo->new_y;
 
-        // do_tiletype_actions_inner(0xffff);
+        do_tiletype_actions_inner(pupo, resources, 0xffff);
     }
 
     // calls_funcptr_1();
@@ -775,6 +911,313 @@ void cosa_ho_di_fronte(tr_pupo *pupo, tr_resources* resources, uint8_t *ani, int
     *ani = new_ani;
 }
 
+void cambia_il_salto(tr_resources *resources, uint8_t *ani, int top) {
+    int offset = *(uint16_t *)(resources->sostani_tab);
+    uint8_t *sostani_item = resources->sostani_tab + from_big_endian(offset);
+
+    uint8_t oldani;
+
+    // printf("cambia\n");
+
+    while (1) {
+        oldani = *(sostani_item);
+
+        if (oldani == 0xff) {
+            break;
+        }
+
+        if (oldani == *ani)
+        {
+            uint8_t logitab_index = *(sostani_item + 1);
+            uint8_t new_ani       = *(sostani_item + 2);
+
+            // printf("  top: %2x oldani: %2x newani: %2x logiidx: %2x\n", top, oldani, new_ani, logitab_index);
+
+            if (logi_tab_contains(resources->logi_tab, top, logitab_index))
+                *ani = new_ani;
+
+        }
+
+        sostani_item += 3;
+    }
+
+    // printf("\n");
+}
+
+void controlla_sotto_piedi(
+    tr_pupo *pupo,
+    tr_resources *resources,
+    uint8_t  *ani_ptr,
+    uint16_t top,
+    uint16_t bottom,
+    uint16_t x,
+    uint16_t y,
+    uint16_t new_x,
+    uint16_t new_y
+) {
+    bool direction = pupo->ani >= 0x35;
+
+    int  var2 = 0;
+    char tile_type;
+
+#if 0
+    if (*byte_1f4e6 == 0 && top == 0xfc) {
+        /* loc_11e91 */
+        vga_dump(10, 10, "NOPE 1"); while (1);
+        return;
+    }
+#endif
+
+    if (logi_tab_contains(resources->logi_tab, bottom, 0x25)) {
+        /* loc_11ea8 */
+        pupo->byte_1f4e6 = pupo->byte_1f4e6 - 1;
+
+#if 0
+        if ((pupo->byte_1f4e6 == 0) &&
+            (*has_to_adjust_ani != 0))
+        {
+            void (far pascal *reset_pupo_caduta)() = MK_FP(seg002, 0x7b1);
+
+            ds_trampoline_end();
+            reset_pupo_caduta();
+            ds_trampoline_start();
+        }
+        else
+#endif
+        {
+            *ani_ptr = direction ? 0x67 : 0x32;
+            pupo->counter_caduta = pupo->counter_caduta + 1;
+        }
+
+        return;
+    }
+
+#if 0
+    if (pupo->byte_1f4e6 > 0) {
+        /* loc_11ecf */
+        vga_dump(10, 10, "NOPE 3"); while (1);
+        return;
+    }
+
+    if (top == 9) {
+        /* fai cade */
+        vga_dump(10, 10, "NOPE 4"); while (1);
+        return;
+    }
+#endif
+
+    if (top == 0) {
+        *ani_ptr = direction ? 0x67 : 0x32;
+        pupo->counter_caduta = pupo->counter_caduta + 1;
+        return;
+    }
+
+    if (pupo->counter_caduta > 0) {
+        /* loc_11f3c */
+
+        if (pupo->counter_caduta > 8) {
+            *ani_ptr = direction ? 0x68 : 0x33;
+        }
+
+        pupo->counter_caduta = 0;
+        return;
+    }
+
+#if 0
+    if (pupo->byte_1f4e8 < 0) {
+        pupo->byte_1f4e8 = pupo->byte_1f4e8 - 1;
+        if (set_is_member(*ani, MK_FP(seg002, 0x0E79))) {
+            /* set ani 38_3 */
+            vga_dump(10, 10, "NOPE 99"); while (1);
+            var2 = 1;
+        }
+    }
+
+    if (!var2) {
+        if (*byte_1f4e9 > 0) {
+            *byte_1f4e9 = *byte_1f4e9 - 1;
+        }
+        if (set_is_member(*ani, MK_FP(seg002, 0x0e99))) {
+            /* set ani 38_3 */
+            vga_dump(10, 10, "NOPE 66"); while (1);
+            var2 = 1;
+        }
+    }
+#else
+    var2 = 0;
+#endif
+
+    if (!var2) {
+        cambia_il_salto(resources, ani_ptr, top);
+    }
+
+#if 0
+    if ((*ani == 0x12) || (*ani == 0x13)) {
+        /* sub_11a14 */
+        vga_dump(10, 10, "NOPE 6"); while (1);
+    }
+
+    if ((*ani == 0x47) || (*ani == 0x48)) {
+        /* sub_11a3d */
+        vga_dump(10, 10, "NOPE 7"); while (1);
+    }
+
+    if (set_is_member(*ani, MK_FP(seg002, 0x0e79))) {
+        /* loc_11ff6 */
+        vga_dump(10, 10, "NOPE 8"); while (1);
+        return;
+    }
+
+    if (set_is_member(*ani, MK_FP(seg002, 0x0e99))) {
+        /* loc_12011 */
+        vga_dump(10, 10, "NOPE 9"); while (1);
+        return;
+    }
+
+    if (*ani == 0x14) {
+        /* loc_12027 */
+        vga_dump(10, 10, "NOPE 10"); while (1);
+        return;
+    }
+
+    if (*ani == 0x49) {
+        /* loc_12036 */
+        vga_dump(10, 10, "NOPE 11"); while (1);
+        return;
+    }
+
+    if (*ani == 0x8) {
+        /* loc_12045 */
+        vga_dump(10, 10, "NOPE 12"); while (1);
+        return;
+    }
+
+    if (*ani == 0x9) {
+        /* loc_12054 */
+        vga_dump(10, 10, "NOPE 13"); while (1);
+        return;
+    }
+
+    if (*ani == 0x3d) {
+        /* loc_12063 */
+        vga_dump(10, 10, "NOPE 14"); while (1);
+        return;
+    }
+
+    if (*ani == 0x3e) {
+        /* loc_12072 */
+        vga_dump(10, 10, "NOPE 15"); while (1);
+        return;
+    }
+#endif
+
+
+    if (*ani_ptr == 0x10) {
+        if (logi_tab_contains(resources->logi_tab, top, 0x26) ||
+            logi_tab_contains(resources->logi_tab, top, 0x28))
+         {
+            if (new_x - 10 >= 0) {
+                tile_type = room_get_tile_type_xy(resources->room_roe,
+                                                  pupo->current_room,
+                                                  new_x - 10,
+                                                  new_y);
+
+                if (tile_type == top) {
+                    *ani_ptr = 0x1d;
+                }
+            }
+        }
+
+        return;
+    }
+
+    if (*ani_ptr == 0x45) {
+        /* loc_12088 */
+        if (logi_tab_contains(resources->logi_tab, top, 0x26) ||
+            logi_tab_contains(resources->logi_tab, top, 0x28))
+         {
+            if ((new_x + 10) < 320) {
+                tile_type = room_get_tile_type_xy(resources->room_roe,
+                                                  pupo->current_room,
+                                                  new_x + 10,
+                                                  new_y);
+
+                if (tile_type == top) {
+                    *ani_ptr = 0x52;
+                }
+            }
+        }
+
+        return;
+    }
+
+    if ((*ani_ptr == 0x1f) ||
+        (*ani_ptr == 0x20) ||
+        (*ani_ptr == 0x54))
+    {
+        /* loc_12094 */
+
+        /* eventually_change_room(); */
+        if (logi_tab_contains(resources->logi_tab, top, 0x28)) {
+            uint8_t the_ani = *ani_ptr;
+
+            pupo->wanted_room = pupo->current_room;
+
+            /*
+            do_tiletype_actions(top_copy - 0xc0);
+            rese();
+            calls_funcptr_1();
+            */
+
+            if (pupo->wanted_room != pupo->current_room) {
+                change_room(pupo, resources, pupo->wanted_room);
+            }
+
+            if (the_ani != *ani_ptr) {
+                *ani_ptr = 0x22;
+            }
+        }
+        else {
+            if (top == 0xa8) {
+                *ani_ptr = 0x20;
+            }
+            else if (top == 0xfe) {
+                *ani_ptr = 0x54;
+            }
+            else {
+                // *byte_1f4ec = 0;
+            }
+        }
+
+        return;
+    }
+
+    if ((*ani_ptr == 0x21) ||
+        (*ani_ptr == 0x55))
+    {
+        /* loc_120a3 */
+        /* check_tile_switch_room(); */
+
+        char pupo_tile = room_get_tile_type_xy(resources->room_roe,
+                                               pupo->current_room,
+                                               new_x,
+                                               new_y);
+
+        if (!logi_tab_contains(resources->logi_tab, pupo_tile, 0x25) ||
+            !logi_tab_contains(resources->logi_tab, pupo_tile, 0x27))
+        {
+            tile_type = room_get_tile_type_xy(resources->room_roe,
+                                              pupo->current_room,
+                                              new_x,
+                                              new_y - 0x0a);
+
+            change_room(pupo, resources, tile_type);
+        }
+
+        return;
+    }
+
+}
 
 void update_pupo(tr_pupo *pupo, tr_resources *resources, uint8_t direction) {
     char enemy_hit = 0;
@@ -791,9 +1234,25 @@ void update_pupo(tr_pupo *pupo, tr_resources *resources, uint8_t direction) {
             pupo->get_new_ani = 0;
             get_new_frame = 1;
 
-            // *pupo_tile_top    = get_tile_type(*pupo_x, *pupo_y     );
-            // *pupo_tile_bottom = get_tile_type(*pupo_x, *pupo_y + 10);
-            // controlla_sotto_piedi(ani, top, bot, x, y, nx, ny);
+            pupo->tile_top = room_get_tile_type_xy(resources->room_roe,
+                                                   pupo->current_room,
+                                                   pupo->x,
+                                                   pupo->y);
+
+            pupo->tile_bottom = room_get_tile_type_xy(resources->room_roe,
+                                                   pupo->current_room,
+                                                   pupo->x,
+                                                   pupo->y + 10);
+
+            controlla_sotto_piedi(pupo,
+                                  resources,
+                                  &pupo->ani,
+                                  pupo->tile_top,
+                                  pupo->tile_bottom,
+                                  pupo->x,
+                                  pupo->y,
+                                  pupo->new_x,
+                                  pupo->new_y);
 
             /*
             if (*gun_bool == 0) {
@@ -881,7 +1340,52 @@ void update_pupo(tr_pupo *pupo, tr_resources *resources, uint8_t direction) {
                 }
             }
 
-            // update_pupo_4();
+            pupo->byte_1f4dc = pupo->byte_1f4dc + 1;
+
+            if ((pupo->tile_top & 0xf0) == 0xd0)
+            {
+
+                char type = (pupo->tile_top & 0x0f) + 0xc;
+
+                do_tiletype_actions(pupo, resources, type);
+                // reset_clicked_button();
+                // calls_funcptr_1();
+
+                {
+                    pupo->new_x = pupo->x;
+                    pupo->new_y = pupo->y;
+
+                    pupo->tile_top    = room_get_tile_type_xy(resources->room_roe,
+                                                              pupo->current_room,
+                                                              pupo->x,
+                                                              pupo->y);
+
+                    pupo->tile_bottom = room_get_tile_type_xy(resources->room_roe,
+                                                              pupo->current_room,
+                                                              pupo->x,
+                                                              pupo->y + 10);
+
+                    // reset_array_bobs();
+                    // reset_background_ani();
+
+                    if (pupo->vita > 0x800) {
+                        // animate_and_render_background();
+                        // draw_stars();
+                        // draw_punti_faccia();
+                    }
+
+                    {
+                        // copy_bg_to_vga();
+
+                        // select_pal(1, 0);
+                        // install_ucci();
+
+                        pupo->palette_mangling = 2;
+                    }
+                }
+            }
+
+
             // sub_1243d();
 
         }
@@ -1008,18 +1512,25 @@ int main() {
     pupo.frame_nr = 0;
     pupo.get_new_ani = 1;
 
+    swi_elements_init(&pupo, &resources);
+
     int rendered_room = 0;
     ray_bg_render_room(&bg_renderer, 0, 0);
 
 
-    bool show_types = false;
+    bool show_types  = true;
+    bool show_anidbg = false;
 
     while (!WindowShouldClose()) {
         BeginDrawing();
         ClearBackground(BLACK);
 
-        if (IsKeyPressed(KEY_M)) {
+        if (IsKeyPressed(KEY_U)) {
             show_types = !show_types;
+        }
+
+        if (IsKeyPressed(KEY_P)) {
+            show_anidbg = !show_anidbg;
         }
 
         char direction = tr_keys_to_direction(
@@ -1058,18 +1569,20 @@ int main() {
         if (show_types)
             DrawTileTypes(&resources, pupo.current_room);
 
-        sprintf(suca, "dir:   %2x", direction);
-        DrawText(suca, 20,  0, 20, GREEN);
-        sprintf(suca, "ani:   %2x", pupo.ani);
-        DrawText(suca, 20, 20, 20, GREEN);
-        sprintf(suca, "frame: %2x", pupo.ele_idx);
-        DrawText(suca, 20, 40, 20, GREEN);
-        sprintf(suca, "ctd:   %2x", pupo.countdown);
-        DrawText(suca, 20, 60, 20, GREEN);
-        sprintf(suca, "pupo:   %4d %4d", pupo.x, pupo.y);
-        DrawText(suca, 20, 80, 20, GREEN);
-        sprintf(suca, "offs:   %4x", pupo.pupo_offset);
-        DrawText(suca, 20, 100, 20, GREEN);
+        if (show_anidbg) {
+            sprintf(suca, "dir:   %2x", direction);
+            DrawText(suca, 20,  0, 20, GREEN);
+            sprintf(suca, "ani:   %2x", pupo.ani);
+            DrawText(suca, 20, 20, 20, GREEN);
+            sprintf(suca, "frame: %2x", pupo.ele_idx);
+            DrawText(suca, 20, 40, 20, GREEN);
+            sprintf(suca, "ctd:   %2x", pupo.countdown);
+            DrawText(suca, 20, 60, 20, GREEN);
+            sprintf(suca, "pupo:   %4d %4d", pupo.x, pupo.y);
+            DrawText(suca, 20, 80, 20, GREEN);
+            sprintf(suca, "offs:   %4x", pupo.pupo_offset);
+            DrawText(suca, 20, 100, 20, GREEN);
+        }
 
         EndDrawing();
     }
