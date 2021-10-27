@@ -51,6 +51,14 @@ typedef struct {
 } tr_graphics;
 
 typedef struct {
+    uint16_t tileid;
+} tr_tileid;
+
+typedef struct {
+    uint16_t tiletype;
+} tr_tiletype;
+
+typedef struct {
     tr_palette_file *arcade_pal;
 
     uint8_t *room_roe;
@@ -266,6 +274,18 @@ void swi_elements_init(tr_game *game, tr_resources *resources) {
 #define MAX(a, b) ((a) > (b)) ? (a) : (b)
 #define MIN(a, b) ((a) < (b)) ? (a) : (b)
 
+int tileid_get_file(tr_tileid tileid) {
+    return  ((tileid.tileid & 0xf000) >> 12);
+}
+
+int tileid_get_i(tr_tileid tileid) {
+    return tileid.tileid & 0x01ff;
+}
+
+bool tileid_get_flip(tr_tileid tileid) {
+    return !!(tileid.tileid & 0x0200);
+}
+
 uint8_t screen_to_tile_x(int screen_x) {
     int x = screen_x / TILE_WIDTH;
     return MIN(MAX(x, 0), 19);
@@ -281,9 +301,9 @@ uint8_t room_get_mat_file(uint8_t *room_file, int room, int pos) {
     return *(room_file + offset);
 }
 
-uint16_t room_get_tile_id(uint8_t *room_file, int room, int pos) {
+tr_tileid room_get_tile_id(uint8_t *room_file, int room, int pos) {
     int offset = (room * 0x04f4) + 0x0024 + (pos * 2);
-    return from_big_endian(*(uint16_t *)(room_file + offset));
+    return (tr_tileid){ from_big_endian(*(uint16_t *)(room_file + offset)) };
 }
 
 void room_set_tile_id_tile_x_tile_y(uint8_t *room_file, int room, int x, int y, uint16_t type) {
@@ -311,12 +331,12 @@ void room_set_tile_type_tile_x_tile_y(uint8_t *room_file, int room, int x, int y
 
 void render_background_tile(int tile_x,
                             int tile_y,
-                            uint16_t tile_info,
+                            tr_tileid tileid,
                             uint8_t *src,
                             uint8_t *dst)
 {
-    int  tile_i = tile_info & 0x01ff;
-    bool flip   = !!(tile_info & 0x0200);
+    int  tile_i = tileid_get_i(tileid);
+    bool flip   = tileid_get_flip(tileid);
 
     int tile_px_x = tile_x * TILE_WIDTH;
     int tile_px_y = tile_y * TILE_HEIGHT;
@@ -342,20 +362,20 @@ void render_background_tile(int tile_x,
     }
 }
 
-uint16_t adjust_bg_tile_animation(uint16_t tile, int frame) {
-    if ((tile & 0xf000) != 0x9000)
-        return tile;
+tr_tileid adjust_bg_tile_animation(tr_tileid tileid, int frame) {
+    if ((tileid.tileid & 0xf000) != 0x9000)
+        return tileid;
 
-    if (tile & 0x0800) {
+    if (tileid.tileid & 0x0800) {
         frame = 3;
     }
     else {
-        if ((tile & 0x0400) && (frame == 3)) {
-            tile = tile | 0x0800;
+        if ((tileid.tileid & 0x0400) && (frame == 3)) {
+            tileid.tileid = tileid.tileid | 0x0800;
         }
     }
 
-    return (tile & 0xfffc) | (frame & 0x0003);
+    return (tr_tileid){ (tileid.tileid & 0xfffc) | (frame & 0x0003) };
 }
 
 void render_background_layer(uint8_t *room_file, int room, tr_tilesets *sets, uint8_t *dst, int frame) {
@@ -363,10 +383,10 @@ void render_background_layer(uint8_t *room_file, int room, tr_tilesets *sets, ui
         int tile_x = i % 0x14;
         int tile_y = i / 0x14;
 
-        int tile_id = room_get_tile_id(room_file, room, i);
+        tr_tileid tile_id = room_get_tile_id(room_file, room, i);
         tile_id = adjust_bg_tile_animation(tile_id, frame);
 
-        int file_id = ((tile_id & 0xf000) >> 12);
+        int file_id = tileid_get_file(tile_id);
         int set_id = room_get_mat_file(room_file, room, file_id);
 
         if (set_id > 0xc) continue;
