@@ -120,7 +120,7 @@ typedef struct {
     int16_t y;
 
     uint8_t  ani;
-    uint8_t  ele_idx;
+    uint8_t  frame_nr;
 
     bool     flip;
     int      countdown;
@@ -136,7 +136,6 @@ typedef struct {
     int16_t to_set_x;
     int16_t to_set_y;
 
-    uint8_t  frame_nr;
     uint16_t pupo_offset;
 
     bool get_new_ani;
@@ -1481,7 +1480,7 @@ void update_pupo(tr_game *game, tr_resources *resources, uint8_t direction, int 
                 uint8_t flip    = frame_info[4];
 
                 game->pupo_offset += 5; /* sizeof(frame_info_t) */
-                game->ele_idx  = frame;
+                game->frame_nr  = frame;
                 game->countdown = (time + 3) / 4;
                 game->x_delta   = x_delta;
                 game->y_delta   = y_delta;
@@ -1589,6 +1588,27 @@ void update_pupo(tr_game *game, tr_resources *resources, uint8_t direction, int 
     }
 }
 
+void add_pupo_to_bobs(tr_game *game) {
+    add_bob_per_background(&game->bobs,
+                           game->x + game->x_delta,
+                           game->y + game->y_delta,
+                           tr_ele_tr,
+                           game->frame_nr,
+                           0xffc1,
+                           game->flip,
+                           0 // game->palette_override
+                           );
+
+    // *bob_to_hit_mouse_3 = *bobs_count;
+}
+
+void draw_pupi(tr_game *game) {
+    /* sort not implemented */
+
+    // add_enemy_to_bobs(0);
+    // add_enemy_to_bobs(1);
+    add_pupo_to_bobs(game);
+}
 
 void ray_bg_renderer_init(ray_bg_renderer *bg, tr_resources *resources, tr_tilesets *tilesets, tr_palette *palette) {
     bg->resources = resources;
@@ -1643,11 +1663,31 @@ void draw_faccia(tr_game *game) {
 
     game->faccia_countdown--;
 
-    int y = game->x < 0x64 ? 0xc3 : 0x34;
+    int y = game->y < 0x64 ? 0xc3 : 0x34;
     int boh = y - 7 - ((0x800 - game->vita) / 0x31); boh = boh;
 
     add_bob_per_background(&game->bobs, 0x123, y,      tr_ele_status, 1, 0xfff0, 0, 0);
     add_bob_per_background(&game->bobs, 0x123, y + 50, tr_ele_status, 0, 0xfff0, 0, 0);
+}
+
+void draw_punti_faccia_pistolina(tr_game *game) {
+    draw_faccia(game);
+}
+
+void tr_gameloop(tr_game *game, tr_resources *resources, uint8_t direction) {
+    tr_bobs_reset(&game->bobs);
+    // animate & render background
+    draw_punti_faccia_pistolina(game);
+    // draw stars & check
+    update_pupo(game, resources, direction, 0);
+    // check gsa & exit
+    // load & update ucci 0
+    // load & update ucci 1
+    // clear bob mouse
+    draw_pupi(game);
+    // check mouse
+    // draw mouse
+    // reset bobs
 }
 
 int main() {
@@ -1718,10 +1758,9 @@ int main() {
     pupo.x = 0x08;
     pupo.y = 0xa0;
     pupo.ani = 0x03;
-    pupo.ele_idx = 0x00;
+    pupo.frame_nr = 0x00;
     pupo.flip = 0;
     pupo.countdown = 0;
-    pupo.frame_nr = 0;
     pupo.get_new_ani = 1;
 
     swi_elements_init(&pupo, &resources);
@@ -1774,9 +1813,7 @@ int main() {
             update_pupo(&pupo, &resources, direction, 0x10000 + dbg_ani);
         }
         else {
-            tr_bobs_reset(&pupo.bobs);
-            draw_faccia(&pupo);
-            update_pupo(&pupo, &resources, direction, 0);
+            tr_gameloop(&pupo, &resources, direction);
         }
 
         bool redraw_bg = bg_step(&bg);
@@ -1787,18 +1824,6 @@ int main() {
         }
 
         DrawTextureScaled(bg_renderer.texture, 0, 0, GAME_SIZE_WIDTH, GAME_SIZE_HEIGHT, false);
-
-        {
-            int x = pupo.x + pupo.x_delta;
-            int y = pupo.y + pupo.y_delta;
-            int w = tr_tex.textures[pupo.ele_idx].width;
-            int h = tr_tex.textures[pupo.ele_idx].height;
-
-            x -= w / 2;
-            y -= h;
-
-            DrawTextureScaled(tr_tex.textures[pupo.ele_idx], x, y, w, h, pupo.flip);
-        }
 
         for (int i = 0; i < pupo.bobs.count; i++) {
             tr_bob *bob = &(pupo.bobs.bobs[i]);
@@ -1828,7 +1853,7 @@ int main() {
             DrawText(suca, 20,  0, 20, GREEN);
             sprintf(suca, "ani:   %2x", pupo.ani);
             DrawText(suca, 20, 20, 20, GREEN);
-            sprintf(suca, "frame: %2x", pupo.ele_idx);
+            sprintf(suca, "frame: %2x", pupo.frame_nr);
             DrawText(suca, 20, 40, 20, GREEN);
             sprintf(suca, "ctd:   %2x", pupo.countdown);
             DrawText(suca, 20, 60, 20, GREEN);
