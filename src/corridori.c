@@ -1853,6 +1853,20 @@ void get_pti_line(tr_resources *resources, uint16_t line_idx, char *line_str) {
     }
 }
 
+void tr_game_reset(tr_game *game, tr_resources *resources) {
+    memset(game, 0, sizeof(tr_game));
+
+    game->x = 0x08;
+    game->y = 0xa0;
+    game->ani = 0x03;
+    game->frame_nr = 0x00;
+    game->flip = 0;
+    game->countdown = 0;
+    game->get_new_ani = 1;
+    game->stars_countdown = 4;
+    swi_elements_init(game, resources);
+}
+
 int main() {
     InitWindow(GAME_SIZE_WIDTH  * GAME_SIZE_SCALE,
                GAME_SIZE_HEIGHT * GAME_SIZE_SCALE,
@@ -1915,18 +1929,8 @@ int main() {
 
     tr_bg bg;
 
-    tr_game pupo;
-    memset(&pupo, 0, sizeof(pupo));
-
-    pupo.x = 0x08;
-    pupo.y = 0xa0;
-    pupo.ani = 0x03;
-    pupo.frame_nr = 0x00;
-    pupo.flip = 0;
-    pupo.countdown = 0;
-    pupo.get_new_ani = 1;
-    pupo.stars_countdown = 4;
-    swi_elements_init(&pupo, &resources);
+    tr_game game;
+    tr_game_reset(&game, &resources);
 
     int rendered_room = 0;
     ray_bg_render_room(&bg_renderer, 0, 0);
@@ -1953,12 +1957,16 @@ int main() {
             show_dbg_ani = !show_dbg_ani;
         }
 
+        if (IsKeyPressed(KEY_R)) {
+            tr_game_reset(&game, &resources);
+        }
+
         if (IsKeyPressed(KEY_PAGE_DOWN)) {
-            pupo.current_room = pupo.current_room + 1;
+            game.current_room = game.current_room + 1;
         }
 
         if (IsKeyPressed(KEY_PAGE_UP)) {
-            pupo.current_room = pupo.current_room - 1;
+            game.current_room = game.current_room - 1;
         }
 
 
@@ -1982,23 +1990,23 @@ int main() {
               false
             );
 
-            update_pupo(&pupo, &resources, direction, 0x10000 + dbg_ani);
+            update_pupo(&game, &resources, direction, 0x10000 + dbg_ani);
         }
         else {
-            tr_gameloop(&pupo, &resources, direction);
+            tr_gameloop(&game, &resources, direction);
         }
 
         bool redraw_bg = bg_step(&bg);
 
-        if ((rendered_room != pupo.current_room) || redraw_bg) {
-            ray_bg_render_room(&bg_renderer, pupo.current_room, bg.frame);
-            rendered_room = pupo.current_room;
+        if ((rendered_room != game.current_room) || redraw_bg) {
+            ray_bg_render_room(&bg_renderer, game.current_room, bg.frame);
+            rendered_room = game.current_room;
         }
 
         DrawTextureScaled(bg_renderer.texture, 0, 0, GAME_SIZE_WIDTH, GAME_SIZE_HEIGHT, false);
 
-        for (int i = 0; i < pupo.bobs.count; i++) {
-            tr_bob *bob = &(pupo.bobs.bobs[i]);
+        for (int i = 0; i < game.bobs.count; i++) {
+            tr_bob *bob = &(game.bobs.bobs[i]);
 
             Texture texture = ele_textures[bob->ele]->textures[bob->ele_idx];
 
@@ -2018,30 +2026,30 @@ int main() {
         }
         else {
         if (show_types)
-            DrawTileTypes(&resources, pupo.current_room);
+            DrawTileTypes(&resources, game.current_room);
 
         if (show_anidbg) {
             sprintf(suca, "dir:   %2x", direction);
             DrawText(suca, 20,  0, 20, GREEN);
-            sprintf(suca, "ani:   %2x", pupo.ani);
+            sprintf(suca, "ani:   %2x", game.ani);
             DrawText(suca, 20, 20, 20, GREEN);
-            sprintf(suca, "frame: %2x", pupo.frame_nr);
+            sprintf(suca, "frame: %2x", game.frame_nr);
             DrawText(suca, 20, 40, 20, GREEN);
-            sprintf(suca, "ctd:   %2x", pupo.countdown);
+            sprintf(suca, "ctd:   %2x", game.countdown);
             DrawText(suca, 20, 60, 20, GREEN);
-            sprintf(suca, "pupo:  %4d %4d", pupo.x, pupo.y);
+            sprintf(suca, "pupo:  %4d %4d", game.x, game.y);
             DrawText(suca, 20, 80, 20, GREEN);
-            sprintf(suca, "pupo:  %4x %4x", pupo.x, pupo.y);
+            sprintf(suca, "pupo:  %4x %4x", game.x, game.y);
             DrawText(suca, 20, 100, 20, GREEN);
-            sprintf(suca, "offs:  %4x", pupo.pupo_offset);
+            sprintf(suca, "offs:  %4x", game.pupo_offset);
             DrawText(suca, 20, 120, 20, GREEN);
-            sprintf(suca, "room:  %2x", pupo.current_room);
+            sprintf(suca, "room:  %2x", game.current_room);
             DrawText(suca, 20, 140, 20, GREEN);
         }
         }
 
         uint16_t line1, line2;
-        get_explanation(&pupo, &resources, &line1, &line2);
+        get_explanation(&game, &resources, &line1, &line2);
 
         char line1_str[0x100];
         char line2_str[0x100];
