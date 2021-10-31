@@ -90,6 +90,8 @@ typedef struct {
     uint8_t *swi;
     uint8_t *pn;
     uint8_t *ptx;
+
+    uint8_t *texts_it;
 } tr_resources;
 
 typedef enum {
@@ -264,6 +266,8 @@ void resources_load(tr_resources *resources) {
     resources->swi         = load_file("GAME_DIR/AR1/FIL/SWI");
     resources->pn          = load_file("GAME_DIR/AR1/FIL/PN");
     resources->ptx         = load_file("GAME_DIR/AR1/FIL/PTX");
+
+    resources->texts_it    = load_file("GAME_DIR/PTX/Texts.kit");
 }
 
 void palette_load_from_file(tr_palette *palette, tr_palette_file *file) {
@@ -1814,6 +1818,41 @@ void get_explanation(tr_game *game, tr_resources *resources, uint16_t *out_line1
     }
 }
 
+void get_pti_line(tr_resources *resources, uint16_t line_idx, char *line_str) {
+    uint8_t *pti = resources->texts_it + 0x40;
+
+    uint8_t xor = *(resources->texts_it + 0x102);
+
+    for (int i = 0; i < 0x10; i++) {
+        uint8_t  *item  = pti + i * 0xc;
+        uint16_t first  = *(uint16_t *)(item + 0); first = first;
+        uint16_t last   = *(uint16_t *)(item + 2); last = last;
+        uint16_t count  = *(uint16_t *)(item + 4);
+        uint16_t size   = *(uint16_t *)(item + 6); size = size;
+        uint32_t offset = *(uint32_t *)(item + 8);
+
+        uint8_t  *item_ptr = resources->texts_it + offset;
+
+        for (int k = 0; k < count; k++) {
+            uint16_t line   = read16_unaligned(item_ptr); item_ptr += 2;
+            uint8_t  length = *(item_ptr);                item_ptr += 1;
+
+            for (int s = 0; s < length; s++) {
+                if (line == line_idx)
+                    line_str[s] = *(item_ptr) ^ xor;
+                item_ptr++;
+            }
+
+            if (line == line_idx) {
+                line_str[length] = 0;
+                return;
+            }
+
+            item_ptr++;
+        }
+    }
+}
+
 int main() {
     InitWindow(GAME_SIZE_WIDTH  * GAME_SIZE_SCALE,
                GAME_SIZE_HEIGHT * GAME_SIZE_SCALE,
@@ -1914,6 +1953,15 @@ int main() {
             show_dbg_ani = !show_dbg_ani;
         }
 
+        if (IsKeyPressed(KEY_PAGE_DOWN)) {
+            pupo.current_room = pupo.current_room + 1;
+        }
+
+        if (IsKeyPressed(KEY_PAGE_UP)) {
+            pupo.current_room = pupo.current_room - 1;
+        }
+
+
         char direction = tr_keys_to_direction(
             IsKeyDown(KEY_DOWN),
             IsKeyDown(KEY_UP),
@@ -1995,10 +2043,19 @@ int main() {
         uint16_t line1, line2;
         get_explanation(&pupo, &resources, &line1, &line2);
 
-        sprintf(suca, "line1:  %2x", line1);
+        char line1_str[0x100];
+        char line2_str[0x100];
+
+        line1_str[0] = 0;
+        line2_str[0] = 0;
+
+        get_pti_line(&resources, line1, line1_str);
+        get_pti_line(&resources, line2, line2_str);
+
+        sprintf(suca, "line1:  %s", line1_str);
         DrawText(suca, 20, 200, 20, GREEN);
 
-        sprintf(suca, "line2:  %2x", line2);
+        sprintf(suca, "line2:  %s", line2_str);
         DrawText(suca, 20, 220, 20, GREEN);
 
         EndDrawing();
