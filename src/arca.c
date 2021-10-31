@@ -2124,6 +2124,30 @@ void far pascal change_at_screen() {
     }
 }
 
+void far pascal add_vita(int x) {
+    *faccia_countdown = 0x96;
+    *punti_countdown = 0;
+    /* *byte_21ab8 = 0 */
+    *vita += x;
+}
+
+void far pascal do_damage() {
+    if (logi_tab_contains(*pupo_tile_top, 0x34)) {
+        add_vita(0x24);
+       
+        {
+            void (far pascal *maybe_hurt_fx)(unsigned int, unsigned char, unsigned char)
+                = MK_FP(seg017, 0x0640);
+
+            ds_trampoline_end();
+            maybe_hurt_fx(0xffff, 0x0f, 0x0f);
+            ds_trampoline_start();
+        }
+
+        *palette_mangling_counter = 5; 
+    }
+}
+
 void far pascal update_pupo() {
     char enemy_hit = 0;
     char get_new_frame;
@@ -2187,13 +2211,7 @@ void far pascal update_pupo() {
             update_pupo_4();
             ds_trampoline_start();
 
-            {
-                void (far pascal *sub_1243d)() = MK_FP(seg002, 0x14dd);
-
-                ds_trampoline_end();
-                sub_1243d();
-                ds_trampoline_start();
-            }
+            do_damage();
 
             {
                 char (far pascal *check_pu_for_vita)(int x) = MK_FP(seg011, 0x0557);
