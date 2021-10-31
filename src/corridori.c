@@ -306,6 +306,11 @@ tr_tileid room_get_tile_id(uint8_t *room_file, int room, int pos) {
     return (tr_tileid){ from_big_endian(*(uint16_t *)(room_file + offset)) };
 }
 
+tr_tileid room_get_tile_id_xy(uint8_t *room_file, int room, int x, int y) {
+    int pos = (screen_to_tile_y(y) * GAME_TILES_WIDTH) + screen_to_tile_x(x);
+    return room_get_tile_id(room_file, room, pos);
+}
+
 void room_set_tile_id_tile_x_tile_y(uint8_t *room_file, int room, int x, int y, uint16_t type) {
     int pos = (y * GAME_TILES_WIDTH) + x;
     int offset = (room * 0x04f4) + 0x0024 + (pos * 2);
@@ -666,8 +671,6 @@ void tiletype_action_8(tr_game *game, tr_resources *resources, void *swi_ptr, ui
             unsigned int x = xy % 20;
             unsigned int y = xy / 20;
 
-            printf(" changing tile type: xy %4x room %4x tileid %4x -- %2x %2x\n", xy, room, tiletype, x, y);
-
             room_set_tile_type_tile_x_tile_y(resources->room_roe,
                                              game->current_room,
                                              x,
@@ -765,10 +768,10 @@ void change_room(tr_game *game, tr_resources *resources, int room_to_change) {
                 if ((room_from == previous_room) &&
                     (room_to == room_to_change))
                 {
-                    int y_from = from_big_endian(read16_unaligned(current_usc + 4));
-                    int y_to   = from_big_endian(read16_unaligned(current_usc + 2));
+                    uint16_t y_from = from_big_endian(read16_unaligned(current_usc + 4));
+                    uint16_t y_to   = from_big_endian(read16_unaligned(current_usc + 2));
 
-                    if (y_from == game->new_x) {
+                    if (y_from == game->new_y) {
                         game->new_y = y_to;
                         game->y     = y_to;
                         break;
@@ -779,24 +782,78 @@ void change_room(tr_game *game, tr_resources *resources, int room_to_change) {
             }
         }
         else {
-            /* read from prt */
+            uint8_t *current_prt = resources->prt;
+
+            while (1) {
+                uint8_t room_from = *(current_prt + 0);
+                uint8_t room_to   = *(current_prt + 1);
+
+                if (room_from == 0xff && room_to == 0xff) {
+                    break;
+                }
+
+                if ((room_from == previous_room) &&
+                    (room_to == room_to_change))
+                {
+                    uint16_t x_to   = from_big_endian(read16_unaligned(current_prt + 2));
+                    uint16_t y_to   = from_big_endian(read16_unaligned(current_prt + 4));
+                    uint16_t x_from = from_big_endian(read16_unaligned(current_prt + 6));
+                    uint16_t y_from = from_big_endian(read16_unaligned(current_prt + 8));
+
+                    if ((x_from == (game->new_x - 0x10)) &&
+                        (y_from == (game->new_y - 0x0a)))
+                    {
+                        game->x = game->new_x = x_to + 0x10;
+                        game->y = game->new_y = y_to + 0x0a;
+                    }
+                }
+
+                current_prt += 10;
+            }
         }
 
         game->to_set_x = game->new_x;
         game->to_set_y = game->new_y;
 
         do_tiletype_actions_inner(game, resources, 0xffff);
+
+        // calls_funcptr_1();
+
+        game->tile_top    = room_get_tile_type_xy(resources->room_roe, game->current_room,
+                                                  game->new_x, game->new_y     );
+
+        game->tile_bottom = room_get_tile_type_xy(resources->room_roe, game->current_room,
+                                                  game->new_x, game->new_y + 10);
+
+         if (game->read_from_usc) {
+             if (logi_tab_contains(resources->logi_tab, game->tile_top.value, 0x27)) {
+
+#if 0
+                 int16_t punto_x = game->new_x;
+                 int16_t punto_y = game->new_y;
+                 tr_tiletype tiletype;
+
+                 do {
+                     tiletype = room_get_tile_type_xy(resources->room_roe,
+                                                      game->current_room,
+                                                      punto_x,
+                                                      punto_y);
+                     punto_x -= 0x10;
+                 } while (punto_x >= 0 && tiletype.value == 0xfd);
+
+                 punto_x += 0x20;
+                 punto_y -= 0x0a;
+
+                 tr_tileid tileid = room_get_tile_id_xy(resources->room_roe,
+                                                        game->current_room,
+                                                        punto_x,
+                                                        punto_y);
+#endif
+             }
+         }
+
+        game->read_from_usc = false;
     }
-
-    // calls_funcptr_1();
-
-    // *pupo_tile_top    = get_tile_type(*pupo_new_x, *pupo_new_y     );
-    // *pupo_tile_bottom = get_tile_type(*pupo_new_x, *pupo_new_y + 10);
-
-    // if (!*read_from_usc) {
-    // }
-
-    game->read_from_usc = false;
 
     // *no_previous_room = 0;
 
@@ -1545,7 +1602,7 @@ int main() {
     int dbg_ani = 0;
 
     bool show_types  = true;
-    bool show_anidbg = false;
+    bool show_anidbg = true;
     bool show_dbg_ani = false;
 
     while (!WindowShouldClose()) {
@@ -1630,10 +1687,14 @@ int main() {
             DrawText(suca, 20, 40, 20, GREEN);
             sprintf(suca, "ctd:   %2x", pupo.countdown);
             DrawText(suca, 20, 60, 20, GREEN);
-            sprintf(suca, "pupo:   %4d %4d", pupo.x, pupo.y);
+            sprintf(suca, "pupo:  %4d %4d", pupo.x, pupo.y);
             DrawText(suca, 20, 80, 20, GREEN);
-            sprintf(suca, "offs:   %4x", pupo.pupo_offset);
+            sprintf(suca, "pupo:  %4x %4x", pupo.x, pupo.y);
             DrawText(suca, 20, 100, 20, GREEN);
+            sprintf(suca, "offs:  %4x", pupo.pupo_offset);
+            DrawText(suca, 20, 120, 20, GREEN);
+            sprintf(suca, "room:  %2x", pupo.current_room);
+            DrawText(suca, 20, 140, 20, GREEN);
         }
         }
         EndDrawing();
