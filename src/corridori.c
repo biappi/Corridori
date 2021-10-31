@@ -90,6 +90,31 @@ typedef struct {
     uint8_t *swi;
 } tr_resources;
 
+typedef enum {
+    tr_ele_status,
+    tr_ele_numeri,
+    tr_ele_k,
+    tr_ele_tr,
+    tr_ele_ucci0,
+    tr_ele_ucci1,
+    tr_ele_count,
+} tr_ele_kind;
+
+typedef struct {
+    int x;
+    int y;
+    tr_ele_kind ele;
+    int ele_idx;
+    int palette_start;
+    int flip;
+    int color;
+} tr_bob;
+
+typedef struct {
+    size_t count;
+    tr_bob bobs[0x32];
+} tr_bobs;
+
 typedef struct {
     int16_t x;
     int16_t y;
@@ -130,12 +155,17 @@ typedef struct {
     uint8_t  byte_1f4e6;
     uint8_t  counter_caduta;
     uint16_t vita;
+    uint16_t score;
+    uint8_t  faccia_countdown;
+    uint8_t  punti_countdown;
 
     uint16_t palette_mangling;
 
     bool swivar2[0x40];
 
     void *swi_elements[0x40];
+
+    tr_bobs bobs;
 }  tr_game;
 
 typedef struct {
@@ -212,12 +242,12 @@ void resources_load(tr_resources *resources) {
     resources->bufferA    = load_file("GAME_DIR/AR1/STA/BUFFERA.MAT");
     resources->bufferB    = load_file("GAME_DIR/AR1/STA/BUFFERB.MAT");
 
-    resources->status_ele = load_file("GAME_DIR/AR1/UCC/UCCI0.ELE");
-    resources->numeri_ele = load_file("GAME_DIR/AR1/UCC/UCCI1.ELE");
+    resources->status_ele = load_file("GAME_DIR/AR1/IMG/STATUS.ELE");
+    resources->numeri_ele = load_file("GAME_DIR/AR1/IMG/NUMERI.ELE");
     resources->k_ele      = load_file("GAME_DIR/AR1/IMG/K.ELE");
     resources->tr_ele     = load_file("GAME_DIR/AR1/IMG/TR.ELE");
-    resources->ucci0_ele  = load_file("GAME_DIR/AR1/IMG/NUMERI.ELE");
-    resources->ucci1_ele  = load_file("GAME_DIR/AR1/IMG/STATUS.ELE");
+    resources->ucci0_ele  = load_file("GAME_DIR/AR1/UCC/UCCI0.ELE");
+    resources->ucci1_ele  = load_file("GAME_DIR/AR1/UCC/UCCI1.ELE");
 
     resources->logi_tab    = load_file("GAME_DIR/AR1/FIL/LOGITAB.TAB");
     resources->frames_tab  = load_file("GAME_DIR/AR1/FIL/FRAMES.TAB");
@@ -402,6 +432,39 @@ void render_background_layer(uint8_t *room_file, int room, tr_tilesets *sets, ui
         render_background_tile(tile_x, tile_y, tile_id, src, dst);
     }
 }
+
+void tr_bobs_reset(tr_bobs *bobs) {
+    bobs->count = 0;
+}
+
+void add_bob_per_background(
+    tr_bobs *bobs,
+    int x,
+    int y,
+    tr_ele_kind ele,
+    int ele_idx,
+    int palette_start,
+    int flip,
+    int color
+) {
+    size_t i = bobs->count;
+
+    if (bobs->count == 0x32) {
+        /* bobs overflow error */
+        return;
+    }
+
+    bobs->bobs[i].x = x;
+    bobs->bobs[i].y = y;
+    bobs->bobs[i].ele = ele;
+    bobs->bobs[i].ele_idx = ele_idx;
+    bobs->bobs[i].palette_start = palette_start;
+    bobs->bobs[i].flip = flip;
+    bobs->bobs[i].color = color;
+
+    bobs->count = i + 1;
+}
+
 
 void tr_graphics_init(tr_graphics *graphics, uint8_t *ele_file) {
     graphics->count = (*(uint16_t *)ele_file);
@@ -1293,7 +1356,29 @@ void controlla_sotto_piedi(
 
         return;
     }
+}
 
+void add_vita(tr_game *game, int x) {
+    game->faccia_countdown = 0x96;
+    game->punti_countdown = 0;
+    /* *byte_21ab8 = 0 */
+    game->vita += x;
+}
+
+void add_score(tr_game *game, int x) {
+    game->punti_countdown = 0x96;
+    game->faccia_countdown = 0;
+    /* *byte_21ab8 = 0; */
+
+    game->score += x;
+}
+
+void do_damage(tr_game *game, tr_resources *resources) {
+    if (logi_tab_contains(resources->logi_tab, game->tile_top.value, 0x34)) {
+        add_vita(game, 0x24);
+        /* maybe_hurt_fx(0xffff, 0x0f, 0x0f); */
+        game->palette_mangling = 5;
+    }
 }
 
 void update_pupo(tr_game *game, tr_resources *resources, uint8_t direction, int force_ani) {
@@ -1467,9 +1552,31 @@ void update_pupo(tr_game *game, tr_resources *resources, uint8_t direction, int 
                 }
             }
 
+            do_damage(game, resources);
 
-            // sub_1243d();
+            /*
+            enemy_hit = 1;
 
+            if (!check_pu_for_vita(0) && !check_pu_for_vita(1)) {
+                enemy_hit = 0;
+            }
+
+
+            if (enemy_hit) {
+                *get_new_ani = 1;
+                get_new_frame = 1;
+                *pupo_anim_countdown = 0;
+                *pupo_current_ani = *pupo_current_ani > 0x35 ? 0x51: 0x1c;
+            }
+            else {
+                if (*byte_1f4dc == 4) {
+                    if (set_is_member(*pupo_current_ani, MK_FP(seg002, 0x176d))) {
+                        mangle_pu_gun();
+                        reset_clicked_button();
+                    }
+                }
+            }
+             */
         }
     } while (game->get_new_ani);
 
@@ -1529,6 +1636,20 @@ bool bg_step(tr_bg *bg) {
     return  ret;
 }
 
+void draw_faccia(tr_game *game) {
+    if (game->faccia_countdown == 0) {
+        return;
+    }
+
+    game->faccia_countdown--;
+
+    int y = game->x < 0x64 ? 0xc3 : 0x34;
+    int boh = y - 7 - ((0x800 - game->vita) / 0x31); boh = boh;
+
+    add_bob_per_background(&game->bobs, 0x123, y,      tr_ele_status, 1, 0xfff0, 0, 0);
+    add_bob_per_background(&game->bobs, 0x123, y + 50, tr_ele_status, 0, 0xfff0, 0, 0);
+}
+
 int main() {
     InitWindow(GAME_SIZE_WIDTH  * GAME_SIZE_SCALE,
                GAME_SIZE_HEIGHT * GAME_SIZE_SCALE,
@@ -1572,6 +1693,15 @@ int main() {
     tr_graphics_to_textures(&tr_tex,     &tr_ele,     &palette, 0xc1);
     tr_graphics_to_textures(&ucci0_tex,  &ucci0_ele,  &palette, 0xc1);
     tr_graphics_to_textures(&ucci1_tex,  &ucci1_ele,  &palette, 0xc1);
+
+    ray_textures *ele_textures[tr_ele_count] = {
+        &status_tex,
+        &numeri_tex,
+        &k_tex,
+        &tr_tex,
+        &ucci0_tex,
+        &ucci1_tex,
+    };
 
     ray_bg_renderer bg_renderer;
 
@@ -1644,6 +1774,8 @@ int main() {
             update_pupo(&pupo, &resources, direction, 0x10000 + dbg_ani);
         }
         else {
+            tr_bobs_reset(&pupo.bobs);
+            draw_faccia(&pupo);
             update_pupo(&pupo, &resources, direction, 0);
         }
 
@@ -1666,6 +1798,19 @@ int main() {
             y -= h;
 
             DrawTextureScaled(tr_tex.textures[pupo.ele_idx], x, y, w, h, pupo.flip);
+        }
+
+        for (int i = 0; i < pupo.bobs.count; i++) {
+            tr_bob *bob = &(pupo.bobs.bobs[i]);
+
+            Texture texture = ele_textures[bob->ele]->textures[bob->ele_idx];
+
+            DrawTextureScaled(texture,
+                              bob->x - texture.width / 2,
+                              bob->y - texture.height,
+                              texture.width,
+                              texture.height,
+                              bob->flip);
         }
 
         char suca[0x100];
