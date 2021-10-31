@@ -88,6 +88,7 @@ typedef struct {
     uint8_t *usc;
     uint8_t *prt;
     uint8_t *swi;
+    uint8_t *pn;
 } tr_resources;
 
 typedef enum {
@@ -157,6 +158,8 @@ typedef struct {
     uint16_t score;
     uint8_t  faccia_countdown;
     uint8_t  punti_countdown;
+    uint8_t  stars_countdown;
+    uint8_t  stars_sprite_nr;
 
     uint16_t palette_mangling;
 
@@ -258,6 +261,7 @@ void resources_load(tr_resources *resources) {
     resources->usc         = load_file("GAME_DIR/AR1/FIL/USC");
     resources->prt         = load_file("GAME_DIR/AR1/FIL/PRT");
     resources->swi         = load_file("GAME_DIR/AR1/FIL/SWI");
+    resources->pn          = load_file("GAME_DIR/AR1/FIL/PN");
 }
 
 void palette_load_from_file(tr_palette *palette, tr_palette_file *file) {
@@ -1610,6 +1614,57 @@ void draw_pupi(tr_game *game) {
     add_pupo_to_bobs(game);
 }
 
+void draw_stars_and_check(tr_game *game, tr_resources *resources) {
+    game->stars_countdown--;
+
+    if (game->stars_countdown == 0) {
+        game->stars_sprite_nr++;
+        game->stars_countdown = 4;
+    }
+
+    if (game->stars_sprite_nr >= 0x10) {
+        game->stars_sprite_nr = 0;
+    }
+
+    uint8_t sprite_nr = game->stars_sprite_nr & 3;
+
+    uint8_t *pn = resources->pn;
+
+    while (1) {
+        unsigned int room = from_big_endian(read16_unaligned(pn + 0));
+
+        if (room == 0xffff) {
+            break;
+        }
+
+        uint16_t score = from_big_endian(read16_unaligned(pn + 2));
+        uint16_t x     = from_big_endian(read16_unaligned(pn + 4));
+        uint16_t y     = from_big_endian(read16_unaligned(pn + 6));
+
+        if (room == game->current_room) {
+            add_bob_per_background(&game->bobs,
+                                   x,
+                                   y - 0x1e,
+                                   tr_ele_k,
+                                   sprite_nr,
+                                   0xfff0,
+                                   0,
+                                   0);
+
+            if ((x == game->new_x) &&
+                (y == game->new_y))
+            {
+                add_score(game, score);
+                /* maybe_hurt_fx(0xff96, 0xff96, 0xff96); */
+                game->palette_mangling = 5;
+                *(uint16_t *)(pn) = from_big_endian(0xfffe);
+            }
+        }
+
+        pn = pn + 8;
+    }
+}
+
 void ray_bg_renderer_init(ray_bg_renderer *bg, tr_resources *resources, tr_tilesets *tilesets, tr_palette *palette) {
     bg->resources = resources;
     bg->palette = palette;
@@ -1701,7 +1756,7 @@ void tr_gameloop(tr_game *game, tr_resources *resources, uint8_t direction) {
     tr_bobs_reset(&game->bobs);
     // animate & render background
     draw_punti_faccia_pistolina(game);
-    // draw stars & check
+    draw_stars_and_check(game, resources);
     update_pupo(game, resources, direction, 0);
     // check gsa & exit
     // load & update ucci 0
@@ -1785,7 +1840,7 @@ int main() {
     pupo.flip = 0;
     pupo.countdown = 0;
     pupo.get_new_ani = 1;
-
+    pupo.stars_countdown = 4;
     swi_elements_init(&pupo, &resources);
 
     int rendered_room = 0;
