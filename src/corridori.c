@@ -1670,8 +1670,31 @@ void draw_faccia(tr_game *game) {
     add_bob_per_background(&game->bobs, 0x123, y + 50, tr_ele_status, 0, 0xfff0, 0, 0);
 }
 
+void draw_punti(tr_game *game) {
+    if (game->punti_countdown == 0) {
+        return;
+    }
+
+    game->punti_countdown--;
+
+    char punti[0x20];
+    int len = snprintf(punti, sizeof(punti), "%d", game->score);
+
+    for (int i = len - 1; i >= 0; i--) {
+        add_bob_per_background(&game->bobs,
+                               319 - (len << 4) - 8 + (i << 4),
+                               game->y > 0x64 ? 0x1a : 0x3c,
+                               tr_ele_numeri,
+                               punti[i] - '0',
+                               0xfff0,
+                               0,
+                               0);
+    }
+}
+
 void draw_punti_faccia_pistolina(tr_game *game) {
     draw_faccia(game);
+    draw_punti(game);
 }
 
 void tr_gameloop(tr_game *game, tr_resources *resources, uint8_t direction) {
