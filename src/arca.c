@@ -129,6 +129,11 @@ char far* far* sostani_file;
 char far* counter_caduta;
 char far* has_to_adjust_ani;
 
+char far* star_countdown;
+char far* star_sprite_nr;
+unsigned char far* far* pn_file_content;
+unsigned char far* far* far* k_ele_image_content;
+
 
 /* last parameter pushed is last in arg list */
 typedef void (far pascal *render_ele_t) (int x, int y, void far* ele, int boh);
@@ -568,16 +573,11 @@ void far pascal add_bob_per_background(
     int flip,
     int color
 ) {
-    int i;
-
-    ds_trampoline_start();
-
-    i = *bobs_count;
+    int i = *bobs_count;
     *bobs_count = i + 1;
 
     if (*bobs_count > 0x32) {
         /* bobs overflow error */
-        ds_trampoline_end();
         return;
     }
 
@@ -587,6 +587,26 @@ void far pascal add_bob_per_background(
     bobs_palette_start[i] = palette_start;
     bobs_flip[i] = flip;
     bobs_color[i] = color;
+}
+
+void far pascal add_bob_per_background_w(
+    int x,
+    int y,
+    void far* ele_item,
+    int palette_start,
+    int flip,
+    int color
+) {
+    ds_trampoline_start();
+
+    add_bob_per_background(
+        x,
+        y,
+        ele_item,
+        palette_start,
+        flip,
+        color
+    );
 
     ds_trampoline_end();
 }
@@ -999,13 +1019,14 @@ void far pascal mouse_pointer_draw() {
 
             /* todo: override cursor based on set stru_13452 at seg003:0202 */
 
-            x = *mouse_pointer_x;
-            y = *mouse_pointer_y;
-            ele = mouse_pointer_ele_1[cursor - 1];
-
-            ds_trampoline_end();
-            add_bob_per_background(x + 8, y + 10, ele, 0xffe1, 0, 0xc7);
-            ds_trampoline_start();
+            add_bob_per_background(
+                *mouse_pointer_x + 8,
+                *mouse_pointer_y + 10,
+                mouse_pointer_ele_1[cursor - 1],
+                0xffe1,
+                0,
+                0xc7
+            );
         }
     }
 
@@ -1167,12 +1188,8 @@ void far pascal draw_faccia() {
         bg_dump(20, 108, suca);
     }
 
-    { 
-        ds_trampoline_end();
-        add_bob_per_background(0x123, y, ele1, 0xfff0, 0, 0);
-        add_bob_per_background(0x123, y + 50, ele0, 0xfff0, 0, boh);
-        ds_trampoline_start();
-    }
+    add_bob_per_background(0x123, y, ele1, 0xfff0, 0, 0);
+    add_bob_per_background(0x123, y + 50, ele0, 0xfff0, 0, boh);
 
     ds_trampoline_end();
 }
@@ -2128,22 +2145,30 @@ void far pascal add_vita(int x) {
     *faccia_countdown = 0x96;
     *punti_countdown = 0;
     /* *byte_21ab8 = 0 */
-    *vita += x;
+    *vita = *vita + x;
+}
+
+void far pascal add_score(int x) {
+    *punti_countdown = 0x96;
+    *faccia_countdown = 0;
+    /* *byte_21ab8 = 0; */
+
+    *punti = *punti + x;
+}
+
+void far pascal maybe_hurt_fx(unsigned int a, unsigned int b, unsigned int c) {
+    void (far pascal *maybe_hurt)(unsigned int, unsigned int, unsigned int)
+        = MK_FP(seg017, 0x0640);
+
+    ds_trampoline_end();
+    maybe_hurt(a, b, c);
+    ds_trampoline_start();
 }
 
 void far pascal do_damage() {
     if (logi_tab_contains(*pupo_tile_top, 0x34)) {
         add_vita(0x24);
-       
-        {
-            void (far pascal *maybe_hurt_fx)(unsigned int, unsigned char, unsigned char)
-                = MK_FP(seg017, 0x0640);
-
-            ds_trampoline_end();
-            maybe_hurt_fx(0xffff, 0x0f, 0x0f);
-            ds_trampoline_start();
-        }
-
+        maybe_hurt_fx(0xffff, 0x0f, 0x0f);
         *palette_mangling_counter = 5; 
     }
 }
@@ -2310,18 +2335,19 @@ void far pascal add_enemy_to_bobs(int enemy_id) {
         struct pu_item_t far* pu_item = (struct pu_item_t far*)pu;
 
         char sprite_nr = *(pu + 20);
-        char far* ele = (*ucci_image_content)[sprite_nr];
-
-        int  x = pu_item->x1 + pu_item->x2;
-        int  y = pu_item->y1 + pu_item->y2;
-        char flip = enemy_flip[enemy_id];
+        int x = pu_item->x1 + pu_item->x2;
 
         /* check on ucci_image_content should not be here, but for now
         it seems i need it */
         if (*ucci_image_content && (!pu_item->bool1 || x < 320)) {
-            ds_trampoline_end();
-            add_bob_per_background(x, y, ele, 0xffd1, flip, 0);
-            ds_trampoline_start();
+            add_bob_per_background(
+                x,
+                pu_item->y1 + pu_item->y2,
+                (*ucci_image_content)[sprite_nr],
+                0xffd1,
+                enemy_flip[enemy_id],
+                0
+            );
         }
     }
 
@@ -2329,23 +2355,16 @@ void far pascal add_enemy_to_bobs(int enemy_id) {
 }
 
 void far pascal add_pupo_to_bobs() {
-    int x;
-    int y;
-    void far* ele;
-    int flip;
-    int color;
-
     ds_trampoline_start();
 
-    x = *pupo_x + *pupo_x_delta;
-    y = *pupo_y + *pupo_y_delta;
-    ele = (*tr_ele_file)[*pupo_current_frame];
-    flip = *pupo_flip;
-    color = *pupo_palette_override;
-
-    ds_trampoline_end();
-    add_bob_per_background(x, y, ele, 0xffc1, flip, color);
-    ds_trampoline_start();
+    add_bob_per_background(
+        *pupo_x + *pupo_x_delta,
+        *pupo_y + *pupo_y_delta,
+        (*tr_ele_file)[*pupo_current_frame],
+        0xffc1,
+        *pupo_flip,
+        *pupo_palette_override
+    );
 
     *bob_to_hit_mouse_3 = *bobs_count;
     
@@ -2358,6 +2377,69 @@ void far pascal draw_pupi() {
     add_enemy_to_bobs(0);
     add_enemy_to_bobs(1);
     add_pupo_to_bobs();
+}
+
+void far pascal draw_stars_and_check() {
+    ds_trampoline_start();
+
+    {
+        unsigned char sprite_nr;
+        unsigned char far* pn;
+
+        *star_countdown = *star_countdown - 1;
+
+        if (*star_countdown == 0) {
+            *star_sprite_nr = *star_sprite_nr + 1;
+            *star_countdown = 4;
+        }
+
+        if (*star_sprite_nr >= 0x10) {
+            *star_sprite_nr = 0;
+        }
+
+        sprite_nr = *star_sprite_nr & 3;
+
+        pn = *pn_file_content;
+
+        while (1) {
+            unsigned int room  = from_big_endian(*(unsigned int far*)(pn + 0));
+
+            if (room == 0xffff) {
+                break;
+            }
+
+            {
+            unsigned int score = from_big_endian(*(unsigned int far*)(pn + 2));
+            unsigned int x     = from_big_endian(*(unsigned int far*)(pn + 4));
+            unsigned int y     = from_big_endian(*(unsigned int far*)(pn + 6));
+
+            if (room == *current_room_number) {
+                add_bob_per_background(
+                    x,
+                    y - 0x1e,
+                    (*k_ele_image_content)[sprite_nr],
+                    0xfff0,
+                    0,
+                    0
+                );
+
+                if ((x == *pupo_new_x) &&
+                    (y == *pupo_new_y))
+                {
+                    add_score(score);
+                    maybe_hurt_fx(0xff96, 0xff96, 0xff96);
+                    *palette_mangling_counter = 5;
+                    *(unsigned int far*)(pn) = from_big_endian(0xfffe);
+                }
+            }
+
+            pn = pn + 8;
+            }
+        }
+
+    }
+
+    ds_trampoline_end();
 }
 
 void init_pointers() {
@@ -2462,6 +2544,10 @@ void init_pointers() {
     byte_1f4e8               = MK_FP(dseg, 0x0958);
     byte_1f4e9               = MK_FP(dseg, 0x0959);
     has_to_adjust_ani        = MK_FP(dseg, 0x0972);
+    star_countdown           = MK_FP(dseg, 0x2a82);
+    star_sprite_nr           = MK_FP(dseg, 0x2a83);
+    pn_file_content          = MK_FP(dseg, 0x2a7e);
+    k_ele_image_content      = MK_FP(dseg, 0x2a84);
 
 
     /* functions */
@@ -2486,8 +2572,10 @@ void init_pointers() {
     render_ele                 = MK_FP(seg015, 0x1b8e);
     render_ele_flipped         = MK_FP(seg015, 0x1bc3);
     reset_clicked_button       = MK_FP(seg004, 0x0000);
+    
 
     patch_far_jmp(MK_FP(seg002, 0x0000), &capisci_dove_muovere_il_pupo_key); 
+    patch_far_jmp(MK_FP(seg002, 0x022a), &cambia_il_salto);
     patch_far_jmp(MK_FP(seg002, 0x178d), &update_pupo);
     patch_far_jmp(MK_FP(seg002, 0x1c2c), &draw_pupi);
     patch_far_jmp(MK_FP(seg003, 0x016e), &mouse_check_buttons);
@@ -2506,12 +2594,13 @@ void init_pointers() {
     patch_far_jmp(MK_FP(seg013, 0x0602), &screen_to_tile_y);
     patch_far_jmp(MK_FP(seg013, 0x061e), &get_tile_type_w);
     patch_far_jmp(MK_FP(seg013, 0x070a), &bobs_get_count);
-    patch_far_jmp(MK_FP(seg013, 0x071d), &add_bob_per_background);
+    patch_far_jmp(MK_FP(seg013, 0x071d), &add_bob_per_background_w);
     patch_far_jmp(MK_FP(seg013, 0x0b64), &render_bobs_in_background);
     patch_far_jmp(MK_FP(seg015, 0x0c23), &render_pause_box);
     patch_far_jmp(MK_FP(seg015, 0x0eca), &render_help_string);
-    patch_far_jmp(MK_FP(seg002, 0x022a), &cambia_il_salto);
+    patch_far_jmp(MK_FP(seg005, 0x0000), &draw_stars_and_check);
 }
+
 
 void main(int argc, char *argv[]) {
     ds_trampoline_init();
