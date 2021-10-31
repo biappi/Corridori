@@ -89,6 +89,7 @@ typedef struct {
     uint8_t *prt;
     uint8_t *swi;
     uint8_t *pn;
+    uint8_t *ptx;
 } tr_resources;
 
 typedef enum {
@@ -262,6 +263,7 @@ void resources_load(tr_resources *resources) {
     resources->prt         = load_file("GAME_DIR/AR1/FIL/PRT");
     resources->swi         = load_file("GAME_DIR/AR1/FIL/SWI");
     resources->pn          = load_file("GAME_DIR/AR1/FIL/PN");
+    resources->ptx         = load_file("GAME_DIR/AR1/FIL/PTX");
 }
 
 void palette_load_from_file(tr_palette *palette, tr_palette_file *file) {
@@ -1768,6 +1770,50 @@ void tr_gameloop(tr_game *game, tr_resources *resources, uint8_t direction) {
     // reset bobs
 }
 
+void get_explanation(tr_game *game, tr_resources *resources, uint16_t *out_line1, uint16_t *out_line2) {
+    uint8_t  *ptx = resources->ptx;
+    uint16_t count = from_big_endian(read16_unaligned(ptx + 0x10));
+
+    ptx += 0x12;
+
+    *out_line1 = 0xffff;
+    *out_line2 = 0xffff;
+
+    for (int i = 0; i < count; i++) {
+        uint16_t room  = from_big_endian(read16_unaligned(ptx)); ptx += 2;
+        uint16_t min_x = from_big_endian(read16_unaligned(ptx)); ptx += 2;
+        uint16_t min_y = from_big_endian(read16_unaligned(ptx)); ptx += 2;
+        uint16_t max_x = from_big_endian(read16_unaligned(ptx)); ptx += 2;
+        uint16_t max_y = from_big_endian(read16_unaligned(ptx)); ptx += 2;
+        uint16_t items = from_big_endian(read16_unaligned(ptx)); ptx += 2;
+
+        if ((game->current_room == room) &&
+            (game->x >= min_x) &&
+            (game->x <= max_x) &&
+            (game->y >= min_y) &&
+            (game->y <= max_y))
+        {
+            for (int k = 0; k < items; k++) {
+                uint8_t *item  = ptx;
+                uint16_t swi   = from_big_endian(read16_unaligned(item)); item += 2;
+                uint16_t line1 = from_big_endian(read16_unaligned(item)); item += 2;
+                uint16_t line2 = from_big_endian(read16_unaligned(item)); item += 2;
+
+                if (swi == 0xffff) {
+                    *out_line1 = line1;
+                    *out_line2 = line2;
+                }
+                else if (game->swivar2[swi]) {
+                    *out_line1 = line1;
+                    *out_line2 = line2;
+                }
+            }
+        }
+
+        ptx += 5 /* items */ * 6 /* size */;
+    }
+}
+
 int main() {
     InitWindow(GAME_SIZE_WIDTH  * GAME_SIZE_SCALE,
                GAME_SIZE_HEIGHT * GAME_SIZE_SCALE,
@@ -1945,6 +1991,16 @@ int main() {
             DrawText(suca, 20, 140, 20, GREEN);
         }
         }
+
+        uint16_t line1, line2;
+        get_explanation(&pupo, &resources, &line1, &line2);
+
+        sprintf(suca, "line1:  %2x", line1);
+        DrawText(suca, 20, 200, 20, GREEN);
+
+        sprintf(suca, "line2:  %2x", line2);
+        DrawText(suca, 20, 220, 20, GREEN);
+
         EndDrawing();
     }
 
