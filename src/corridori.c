@@ -359,7 +359,10 @@ void room_set_tile_id_tile_x_tile_y(uint8_t *room_file, int room, int x, int y, 
 
 tr_tiletype room_get_tile_type(uint8_t *room_file, int room, int pos) {
     int offset = (room * 0x04f4) + 0x0364 + pos;
-    return (tr_tiletype) { *(room_file + offset) };
+    uint16_t value = (pos < GAME_TILES_WIDTH * GAME_TILES_HEIGHT)
+        ? *(room_file + offset)
+        : 0xfc;
+    return (tr_tiletype) { value };
 }
 
 tr_tiletype room_get_tile_type_xy(uint8_t *room_file, int room, int x, int y) {
@@ -1093,6 +1096,27 @@ void cambia_il_salto(tr_resources *resources, uint8_t *ani, tr_tiletype top) {
     // printf("\n");
 }
 
+static uint8_t stru_116f1[] = {
+    0x81, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+static uint8_t stru_11dd9[] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+static uint8_t stru_11df9[] = {
+    0x00, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x80, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
 void controlla_sotto_piedi(
     tr_game *game,
     tr_resources *resources,
@@ -1109,31 +1133,146 @@ void controlla_sotto_piedi(
     int  var2 = 0;
     tr_tiletype tile_type;
 
-#if 0
-    if (*byte_1f4e6 == 0 && top == 0xfc) {
-        /* loc_11e91 */
-        vga_dump(10, 10, "NOPE 1"); while (1);
+    if (game->byte_1f4e6 == 0 && top.value == 0xfc) {
+        game->byte_1f4e6 = 7;
+        tile_type = room_get_tile_type_xy(resources->room_roe,
+                                          game->current_room,
+                                          game->x,
+                                          game->y - 0x0a);
+
+
+        if (tile_type.value != 0) {
+            /* game->pupo_bob_palette_override = 0xc7 - game->palette_delta */
+        }
+
+        *ani_ptr = direction ? 0x67 : 0x32;
+        game->counter_caduta = game->counter_caduta + 1;
         return;
     }
-#endif
 
     if (logi_tab_contains(resources->logi_tab, bottom.value, 0x25)) {
+        *ani_ptr = direction ? 0x67 : 0x32;
+        game->counter_caduta = game->counter_caduta + 1;
+        return;
+    }
+
+    if (game->byte_1f4e6 > 0) {
         /* loc_11ea8 */
+        bool facing_right = direction;
+
         game->byte_1f4e6 = game->byte_1f4e6 - 1;
 
-#if 0
-        if ((pupo->byte_1f4e6 == 0) &&
-            (*has_to_adjust_ani != 0))
+        if (game->byte_1f4e6 == 0)
+            /* || (*has_to_adjust_ani != 0))*/
         {
-            void (far pascal *reset_pupo_caduta)() = MK_FP(seg002, 0x7b1);
+            if ((game->to_set_x & 0xf) != 8) {
+                game->to_set_x = 8;
+                game->to_set_y = 0xb4;
+                facing_right = true;
+            }
+            else if ((game->to_set_y % 0xa) != 0) {
+                game->to_set_y = 0xbe;
+            }
 
-            ds_trampoline_end();
-            reset_pupo_caduta();
-            ds_trampoline_start();
+            game->x = game->to_set_x;
+            game->y = game->to_set_y;
+
+            int x_step = facing_right ? -0x10 : 0x10;
+            int y_step = -0x0a;
+
+            game->tile_top = room_get_tile_type_xy(resources->room_roe,
+                                                   game->current_room,
+                                                   game->x,
+                                                   game->y);
+
+            game->tile_bottom = room_get_tile_type_xy(resources->room_roe,
+                                                      game->current_room,
+                                                      game->x,
+                                                      game->y + 10);
+
+            while ((game->y <= 190) &&
+                   (logi_tab_contains(resources->logi_tab, game->tile_bottom.value, 0x25) ||
+                    set_is_member(game->tile_top.value, stru_116f1)))
+            {
+                while ((game->x >= 8) &&
+                       (game->x <= 312) &&
+                       (logi_tab_contains(resources->logi_tab, game->tile_bottom.value, 0x25) ||
+                        set_is_member(game->tile_top.value, stru_116f1)))
+                {
+                    game->x += x_step;
+
+                    game->tile_top = room_get_tile_type_xy(resources->room_roe,
+                                                           game->current_room,
+                                                           game->x,
+                                                           game->y);
+
+                    game->tile_bottom = room_get_tile_type_xy(resources->room_roe,
+                                                              game->current_room,
+                                                              game->x,
+                                                              game->y + 10);
+                }
+
+                if (logi_tab_contains(resources->logi_tab, game->tile_bottom.value, 0x25) ||
+                    set_is_member(game->tile_top.value, stru_116f1))
+                {
+                    game->x = game->to_set_x;
+                }
+
+                while ((game->x >= 8) &&
+                       (game->x <= 312) &&
+                       (logi_tab_contains(resources->logi_tab, game->tile_bottom.value, 0x25) ||
+                        set_is_member(game->tile_top.value, stru_116f1)))
+                {
+                    game->x += x_step;
+
+                    game->tile_top = room_get_tile_type_xy(resources->room_roe,
+                                                           game->current_room,
+                                                           game->x,
+                                                           game->y);
+
+                    game->tile_bottom = room_get_tile_type_xy(resources->room_roe,
+                                                              game->current_room,
+                                                              game->x,
+                                                              game->y + 10);
+                }
+
+                if (logi_tab_contains(resources->logi_tab, game->tile_bottom.value, 0x25) ||
+                    set_is_member(game->tile_top.value, stru_116f1))
+                {
+                    game->x = game->to_set_x;
+                    game->y += y_step;
+
+                    game->tile_top = room_get_tile_type_xy(resources->room_roe,
+                                                           game->current_room,
+                                                           game->x,
+                                                           game->y);
+
+                    game->tile_bottom = room_get_tile_type_xy(resources->room_roe,
+                                                              game->current_room,
+                                                              game->x,
+                                                              game->y + 10);
+
+                    if (game->y <= 0xa) {
+                        game->y = game->to_set_y;
+                        y_step = 0xa;
+                    }
+                }
+            }
+
+            game->new_x = game->to_set_x = game->x;
+            game->new_y = game->to_set_y = game->y;
+
+            /* game->bob_bg_palette_override = 0; */
+
+            game->frame_nr = 0;
+            game->ani = facing_right ? 0x38 : 0x03;
+            game->countdown = 0;
+            game->get_new_ani = 0;
+            game->disable_ani = 1;
+            game->byte_1f4e6 = 0;
+            game->counter_caduta = 0;
         }
-        else
-#endif
-        {
+        else {
             *ani_ptr = direction ? 0x67 : 0x32;
             game->counter_caduta = game->counter_caduta + 1;
         }
@@ -1141,19 +1280,17 @@ void controlla_sotto_piedi(
         return;
     }
 
-#if 0
-    if (pupo->byte_1f4e6 > 0) {
+    if (game->byte_1f4e6 > 0) {
         /* loc_11ecf */
-        vga_dump(10, 10, "NOPE 3"); while (1);
+        printf("NOPE 3\n");
         return;
     }
 
-    if (top == 9) {
+    if (top.value == 9) {
         /* fai cade */
-        vga_dump(10, 10, "NOPE 4"); while (1);
+        printf("NOPE 4\n");
         return;
     }
-#endif
 
     if (top.value == 0) {
         *ani_ptr = direction ? 0x67 : 0x32;
@@ -1175,9 +1312,9 @@ void controlla_sotto_piedi(
 #if 0
     if (pupo->byte_1f4e8 < 0) {
         pupo->byte_1f4e8 = pupo->byte_1f4e8 - 1;
-        if (set_is_member(*ani, MK_FP(seg002, 0x0E79))) {
+        if (set_is_member(*ani_ptr, MK_FP(seg002, 0x0E79))) {
             /* set ani 38_3 */
-            vga_dump(10, 10, "NOPE 99"); while (1);
+            printf("NOPE 99\n");
             var2 = 1;
         }
     }
@@ -1186,9 +1323,9 @@ void controlla_sotto_piedi(
         if (*byte_1f4e9 > 0) {
             *byte_1f4e9 = *byte_1f4e9 - 1;
         }
-        if (set_is_member(*ani, MK_FP(seg002, 0x0e99))) {
+        if (set_is_member(*ani_ptr, MK_FP(seg002, 0x0e99))) {
             /* set ani 38_3 */
-            vga_dump(10, 10, "NOPE 66"); while (1);
+            printf("NOPE 66\n");
             var2 = 1;
         }
     }
@@ -1200,65 +1337,63 @@ void controlla_sotto_piedi(
         cambia_il_salto(resources, ani_ptr, top);
     }
 
-#if 0
-    if ((*ani == 0x12) || (*ani == 0x13)) {
+    if ((*ani_ptr == 0x12) || (*ani_ptr == 0x13)) {
         /* sub_11a14 */
-        vga_dump(10, 10, "NOPE 6"); while (1);
+        printf("NOPE 6\n");
     }
 
-    if ((*ani == 0x47) || (*ani == 0x48)) {
+    if ((*ani_ptr == 0x47) || (*ani_ptr == 0x48)) {
         /* sub_11a3d */
-        vga_dump(10, 10, "NOPE 7"); while (1);
+        printf("NOPE 7\n");
     }
 
-    if (set_is_member(*ani, MK_FP(seg002, 0x0e79))) {
+    if (set_is_member(*ani_ptr, stru_11dd9)) {
         /* loc_11ff6 */
-        vga_dump(10, 10, "NOPE 8"); while (1);
+        printf("NOPE 8\n");
         return;
     }
 
-    if (set_is_member(*ani, MK_FP(seg002, 0x0e99))) {
+    if (set_is_member(*ani_ptr, stru_11df9)) {
         /* loc_12011 */
-        vga_dump(10, 10, "NOPE 9"); while (1);
+        printf("NOPE 9\n");
         return;
     }
 
-    if (*ani == 0x14) {
+    if (*ani_ptr == 0x14) {
         /* loc_12027 */
-        vga_dump(10, 10, "NOPE 10"); while (1);
+        printf("NOPE 10\n");
         return;
     }
 
-    if (*ani == 0x49) {
+    if (*ani_ptr == 0x49) {
         /* loc_12036 */
-        vga_dump(10, 10, "NOPE 11"); while (1);
+        printf("NOPE 11\n");
         return;
     }
 
-    if (*ani == 0x8) {
+    if (*ani_ptr == 0x8) {
         /* loc_12045 */
-        vga_dump(10, 10, "NOPE 12"); while (1);
+        printf("NOPE 12\n");
         return;
     }
 
-    if (*ani == 0x9) {
+    if (*ani_ptr == 0x9) {
         /* loc_12054 */
-        vga_dump(10, 10, "NOPE 13"); while (1);
+        printf("NOPE 13\n");
         return;
     }
 
-    if (*ani == 0x3d) {
+    if (*ani_ptr == 0x3d) {
         /* loc_12063 */
-        vga_dump(10, 10, "NOPE 14"); while (1);
+        printf("NOPE 14\n");
         return;
     }
 
-    if (*ani == 0x3e) {
+    if (*ani_ptr == 0x3e) {
         /* loc_12072 */
-        vga_dump(10, 10, "NOPE 15"); while (1);
+        printf("NOPE 15\n");
         return;
     }
-#endif
 
 
     if (*ani_ptr == 0x10) {
@@ -1466,7 +1601,7 @@ void update_pupo(tr_game *game, tr_resources *resources, uint8_t direction, int 
 
         if (game->countdown == 0) {
             if (get_new_frame) {
-                //*byte_1f4dc = 0;
+                game->byte_1f4dc = 0;
 
                 uint8_t *off = resources->frames_tab + (game->ani * 2);
                 game->pupo_offset = from_big_endian(*(uint16_t *)(off));
@@ -1512,15 +1647,14 @@ void update_pupo(tr_game *game, tr_resources *resources, uint8_t direction, int 
                     (game->to_set_x > 319))
                 {
                     game->to_set_x = game->x;
-                    game->to_set_x = game->y;
+                    game->to_set_y = game->y;
                 }
             }
 
-            game->byte_1f4dc = game->byte_1f4dc + 1;
+            game->byte_1f4dc++;
 
             if ((game->tile_top.value & 0xf0) == 0xd0)
             {
-
                 char type = (game->tile_top.value & 0x0f) + 0xc;
 
                 do_tiletype_actions(game, resources, type);
@@ -1961,6 +2095,11 @@ int main() {
             tr_game_reset(&game, &resources);
         }
 
+        if (IsKeyPressed(KEY_BACKSPACE)) {
+            game.x = game.to_set_x;
+            game.y = game.to_set_y;
+        }
+
         if (IsKeyPressed(KEY_PAGE_DOWN)) {
             game.current_room = game.current_room + 1;
         }
@@ -2029,22 +2168,27 @@ int main() {
             DrawTileTypes(&resources, game.current_room);
 
         if (show_anidbg) {
+            int YYY = 0;
+
             sprintf(suca, "dir:   %2x", direction);
-            DrawText(suca, 20,  0, 20, GREEN);
+            DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
             sprintf(suca, "ani:   %2x", game.ani);
-            DrawText(suca, 20, 20, 20, GREEN);
+            DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
             sprintf(suca, "frame: %2x", game.frame_nr);
-            DrawText(suca, 20, 40, 20, GREEN);
+            DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
             sprintf(suca, "ctd:   %2x", game.countdown);
-            DrawText(suca, 20, 60, 20, GREEN);
-            sprintf(suca, "pupo:  %4d %4d", game.x, game.y);
-            DrawText(suca, 20, 80, 20, GREEN);
+            DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
             sprintf(suca, "pupo:  %4x %4x", game.x, game.y);
-            DrawText(suca, 20, 100, 20, GREEN);
-            sprintf(suca, "offs:  %4x", game.pupo_offset);
-            DrawText(suca, 20, 120, 20, GREEN);
+            DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
             sprintf(suca, "room:  %2x", game.current_room);
-            DrawText(suca, 20, 140, 20, GREEN);
+            DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
+            sprintf(suca, "to_set_x:  %2x", game.to_set_x);
+            DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
+            sprintf(suca, "to_set_y:  %2x", game.to_set_y);
+            DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
+            sprintf(suca, "count caduta:  %2x", game.counter_caduta);
+            DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
+
         }
         }
 
