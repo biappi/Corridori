@@ -133,6 +133,47 @@ char far* star_countdown;
 char far* star_sprite_nr;
 unsigned char far* far* pn_file_content;
 unsigned char far* far* far* k_ele_image_content;
+unsigned char far* wanted_ucci_nr;
+unsigned char far* current_ucci_nr;
+unsigned char far* byte_2197a;
+unsigned char far* ucci_in_use;
+
+
+struct pu_item_t {
+    int  x1;
+    int  y1;
+    int  x2;
+    int  y2;
+
+    char ignored1;
+    char ignored2;
+    char vita;
+    char ignored3;
+
+    char boh1;
+    char boh2;
+    char bool1;
+    char maybe_item_type;
+    int  copy_x1;
+    int  copy_y1;
+
+    char sprite_nr;
+    char ignored4;
+    char ignored5;
+    char ignored6;
+    char wanted_ucci_nr;
+    char unk26;
+    int  unk27;
+};
+
+
+struct pu_item_t far* pu_item_get(int enemy_id) {
+    int offset = (*current_room_number * 2 + enemy_id) * 0x1c;
+    unsigned int ptr_off = *pu_file_buffer_off + offset;
+    char far* pu = (char far*)MK_FP(*pu_file_buffer_seg, ptr_off);
+    return (struct pu_item_t far*)pu;
+}
+
 
 
 /* last parameter pushed is last in arg list */
@@ -1036,6 +1077,9 @@ void far pascal mouse_pointer_draw() {
 
 void far pascal tiletype_action_8(void far* swi_ptr, int far* idx, int far* top) {
 
+    top = top;
+    idx = idx;
+
     ds_trampoline_start();
     {
 
@@ -1098,8 +1142,6 @@ void far pascal do_tiletype_actions_inner(unsigned int boh) {
     void far* ptr2;
     int type;
 
-    int YYY = 0;
-
     boh = boh & 0xff;
 
     idx = boh == 0xff ? 0    : boh;
@@ -1133,8 +1175,6 @@ void far pascal do_tiletype_actions_inner(unsigned int boh) {
 }
 
 void far pascal do_tiletype_actions(char boh) {
-    int YYY = 90;
-
     if (boh > 0x3f)
         return;
 
@@ -1293,6 +1333,8 @@ void far pascal controlla_sotto_piedi(
     unsigned char top_copy = top; /* stack corruption?!?! */
 
         char *suca = "xxxx";
+
+    goto original;
 
         format_word(suca, top);
         vga_dump(10, 18, suca);
@@ -1554,8 +1596,6 @@ void far pascal controlla_sotto_piedi(
 
 
 original:
-    return;
-
 
     {
         void (far pascal *controlla_sotto_piedi)(void far* ani, int top, int bottom, int x, int y, int new_x, int new_y)
@@ -1622,6 +1662,8 @@ void far pascal cosa_ho_in_fronte(char far* ani, int x, int y, int nx, int ny) {
 
     int incr;
     unsigned char oldani;
+
+    ny = ny;
 
     do {
         changed = 0;
@@ -1714,20 +1756,12 @@ void far update_pupo_1() {
             offset_from_ani(*pupo_current_ani, *pupo_x, *pupo_y, pupo_new_x, pupo_new_y);
 
             {
-                void (far pascal *cosa_ho_di_fronte)(char far* ani, int x, int y, int nx, int ny)
-                    = MK_FP(seg002, 0x114c);
-
                 char __ani = *pupo_current_ani;
                 int NX = *pupo_new_x;
                 int NY = *pupo_new_y;
                 int X = *pupo_x;
                 int Y = *pupo_y;
 
-/*
-                ds_trampoline_end();
-                cosa_ho_di_fronte(&__ani, X, Y, NX, NY);
-                ds_trampoline_start();
-*/
                 cosa_ho_in_fronte(&__ani, X, Y, NX, NY);
 
                 *pupo_current_ani = __ani;
@@ -1890,17 +1924,67 @@ void far pascal get_room_from_files(int room) {
     ds_trampoline_start();
 }
 
+static unsigned char wanted_ucci[2] = { 0xff, 0xff };
+
 void far pascal check_and_load_ucci() {
-    void (far pascal *impl)() = MK_FP(seg011, 0x311);
+    unsigned char ucci_slot;
 
-    ds_trampoline_end();
-    impl();
-    ds_trampoline_start();
+    for (ucci_slot = 0; ucci_slot < 2; ucci_slot++) {
+        struct pu_item_t far* pu_item = pu_item_get(ucci_slot);
+
+        if ((pu_item->boh1 > 0) ||
+            (pu_item->bool1) ||
+            (pu_item->x1 <= 0x140))
+        {
+            ucci_in_use[ucci_slot] = 1;
+
+            if (pu_item->maybe_item_type == 0) {
+                byte_2197a[ucci_slot] = 0;
+
+                if (ucci_slot == 0) {
+                    pu_item->maybe_item_type = 1;
+                }
+                else {
+                    pu_item->maybe_item_type = 0;
+                }
+
+                wanted_ucci[ucci_slot] = pu_item->wanted_ucci_nr;
+            }
+        }
+        else {
+            wanted_ucci[ucci_slot] = 0xff;
+        }
+    }
+
+    if (wanted_ucci[0] == 0xff) {
+        if (wanted_ucci[1] != 0xff) {
+            wanted_ucci[0] = wanted_ucci[1];
+        }
+    }
+
+    *wanted_ucci_nr = wanted_ucci[0];
+
+    if (*current_ucci_nr != *wanted_ucci_nr) {
+        if (*wanted_ucci_nr != 0xff) {
+            void (far pascal *load_ucci_file)(unsigned char nr)
+                = MK_FP(seg011, 0x01d6);
+            unsigned char nr = *wanted_ucci_nr;
+
+            ds_trampoline_end();
+            load_ucci_file(nr);
+            ds_trampoline_start();
+        }
+    }
+
+    if (*wanted_ucci_nr != 0xff) {
+        void (far pascal *install_ucci_palette)()
+            = MK_FP(seg011, 0x018c);
+
+        ds_trampoline_end();
+        install_ucci_palette();
+        ds_trampoline_start();
+    }
 }
-
-
-int YYY = 0;
-
 
 void far pascal change_room(int room_to_change) {
     char previous_room;
@@ -1963,22 +2047,9 @@ void far pascal change_room(int room_to_change) {
                     int y_from = from_big_endian(*(int far*)(current_usc + 4));
                     int y_to   = from_big_endian(*(int far*)(current_usc + 2));
 
-                    vga_dump_word(&YYY, "from", previous_room);
-                    vga_dump_word(&YYY, "to", room_to_change);
-
-
                     if (y_from == *pupo_new_y) {
                         *pupo_new_y = y_to;
                         *pupo_y = y_to;
-
-                        vga_dump_word(&YYY, "oldY", y_from);
-                        vga_dump_word(&YYY, "newY", y_to);
-
-                        wait_vsync();
-                        wait_vsync();
-                        wait_vsync();
-                        wait_vsync();
-
                         break;
                     }
                 }
@@ -2306,35 +2377,11 @@ void far pascal update_pupo() {
 }
 
 void far pascal add_enemy_to_bobs(int enemy_id) {
-    struct pu_item_t {
-        int  x1;
-        int  y1;
-        int  x2;
-        int  y2;
-        char ignored1;
-        char ignored2;
-        int  boh1;
-        char bool1;
-        char maybe_item_type;
-        int  copy_x1;
-        int  copy_y1;
-        char sprite_nr;
-        char ignored3;
-        char ignored4;
-        char ignored5;
-        int  wanted_ucci_nr;
-        int  unk27;
-    };
-
     ds_trampoline_start();
 
     {
-        int offset = (*current_room_number * 2 + enemy_id) * 0x1c;
-        unsigned int ptr_off = *pu_file_buffer_off + offset;
-        char far* pu = (char far*)MK_FP(*pu_file_buffer_seg, ptr_off);
-        struct pu_item_t far* pu_item = (struct pu_item_t far*)pu;
+        struct pu_item_t far* pu_item = pu_item_get(enemy_id);
 
-        char sprite_nr = *(pu + 20);
         int x = pu_item->x1 + pu_item->x2;
 
         /* check on ucci_image_content should not be here, but for now
@@ -2343,7 +2390,7 @@ void far pascal add_enemy_to_bobs(int enemy_id) {
             add_bob_per_background(
                 x,
                 pu_item->y1 + pu_item->y2,
-                (*ucci_image_content)[sprite_nr],
+                (*ucci_image_content)[pu_item->sprite_nr],
                 0xffd1,
                 enemy_flip[enemy_id],
                 0
@@ -2548,6 +2595,11 @@ void init_pointers() {
     star_sprite_nr           = MK_FP(dseg, 0x2a83);
     pn_file_content          = MK_FP(dseg, 0x2a7e);
     k_ele_image_content      = MK_FP(dseg, 0x2a84);
+    wanted_ucci_nr           = MK_FP(dseg, 0x2dec);
+    current_ucci_nr          = MK_FP(dseg, 0x2ded);
+    byte_2197a               = MK_FP(dseg, 0x2dea);
+    ucci_in_use              = MK_FP(dseg, 0x2de6);
+
 
 
     /* functions */
