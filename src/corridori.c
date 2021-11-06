@@ -1,8 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 
 #include "raylib.h"
+#ifndef PIXELFORMAT_UNCOMPRESSED_R8G8B8A8
+#define PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 UNCOMPRESSED_R8G8B8A8
+#endif
 
 #define PACKED __attribute__((packed))
 
@@ -534,8 +538,8 @@ void tr_graphics_init(tr_graphics *graphics, uint8_t *ele_file) {
                         }
 
                         if (count & 1) {
-                            uint color = *src++;
-                            uint color1 = (color & 0x0f);
+                            uint8_t color = *src++;
+                            uint8_t color1 = (color & 0x0f);
 
                             *dst++ = color1; *msk++ = 1;
 
@@ -566,7 +570,7 @@ void tr_graphics_init(tr_graphics *graphics, uint8_t *ele_file) {
 
 void DrawTextureScaled(Texture texture, int x, int y, int width, int height, bool flip) {
     Rectangle sourceRect = {
-        .x = !flip ? 0 : width,
+        .x =  0, //!flip ? 0 : width,
         .y = 0,
         .width = width * (!flip ? 1 : -1),
         .height = height
@@ -606,7 +610,7 @@ void tr_graphics_to_textures(ray_textures *texts,
             .data = texts->data[image],
             .width = img->width,
             .height = img->height,
-            .format = UNCOMPRESSED_R8G8B8A8,
+            .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8,
             .mipmaps = 1,
         });
 
@@ -1814,7 +1818,7 @@ void ray_bg_renderer_init(ray_bg_renderer *bg, tr_resources *resources, tr_tiles
         .data = &bg->data,
         .width = GAME_SIZE_WIDTH,
         .height = GAME_SIZE_HEIGHT,
-        .format = UNCOMPRESSED_R8G8B8A8,
+        .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8,
         .mipmaps = 1,
     });
 
