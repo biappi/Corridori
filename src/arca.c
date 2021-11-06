@@ -1334,8 +1334,6 @@ void far pascal controlla_sotto_piedi(
 
         char *suca = "xxxx";
 
-    goto original;
-
         format_word(suca, top);
         vga_dump(10, 18, suca);
         format_word(suca, *ani);
@@ -1404,11 +1402,11 @@ void far pascal controlla_sotto_piedi(
         return;
     }
 
-    if (*byte_1f4e8 < 0) {
+    if (*byte_1f4e8 > 0) {
         *byte_1f4e8 = *byte_1f4e8 - 1;
         if (set_is_member(*ani, MK_FP(seg002, 0x0E79))) {
             /* set ani 38_3 */
-            vga_dump(10, 10, "NOPE 99"); while (1);
+            *ani = direction ? 0x38 : 0x03;
             var2 = 1;
         }
     }
@@ -1416,11 +1414,11 @@ void far pascal controlla_sotto_piedi(
     if (!var2) {
         if (*byte_1f4e9 > 0) {
             *byte_1f4e9 = *byte_1f4e9 - 1;
-        }
-        if (set_is_member(*ani, MK_FP(seg002, 0x0e99))) {
-            /* set ani 38_3 */
-            vga_dump(10, 10, "NOPE 66"); while (1);
-            var2 = 1;
+            if (set_is_member(*ani, MK_FP(seg002, 0x0e99))) {
+                /* set ani 38_3 */
+                *ani = direction ? 0x38 : 0x03;
+                var2 = 1;
+            }
         }
     }
 
@@ -1434,24 +1432,42 @@ void far pascal controlla_sotto_piedi(
 
     if ((*ani == 0x12) || (*ani == 0x13)) {
         /* sub_11a14 */
-        vga_dump(10, 10, "NOPE 6"); while (1);
+        if (!*gun_bool && *colpi == 0) {
+            void (far pascal *sub_11984)() = MK_FP(seg002, 0x0a24);
+
+            *ani = 0x3;
+            *gun_bool = 1;
+
+            ds_trampoline_end();
+            sub_11984();
+            ds_trampoline_start();
+        }
     }
 
     if ((*ani == 0x47) || (*ani == 0x48)) {
         /* sub_11a3d */
-        vga_dump(10, 10, "NOPE 7"); while (1);
+        if (!*gun_bool && *colpi == 0) {
+            void (far pascal *sub_11984)() = MK_FP(seg002, 0x0a24);
+
+            *ani = 0x38;
+            *gun_bool = 1;
+
+            ds_trampoline_end();
+            sub_11984();
+            ds_trampoline_start();
+        }
     }
 
     if (set_is_member(*ani, MK_FP(seg002, 0x0e79))) {
         /* loc_11ff6 */
-        vga_dump(10, 10, "NOPE 8"); while (1);
-        goto original;
+        *byte_1f4e8 = 4;
+        return;
     }
 
     if (set_is_member(*ani, MK_FP(seg002, 0x0e99))) {
         /* loc_12011 */
-        vga_dump(10, 10, "NOPE 9"); while (1);
-        goto original;
+        *byte_1f4e9 = 4;
+        return;
     }
 
     if (*ani == 0x14) {
@@ -1594,8 +1610,14 @@ void far pascal controlla_sotto_piedi(
         return;
     }
 
+    return;
 
 original:
+
+    vga_dump(10, 10, "NOPE else"); while (1);
+
+    while(1);
+    return;
 
     {
         void (far pascal *controlla_sotto_piedi)(void far* ani, int top, int bottom, int x, int y, int new_x, int new_y)
