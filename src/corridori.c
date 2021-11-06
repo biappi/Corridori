@@ -160,6 +160,9 @@ typedef struct {
 
     uint8_t  byte_1f4dc;
     uint8_t  byte_1f4e6;
+    uint8_t  byte_1f4e8;
+    uint8_t  byte_1f4e9;
+
     uint8_t  counter_caduta;
     uint16_t vita;
     uint16_t score;
@@ -167,6 +170,8 @@ typedef struct {
     uint8_t  punti_countdown;
     uint8_t  stars_countdown;
     uint8_t  stars_sprite_nr;
+    uint8_t  gun_bool;
+    uint8_t  colpi;
 
     uint16_t palette_mangling;
 
@@ -1313,29 +1318,27 @@ void controlla_sotto_piedi(
         return;
     }
 
-#if 0
-    if (pupo->byte_1f4e8 < 0) {
-        pupo->byte_1f4e8 = pupo->byte_1f4e8 - 1;
-        if (set_is_member(*ani_ptr, MK_FP(seg002, 0x0E79))) {
+    if (game->byte_1f4e8 > 0) {
+        game->byte_1f4e8--;
+
+        if (set_is_member(*ani_ptr, stru_11dd9)) {
             /* set ani 38_3 */
-            printf("NOPE 99\n");
+            *ani_ptr = direction ? 0x38 : 0x03;
             var2 = 1;
         }
     }
 
     if (!var2) {
-        if (*byte_1f4e9 > 0) {
-            *byte_1f4e9 = *byte_1f4e9 - 1;
-        }
-        if (set_is_member(*ani_ptr, MK_FP(seg002, 0x0e99))) {
-            /* set ani 38_3 */
-            printf("NOPE 66\n");
-            var2 = 1;
+        if (game->byte_1f4e9 > 0) {
+            game->byte_1f4e9--;
+
+            if (set_is_member(*ani_ptr, stru_11df9)) {
+                /* set ani 38_3 */
+                *ani_ptr = direction ? 0x38 : 0x03;
+                var2 = 1;
+            }
         }
     }
-#else
-    var2 = 0;
-#endif
 
     if (!var2) {
         cambia_il_salto(resources, ani_ptr, top);
@@ -1343,23 +1346,35 @@ void controlla_sotto_piedi(
 
     if ((*ani_ptr == 0x12) || (*ani_ptr == 0x13)) {
         /* sub_11a14 */
-        printf("NOPE 6\n");
+        if (!game->gun_bool && game->colpi == 0) {
+            *ani_ptr = 0x3;
+            game->gun_bool = 1;
+
+            // sub_11984();
+        }
+
     }
 
     if ((*ani_ptr == 0x47) || (*ani_ptr == 0x48)) {
         /* sub_11a3d */
-        printf("NOPE 7\n");
+        if (!game->gun_bool && game->colpi == 0) {
+            *ani_ptr = 0x38;
+            game->gun_bool = 1;
+
+            // sub_11984();
+        }
+
     }
 
     if (set_is_member(*ani_ptr, stru_11dd9)) {
         /* loc_11ff6 */
-        printf("NOPE 8\n");
+        game->byte_1f4e8 = 4;
         return;
     }
 
     if (set_is_member(*ani_ptr, stru_11df9)) {
         /* loc_12011 */
-        printf("NOPE 9\n");
+        game->byte_1f4e9 = 4;
         return;
     }
 
@@ -2002,6 +2017,7 @@ void tr_game_reset(tr_game *game, tr_resources *resources) {
     game->countdown = 0;
     game->get_new_ani = 1;
     game->stars_countdown = 4;
+    game->gun_bool = 1;
     swi_elements_init(game, resources);
 }
 
