@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <assert.h>
 
 #include "raylib.h"
 #ifndef PIXELFORMAT_UNCOMPRESSED_R8G8B8A8
@@ -93,6 +94,7 @@ typedef struct {
     uint8_t *prt;
     uint8_t *swi;
     uint8_t *pn;
+    uint8_t *pu;
     uint8_t *ptx;
 
     uint8_t *texts_it;
@@ -122,6 +124,33 @@ typedef struct {
     size_t count;
     tr_bob bobs[0x32];
 } tr_bobs;
+
+typedef struct PACKED {
+    uint16_t x1;
+    uint16_t y1;
+    uint16_t x2;
+    uint16_t y2;
+
+    uint8_t  ignored1;
+    uint8_t  ignored2;
+    uint8_t  vita;
+    uint8_t  ignored3;
+
+    uint8_t  boh1;
+    uint8_t  boh2;
+    uint8_t  bool1;
+    uint8_t  maybe_item_type;
+    uint16_t copy_x1;
+    uint16_t copy_y1;
+
+    uint8_t  sprite_nr;
+    uint8_t  ignored4;
+    uint8_t  ignored5;
+    uint8_t  ignored6;
+    uint8_t  wanted_ucci_nr;
+    uint8_t  unk26;
+    uint16_t unk27;
+} tr_pu_item;
 
 typedef struct {
     int16_t x;
@@ -180,6 +209,16 @@ typedef struct {
     void *swi_elements[0x40];
 
     tr_bobs bobs;
+
+
+    tr_ele_kind current_ucci;
+    uint8_t wanted_ucci_nr;
+    uint8_t current_ucci_nr;
+
+    bool    enemy_flip[2];
+    bool    ucci_in_use[2];
+    uint8_t byte_2197a[2];
+
 }  tr_game;
 
 typedef struct {
@@ -274,6 +313,7 @@ void resources_load(tr_resources *resources) {
     resources->prt         = load_file("GAME_DIR/AR1/FIL/PRT");
     resources->swi         = load_file("GAME_DIR/AR1/FIL/SWI");
     resources->pn          = load_file("GAME_DIR/AR1/FIL/PN");
+    resources->pu          = load_file("GAME_DIR/AR1/FIL/PU");
     resources->ptx         = load_file("GAME_DIR/AR1/FIL/PTX");
 
     resources->texts_it    = load_file("GAME_DIR/PTX/Texts.kit");
@@ -573,6 +613,12 @@ void tr_graphics_init(tr_graphics *graphics, uint8_t *ele_file) {
     }
 }
 
+tr_pu_item *pu_item_get(tr_resources *resources, int room, int enemy) {
+    assert(sizeof(tr_pu_item) == 0x1c);
+    int offset = ((room * 2) + enemy) * sizeof(tr_pu_item);
+    return (tr_pu_item *)(resources->pu + offset);
+}
+
 void DrawTextureScaled(Texture texture, int x, int y, int width, int height, bool flip) {
     Rectangle sourceRect = {
         .x =  0, //!flip ? 0 : width,
@@ -806,6 +852,61 @@ void do_tiletype_actions(tr_game *game, tr_resources *resources, char boh) {
     }
 }
 
+void check_and_load_ucci(tr_game *game, tr_resources *resources) {
+    uint8_t wanted_ucci[2] = { 0xff, 0xff };
+
+    for (int ucci_slot = 0; ucci_slot < 2; ucci_slot++) {
+        tr_pu_item *pu_item = pu_item_get(resources,
+                                          game->current_room,
+                                          ucci_slot);
+
+        if ((pu_item->boh1 > 0) ||
+            (pu_item->bool1) ||
+            (pu_item->x1 <= 0x140))
+        {
+            game->ucci_in_use[ucci_slot] = 1;
+
+            if (pu_item->maybe_item_type == 0) {
+                game->byte_2197a[ucci_slot] = 0;
+
+                if (ucci_slot == 0) {
+                    pu_item->maybe_item_type = 1;
+                }
+                else {
+                    pu_item->maybe_item_type = 0;
+                }
+
+                wanted_ucci[ucci_slot] = pu_item->wanted_ucci_nr;
+            }
+        }
+        else {
+            wanted_ucci[ucci_slot] = 0xff;
+        }
+    }
+
+    if (wanted_ucci[0] == 0xff) {
+        if (wanted_ucci[1] != 0xff) {
+            wanted_ucci[0] = wanted_ucci[1];
+        }
+    }
+
+    game->wanted_ucci_nr = wanted_ucci[0];
+
+    if (game->current_ucci_nr != game->wanted_ucci_nr) {
+        if (game->wanted_ucci_nr != 0xff) {
+            game->current_ucci_nr = game->wanted_ucci_nr;
+            game->current_ucci = tr_ele_ucci0 + game->current_ucci_nr;
+
+            // load_ucci_file(*wanted_ucci_nr);
+        }
+    }
+
+    if (game->wanted_ucci_nr != 0xff) {
+//        install_ucci_palette();
+    }
+}
+
+
 void change_room(tr_game *game, tr_resources *resources, int room_to_change) {
     char previous_room = game->current_room;
 
@@ -942,7 +1043,7 @@ void change_room(tr_game *game, tr_resources *resources, int room_to_change) {
     // *no_previous_room = 0;
 
     // reset_array_bobs();
-    // check_and_load_ucci();
+    check_and_load_ucci(game, resources);
     // reset_background_ani();
 
     // if (*vita <= 0x800) {
@@ -1765,11 +1866,33 @@ void add_pupo_to_bobs(tr_game *game) {
     // *bob_to_hit_mouse_3 = *bobs_count;
 }
 
-void draw_pupi(tr_game *game) {
+void add_enemy_to_bobs(tr_game *game, tr_resources *resources, int enemy_id) {
+    tr_pu_item *pu_item = pu_item_get(resources,
+                                      game->current_room,
+                                      enemy_id);
+
+
+    int x = from_big_endian(pu_item->x1) + from_big_endian(pu_item->x2);
+    int y = from_big_endian(pu_item->y1) + from_big_endian(pu_item->y2);
+
+    if (!pu_item->bool1 || x < 320) {
+        add_bob_per_background(&game->bobs,
+                               x,
+                               y,
+                               game->current_ucci,
+                               pu_item->sprite_nr,
+                               0xffd1,
+                               game->enemy_flip[enemy_id],
+                               0);
+    }
+
+}
+
+void draw_pupi(tr_game *game, tr_resources *resources) {
     /* sort not implemented */
 
-    // add_enemy_to_bobs(0);
-    // add_enemy_to_bobs(1);
+    add_enemy_to_bobs(game, resources, 0);
+    add_enemy_to_bobs(game, resources, 1);
     add_pupo_to_bobs(game);
 }
 
@@ -1921,7 +2044,7 @@ void tr_gameloop(tr_game *game, tr_resources *resources, uint8_t direction) {
     // load & update ucci 0
     // load & update ucci 1
     // clear bob mouse
-    draw_pupi(game);
+    draw_pupi(game, resources);
     // check mouse
     // draw mouse
     // reset bobs
@@ -2018,6 +2141,8 @@ void tr_game_reset(tr_game *game, tr_resources *resources) {
     game->get_new_ani = 1;
     game->stars_countdown = 4;
     game->gun_bool = 1;
+    game->current_ucci = tr_ele_ucci0;
+
     swi_elements_init(game, resources);
 }
 
