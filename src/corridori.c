@@ -1645,6 +1645,42 @@ void do_damage(tr_game *game, tr_resources *resources) {
     }
 }
 
+uint8_t stru_17197[] = {
+    0x00, 0x00, 0x00, 0x90, 0x01, 0x00, 0x10, 0x00,
+    0x00, 0x00, 0x02, 0x00, 0x00, 0x02, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+uint8_t stru_171B7[] = {
+    0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+bool check_pu_for_vita(tr_game *game, tr_resources *resources, int enemy) {
+    tr_pu_item *pu_item = pu_item_get(resources, game->current_room, enemy);
+
+    if (pu_item->ignored1 == 5) {
+        if (game->y == pu_item->y1) {
+            int dx = enemy * 0x1c;
+            int ax = pu_item->x1 - game->x;
+            ax = (ax ^ dx) - dx;
+
+            if ((ax <= 0x20) &&
+                !set_is_member(game->ani, stru_17197) &&
+                set_is_member(pu_item->maybe_item_type, stru_171B7))
+            {
+                add_vita(game, pu_item->vita * 8 / 5);
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 void update_pupo(tr_game *game, tr_resources *resources, uint8_t direction, int force_ani) {
     char enemy_hit = 0;
     char get_new_frame = 0;
@@ -1817,29 +1853,28 @@ void update_pupo(tr_game *game, tr_resources *resources, uint8_t direction, int 
 
             do_damage(game, resources);
 
-            /*
             enemy_hit = 1;
 
-            if (!check_pu_for_vita(0) && !check_pu_for_vita(1)) {
+            if (!check_pu_for_vita(game, resources, 0) &&
+                !check_pu_for_vita(game, resources, 1))
+            {
                 enemy_hit = 0;
             }
 
-
             if (enemy_hit) {
-                *get_new_ani = 1;
+                game->get_new_ani = 1;
                 get_new_frame = 1;
-                *pupo_anim_countdown = 0;
-                *pupo_current_ani = *pupo_current_ani > 0x35 ? 0x51: 0x1c;
+                game->countdown = 0;
+                game->ani = game->ani > 0x35 ? 0x51: 0x1c;
             }
             else {
-                if (*byte_1f4dc == 4) {
-                    if (set_is_member(*pupo_current_ani, MK_FP(seg002, 0x176d))) {
-                        mangle_pu_gun();
-                        reset_clicked_button();
-                    }
+                if (game->byte_1f4dc == 4) {
+                    // if (set_is_member(*pupo_current_ani, MK_FP(seg002, 0x176d))) {
+                    //     mangle_pu_gun();
+                    //     reset_clicked_button();
+                    // }
                 }
             }
-             */
         }
     } while (game->get_new_ani);
 
@@ -2135,6 +2170,12 @@ void tr_game_reset(tr_game *game, tr_resources *resources) {
     game->x = 0x08;
     game->y = 0xa0;
     game->ani = 0x03;
+
+    game->x = 0xc8;
+    game->y = 0xaa;
+    game->ani = 0x03;
+    game->current_room = 0x28;
+
     game->frame_nr = 0x00;
     game->flip = 0;
     game->countdown = 0;
@@ -2259,7 +2300,7 @@ int main() {
             IsKeyDown(KEY_UP),
             IsKeyDown(KEY_LEFT),
             IsKeyDown(KEY_RIGHT),
-            IsKeyDown(KEY_LEFT_SHIFT) || IsKeyPressed(KEY_RIGHT_SHIFT)
+            IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)
         );
 
         if (show_dbg_ani) {
