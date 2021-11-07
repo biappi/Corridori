@@ -2266,6 +2266,29 @@ void far pascal do_damage() {
     }
 }
 
+char far pascal check_pu_for_vita(int enemy) {
+    struct pu_item_t far* pu_item = pu_item_get(enemy);
+
+    if (pu_item->ignored1 == 5) {
+        if (*pupo_y == pu_item->y1) {
+
+            int dx = enemy * 0x1c;
+            int ax = pu_item->x1 - *pupo_x;
+            ax = (ax ^ dx) - dx;
+
+            if ((ax <= 0x20) &&
+                !set_is_member(*pupo_current_ani, MK_FP(seg011, 0x0517)) &&
+                set_is_member(pu_item->maybe_item_type, MK_FP(seg011, 0x537)))
+            {
+                add_vita(pu_item->vita * 8 / 5);
+                return 1;
+            }
+        }
+    }
+
+    return 0; 
+}
+
 void far pascal update_pupo() {
     char enemy_hit = 0;
     char get_new_frame;
@@ -2332,15 +2355,11 @@ void far pascal update_pupo() {
             do_damage();
 
             {
-                char (far pascal *check_pu_for_vita)(int x) = MK_FP(seg011, 0x0557);
                 enemy_hit = 1;
 
-                ds_trampoline_end();
                 if (!check_pu_for_vita(0) && !check_pu_for_vita(1)) {
                     enemy_hit = 0;
                 }
-                ds_trampoline_start();
-
 
                 if (enemy_hit) {
                     *get_new_ani = 1;
