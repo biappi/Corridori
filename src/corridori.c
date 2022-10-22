@@ -528,89 +528,92 @@ void add_bob_per_background(
 }
 
 
-void tr_graphics_init(tr_graphics *graphics, uint8_t *ele_file) {
-    graphics->count = (*(uint16_t *)ele_file);
-    graphics->items = calloc(graphics->count, sizeof(tr_image_8bpp));
+void tr_render_ele(uint8_t *ele_data, tr_image_8bpp *dst_item) {
+    uint8_t *src_item = ele_data;
 
-    for (int i = 0; i < graphics->count; i++)
+    dst_item->width  = read16_unaligned(src_item + 0 * 2);
+    dst_item->height = read16_unaligned(src_item + 1 * 2);
+
+    int size = dst_item->width * dst_item->height;
+    dst_item->pixels = malloc(size);
+    dst_item->mask   = malloc(size);
+
+    memset(dst_item->pixels, 0, size);
+    memset(dst_item->mask,   0, size);
+
     {
-        tr_image_8bpp *dst_item = &graphics->items[i];
+        uint8_t *src = src_item + 5;
+        uint8_t *dst = dst_item->pixels;
+        uint8_t *msk = dst_item->mask;
 
-        int           offset    = (i * 4) + 2;
-        uint8_t       *src_offset = ele_file + offset;
-        uint8_t       *src_item = ele_file + 2 + read32_unaligned(src_offset);
+        int x_left = dst_item->width;
 
-        dst_item->width  = read16_unaligned(src_item + 0 * 2);
-        dst_item->height = read16_unaligned(src_item + 1 * 2);
+        int consecutive_ffs = 0;
 
-        int size = dst_item->width * dst_item->height;
-        dst_item->pixels = malloc(size);
-        dst_item->mask   = malloc(size);
+        while (1) {
+            uint8_t skip = *src++;
 
-        memset(dst_item->pixels, 0, size);
-        memset(dst_item->mask,   0, size);
+            if (skip != 0xff) {
+                consecutive_ffs = 0;
+                dst += skip;
+                msk += skip;
 
-        {
-            uint8_t *src = src_item + 5;
-            uint8_t *dst = dst_item->pixels;
-            uint8_t *msk = dst_item->mask;
+                x_left -= skip;
 
-            int x_left = dst_item->width;
-
-            int consecutive_ffs = 0;
-
-            while (1) {
-                uint8_t skip = *src++;
-
-                if (skip != 0xff) {
+                uint8_t count = *src++;
+                if (count != 0xff) {
                     consecutive_ffs = 0;
-                    dst += skip;
-                    msk += skip;
 
-                    x_left -= skip;
+                    for (int i = 0; i < count / 2; i++) {
+                        uint8_t colors = *src++;
+                        uint8_t color1 = ((colors & 0x0f)     );
+                        uint8_t color2 = ((colors & 0xf0) >> 4);
 
-                    uint8_t count = *src++;
-                    if (count != 0xff) {
-                        consecutive_ffs = 0;
-
-                        for (int i = 0; i < count / 2; i++) {
-                            uint8_t colors = *src++;
-                            uint8_t color1 = ((colors & 0x0f)     );
-                            uint8_t color2 = ((colors & 0xf0) >> 4);
-
-                            *dst++ = color1; *msk++ = 1;
-                            *dst++ = color2; *msk++ = 1;
-                            x_left -= 2;
-                        }
-
-                        if (count & 1) {
-                            uint8_t color = *src++;
-                            uint8_t color1 = (color & 0x0f);
-
-                            *dst++ = color1; *msk++ = 1;
-
-                            x_left--;
-                        }
+                        *dst++ = color1; *msk++ = 1;
+                        *dst++ = color2; *msk++ = 1;
+                        x_left -= 2;
                     }
-                    else {
-                        consecutive_ffs++;
-                        if (consecutive_ffs == 3) {
-                            break;
-                        }
+
+                    if (count & 1) {
+                        uint8_t color = *src++;
+                        uint8_t color1 = (color & 0x0f);
+
+                        *dst++ = color1; *msk++ = 1;
+
+                        x_left--;
                     }
                 }
                 else {
-                    dst += x_left; msk += x_left;
-
-                    x_left = dst_item->width;
-
                     consecutive_ffs++;
                     if (consecutive_ffs == 3) {
                         break;
                     }
                 }
             }
+            else {
+                dst += x_left; msk += x_left;
+
+                x_left = dst_item->width;
+
+                consecutive_ffs++;
+                if (consecutive_ffs == 3) {
+                    break;
+                }
+            }
         }
+    }
+}
+
+void tr_graphics_init(tr_graphics *graphics, uint8_t *ele_file) {
+    graphics->count = (*(uint16_t *)ele_file);
+    graphics->items = calloc(graphics->count, sizeof(tr_image_8bpp));
+
+    for (int i = 0; i < graphics->count; i++) {
+        int           offset    = (i * 4) + 2;
+        uint8_t       *src_offset = ele_file + offset;
+        uint8_t       *src_item = ele_file + 2 + read32_unaligned(src_offset);
+
+        tr_render_ele(src_item, &graphics->items[i]);
     }
 }
 
