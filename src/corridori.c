@@ -5,9 +5,10 @@
 #include <assert.h>
 
 #include "raylib.h"
-#ifndef PIXELFORMAT_UNCOMPRESSED_R8G8B8A8
-#define PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 UNCOMPRESSED_R8G8B8A8
-#endif
+
+// #ifndef PIXELFORMAT_UNCOMPRESSED_R8G8B8A8
+// #define PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 UNCOMPRESSED_R8G8B8A8
+// #endif
 
 #define PACKED __attribute__((packed))
 
@@ -665,7 +666,7 @@ void tr_graphics_to_textures(ray_textures *texts,
             .mipmaps = 1,
         });
 
-        SetTextureFilter(texts->textures[image], FILTER_POINT);
+        SetTextureFilter(texts->textures[image], TEXTURE_FILTER_POINT);
     }
 }
 
@@ -1995,7 +1996,7 @@ void ray_bg_renderer_init(ray_bg_renderer *bg, tr_resources *resources, tr_tiles
         .mipmaps = 1,
     });
 
-    SetTextureFilter(bg->texture, FILTER_POINT);
+    SetTextureFilter(bg->texture, TEXTURE_FILTER_POINT);
 }
 
 void ray_bg_render_room(ray_bg_renderer *bg, int room_nr, int frame) {
@@ -2191,6 +2192,8 @@ int main() {
     InitWindow(GAME_SIZE_WIDTH  * GAME_SIZE_SCALE,
                GAME_SIZE_HEIGHT * GAME_SIZE_SCALE,
                "Corridori");
+
+    SetWindowPosition(2000, 200);
 
     SetTargetFPS(20);
 

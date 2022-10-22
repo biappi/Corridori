@@ -7,8 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3F2F2B5F2904624300B86B54 /* libraylib.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3F2F2B5B2904624300B86B54 /* libraylib.a */; };
 		3F6C1FF3271A691300B28F2F /* corridori.c in Sources */ = {isa = PBXBuildFile; fileRef = 3F6C1FF1271A68E700B28F2F /* corridori.c */; };
-		3F6C1FF8271A69AE00B28F2F /* libraylib.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3F6C1FF5271A695E00B28F2F /* libraylib.a */; };
 		3F6C1FFB271A69EE00B28F2F /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3F6C1FFA271A69EE00B28F2F /* AppKit.framework */; };
 		3F6C1FFD271A69FE00B28F2F /* OpenGL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3F6C1FFC271A69FE00B28F2F /* OpenGL.framework */; };
 		3F6C1FFF271A6A0A00B28F2F /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3F6C1FFE271A6A0A00B28F2F /* IOKit.framework */; };
@@ -27,14 +27,16 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		3F2F2B5A2904624300B86B54 /* rlgl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = rlgl.h; sourceTree = "<group>"; };
+		3F2F2B5B2904624300B86B54 /* libraylib.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libraylib.a; sourceTree = "<group>"; };
+		3F2F2B5C2904624300B86B54 /* raymath.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = raymath.h; sourceTree = "<group>"; };
+		3F2F2B5D2904624300B86B54 /* raygui.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = raygui.h; sourceTree = "<group>"; };
+		3F2F2B5E2904624300B86B54 /* raylib.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = raylib.h; sourceTree = "<group>"; };
 		3F6C1FEE271A68E700B28F2F /* shared.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = shared.h; sourceTree = "<group>"; };
 		3F6C1FEF271A68E700B28F2F /* arca.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = arca.c; sourceTree = "<group>"; };
 		3F6C1FF0271A68E700B28F2F /* loader.asm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.asm.asm; path = loader.asm; sourceTree = "<group>"; };
 		3F6C1FF1271A68E700B28F2F /* corridori.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = corridori.c; sourceTree = "<group>"; };
 		3F6C1FF2271A68E700B28F2F /* mana.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = mana.c; sourceTree = "<group>"; };
-		3F6C1FF5271A695E00B28F2F /* libraylib.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libraylib.a; sourceTree = "<group>"; };
-		3F6C1FF6271A695E00B28F2F /* raymath.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = raymath.h; sourceTree = "<group>"; };
-		3F6C1FF7271A695E00B28F2F /* raylib.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = raylib.h; sourceTree = "<group>"; };
 		3F6C1FFA271A69EE00B28F2F /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
 		3F6C1FFC271A69FE00B28F2F /* OpenGL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenGL.framework; path = System/Library/Frameworks/OpenGL.framework; sourceTree = SDKROOT; };
 		3F6C1FFE271A6A0A00B28F2F /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
@@ -46,16 +48,28 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3F2F2B5F2904624300B86B54 /* libraylib.a in Frameworks */,
 				3F6C1FFF271A6A0A00B28F2F /* IOKit.framework in Frameworks */,
 				3F6C1FFD271A69FE00B28F2F /* OpenGL.framework in Frameworks */,
 				3F6C1FFB271A69EE00B28F2F /* AppKit.framework in Frameworks */,
-				3F6C1FF8271A69AE00B28F2F /* libraylib.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		3F2F2B592904624300B86B54 /* raylib-4.2.0 */ = {
+			isa = PBXGroup;
+			children = (
+				3F2F2B5A2904624300B86B54 /* rlgl.h */,
+				3F2F2B5B2904624300B86B54 /* libraylib.a */,
+				3F2F2B5C2904624300B86B54 /* raymath.h */,
+				3F2F2B5D2904624300B86B54 /* raygui.h */,
+				3F2F2B5E2904624300B86B54 /* raylib.h */,
+			);
+			path = "raylib-4.2.0";
+			sourceTree = "<group>";
+		};
 		3F6C1FED271A68E700B28F2F /* src */ = {
 			isa = PBXGroup;
 			children = (
@@ -67,16 +81,6 @@
 			);
 			name = src;
 			path = ../src;
-			sourceTree = "<group>";
-		};
-		3F6C1FF4271A695E00B28F2F /* raylib */ = {
-			isa = PBXGroup;
-			children = (
-				3F6C1FF5271A695E00B28F2F /* libraylib.a */,
-				3F6C1FF6271A695E00B28F2F /* raymath.h */,
-				3F6C1FF7271A695E00B28F2F /* raylib.h */,
-			);
-			path = raylib;
 			sourceTree = "<group>";
 		};
 		3F6C1FF9271A69EE00B28F2F /* Frameworks */ = {
@@ -92,7 +96,7 @@
 		3F9BB243271A67FA005F19AD = {
 			isa = PBXGroup;
 			children = (
-				3F6C1FF4271A695E00B28F2F /* raylib */,
+				3F2F2B592904624300B86B54 /* raylib-4.2.0 */,
 				3F6C1FED271A68E700B28F2F /* src */,
 				3F9BB24D271A67FA005F19AD /* Products */,
 				3F6C1FF9271A69EE00B28F2F /* Frameworks */,
@@ -290,7 +294,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(PROJECT_DIR)/raylib",
+					"$(PROJECT_DIR)/raylib-4.2.0",
 				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
@@ -304,7 +308,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(PROJECT_DIR)/raylib",
+					"$(PROJECT_DIR)/raylib-4.2.0",
 				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
