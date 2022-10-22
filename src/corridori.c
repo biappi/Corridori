@@ -641,6 +641,37 @@ void DrawTextureScaled(Texture texture, int x, int y, int width, int height, boo
     DrawTexturePro(texture, sourceRect, destRect, (Vector2) { .x  = 0, .y = 0 }, 0, WHITE);
 }
 
+typedef struct {
+    Texture2D texture;
+    uint32_t *data;
+} ray_single_texture;
+
+void ray_texture_from_image(ray_single_texture *texture, tr_image_8bpp *img, const tr_palette *palette, const int col) {
+    texture->data = malloc(img->width * img->height * sizeof(uint32_t));
+
+    for (int pix = 0; pix < img->width * img->height; pix++) {
+        uint8_t color = img->pixels[pix];
+        uint8_t mask  = img->mask  [pix];
+
+        texture->data[pix] = mask == 0 ? 0 : palette->color[color + col];
+    }
+
+    texture->texture = LoadTextureFromImage((Image) {
+        .data = texture->data,
+        .width = img->width,
+        .height = img->height,
+        .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8,
+        .mipmaps = 1,
+    });
+
+    SetTextureFilter(texture->texture, TEXTURE_FILTER_POINT);
+}
+
+void ray_texture_destroy(ray_single_texture *texture) {
+    UnloadTexture(texture->texture);
+    free(texture->data);
+}
+
 void tr_graphics_to_textures(ray_textures *texts,
                              const tr_graphics *tr,
                              const tr_palette *palette,
