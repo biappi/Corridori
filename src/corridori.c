@@ -602,6 +602,71 @@ void tr_render_ele_wdw(uint8_t *ele_data, tr_image_8bpp *dst_item) {
     }
 }
 
+void tr_render_ele_ani(uint8_t *ele_data, tr_image_8bpp *dst_item) {
+    static bool console_log = false;
+
+    uint8_t *src_item = ele_data;
+
+    dst_item->width  = read16_unaligned(src_item + 0 * 2);
+    dst_item->height = read16_unaligned(src_item + 1 * 2);
+
+    int size = dst_item->width * dst_item->height;
+    dst_item->pixels = malloc(size);
+    dst_item->mask   = malloc(size);
+
+    memset(dst_item->pixels, 0, size);
+    memset(dst_item->mask,   0, size);
+
+    uint8_t *src = src_item + 5;
+    uint8_t *dst = dst_item->pixels;
+    uint8_t *msk = dst_item->mask;
+
+    int x_left = dst_item->width;
+
+    int line = 0;
+
+//    for (int k = 0; k < dst_item->height; k++) {
+    while (line < dst_item->height) {
+        uint8_t skip = *src++;
+
+        if (skip == 0xff) {
+            dst += x_left; msk += x_left;
+            line++;
+            if (console_log) printf("\n");
+            x_left = dst_item->width;
+            continue;
+        }
+
+        dst += skip;
+        msk += skip;
+
+        x_left -= skip;
+
+        uint8_t count = *src++;
+        if (count == 0xff) {
+            dst += x_left; msk += x_left;
+            line++;
+            if (console_log) printf("\n");
+            x_left = dst_item->width;
+            continue;
+        }
+
+        if (console_log)
+            for (int i = 0; i < skip; i++)
+                printf("   ");
+
+        for (int i = 0; i < count; i++) {
+            uint8_t color = *src++;
+
+            *dst++ = color; *msk++ = 1;
+
+            if (console_log) printf("%02x ", color);
+
+            x_left -= 1;
+        }
+    }
+}
+
 void tr_render_ele(uint8_t *ele_data, tr_image_8bpp *dst_item) {
     uint8_t *src_item = ele_data;
 
@@ -2570,6 +2635,70 @@ void wdw_test_tick(wdw_test *wdw_test) {
     DrawText(TextFormat("Item %02x col %02x", wdw_test->current, wdw_test->current_col), 20, YYY, 20, GREEN); YYY += 20;
 }
 
+typedef struct {
+    uint16_t count;
+    tr_palette palette;
+    tr_image_8bpp *images;
+
+    /* - */
+
+    ray_single_texture *textures;
+    int current;
+    int prev;
+} ani_test;
+
+
+void ani_test_init(ani_test *ani_test) {
+    uint8_t *ani_file = load_file("GAME_DIR/PLR/BNK/ANIX05.ANI");
+
+    ani_test->count         = read16_unaligned(ani_file + 2) - 1;
+    uint32_t palette_offset = read32_unaligned(ani_file + 10);
+
+    uint8_t *items = ani_file + 14;
+    uint8_t *palette_data = ani_file + palette_offset + 15;
+
+    for (int i = 0; i < 0x100; i++) {
+        ani_test->palette.color[i] = 0xff000000 |
+            (palette_data[(i * 3) + 0] <<  2) |
+            (palette_data[(i * 3) + 1] << 10) |
+            (palette_data[(i * 3) + 2] << 18);
+    }
+
+    ani_test->images = calloc(ani_test->count, sizeof(tr_image_8bpp));
+
+    for (int i = 0; i < ani_test->count; i++) {
+        uint32_t offset = read32_unaligned(items + i * 4);
+        uint8_t *ele_data = ani_file + 10 + offset;
+        tr_render_ele_ani(ele_data, &ani_test->images[i]);
+    }
+
+    /* - */
+
+    ani_test->textures = calloc(ani_test->count, sizeof(ray_single_texture));
+
+    for (int i = 0; i < ani_test->count; i++) {
+        ray_texture_from_image(&ani_test->textures[i], &ani_test->images[i], &ani_test->palette, 0);
+    }
+
+    ani_test->current = 0;
+    ani_test->prev = 0;
+}
+
+void ani_test_tick(ani_test *ani_test) {
+    if (IsKeyPressed(KEY_LEFT)) { ani_test->current -= 1; }
+    if (IsKeyPressed(KEY_RIGHT)) { ani_test->current += 1; }
+
+    if (ani_test->current >= ani_test->count) { ani_test->current = 0; }
+    if (ani_test->current < 0) { ani_test->current = ani_test->count -1; }
+
+    DrawTexture(ani_test->textures[ani_test->current].texture, 100, 100, RAYWHITE);
+    
+    int YYY = 20;
+
+    DrawText("ANI", 20, YYY, 20, GREEN); YYY += 20;
+    DrawText(TextFormat("Item %02x", ani_test->current), 20, YYY, 20, GREEN); YYY += 20;
+}
+
 int main() {
     InitWindow(GAME_SIZE_WIDTH  * GAME_SIZE_SCALE,
                GAME_SIZE_HEIGHT * GAME_SIZE_SCALE,
@@ -2588,13 +2717,16 @@ int main() {
     wdw_test wdw_test;
     wdw_test_init(&wdw_test);
 
+    ani_test ani_test;
+    ani_test_init(&ani_test);
+
     while (!WindowShouldClose()) {
         BeginDrawing();
         ClearBackground(BLACK);
 
         ray_gameloop_tick(&ray_loop, &tr_loop);
 //        wdw_test_tick(&wdw_test);
-
+//        ani_test_tick(&ani_test);
         EndDrawing();
     }
 
