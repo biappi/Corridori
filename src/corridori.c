@@ -265,7 +265,7 @@ uint32_t read32_unaligned(void *x) {
     return (h << 16) + l;
 }
 
-void *load_file(char *path) {
+void *load_file(const char *path) {
     FILE *file = fopen(path, "r");
     if (!file) {
         return NULL;
