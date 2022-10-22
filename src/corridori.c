@@ -528,6 +528,80 @@ void add_bob_per_background(
 }
 
 
+void tr_render_ele_wdw(uint8_t *ele_data, tr_image_8bpp *dst_item) {
+    static bool console_log = false;
+
+    uint8_t *src_item = ele_data;
+
+    dst_item->width  = read16_unaligned(src_item + 0 * 2);
+    dst_item->height = read16_unaligned(src_item + 1 * 2);
+
+    int size = dst_item->width * dst_item->height;
+    dst_item->pixels = malloc(size);
+    dst_item->mask   = malloc(size);
+
+    memset(dst_item->pixels, 0, size);
+    memset(dst_item->mask,   0, size);
+
+    uint8_t *src = src_item + 5;
+    uint8_t *dst = dst_item->pixels;
+    uint8_t *msk = dst_item->mask;
+
+    int x_left = dst_item->width;
+
+    for (int k = 0; k < dst_item->height; k++) {
+        uint8_t skip = *src++;
+
+        if (skip == 0xff) {
+            dst += x_left; msk += x_left;
+
+            if (console_log) printf("\n");
+            x_left = dst_item->width;
+            continue;
+        }
+
+        dst += skip;
+        msk += skip;
+
+        x_left -= skip;
+
+        uint8_t count = *src++;
+        if (count == 0xff) {
+            dst += x_left; msk += x_left;
+
+            if (console_log) printf("\n");
+            x_left = dst_item->width;
+            continue;
+        }
+
+        if (console_log)
+            for (int i = 0; i < skip; i++)
+                printf("   ");
+
+        for (int i = 0; i < count / 2; i++) {
+            uint8_t colors = *src++;
+            uint8_t color1 = ((colors & 0x0f)     );
+            uint8_t color2 = ((colors & 0xf0) >> 4);
+
+            *dst++ = color1; *msk++ = 1;
+            *dst++ = color2; *msk++ = 1;
+
+            if (console_log) printf("%02x %02x ", color1, color2);
+
+            x_left -= 2;
+        }
+
+        if (count & 1) {
+            uint8_t color = *src++;
+            uint8_t color1 = (color & 0x0f);
+
+            *dst++ = color1; *msk++ = 1;
+            if (console_log) printf("%02x ", color1);
+            x_left--;
+        }
+    }
+}
+
 void tr_render_ele(uint8_t *ele_data, tr_image_8bpp *dst_item) {
     uint8_t *src_item = ele_data;
 
@@ -2404,6 +2478,98 @@ void ray_gameloop_tick(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
     DrawText(suca, 20, 220, 20, GREEN);
 }
 
+const int tr_wdw_image_count = 9;
+
+typedef struct {
+    tr_image_8bpp images[tr_wdw_image_count];
+    tr_palette palette;
+} tr_wdw;
+
+void tr_wdw_init_palette(tr_wdw *wdw, uint8_t *data) {
+    int16_t start = read16_unaligned(data + 0);
+    int16_t end   = read16_unaligned(data + 2);
+
+    int16_t count = end - start;
+    uint8_t start_c = *(data + 0);
+    uint8_t *color_start = data + 4;
+
+    for (int i = 0; i < count; i++) {
+        if ((i + start_c) > 0xff)
+            continue;
+
+        wdw->palette.color[i + start_c] = 0xff000000 |
+            (color_start[(i * 3) + 0] <<  2) |
+            (color_start[(i * 3) + 1] << 10) |
+            (color_start[(i * 3) + 2] << 18);
+    }
+}
+
+void tr_wdw_init(tr_wdw *wdw, uint8_t *wdw_file) {
+    for (int i = 0; i < tr_wdw_image_count; i++) {
+        printf("\n\n == %02x ==\n\n", i);
+
+        uint16_t ele_offset = *((uint16_t *)(wdw_file + i * 2));
+        tr_render_ele_wdw(wdw_file + ele_offset, &wdw->images[i]);
+    }
+
+    uint16_t palette_offset = *((uint16_t *)(wdw_file + 18));
+    uint8_t *palette_data = wdw_file + palette_offset;
+    tr_wdw_init_palette(wdw, palette_data);
+}
+
+typedef struct {
+    int current;
+    int current_col;
+
+    int prev_current;
+    int prev_current_col;
+
+    tr_wdw wdw;
+    ray_single_texture wdw1;
+} wdw_test;
+
+void wdw_test_init(wdw_test *wdw_test) {
+    wdw_test->current = 0;
+    wdw_test->current_col = 0;
+
+    wdw_test->prev_current = 0;
+    wdw_test->prev_current_col = 0;
+
+    uint8_t *wdw_file = load_file("GAME_DIR/PLR/WDW/TR.TIL");
+    tr_wdw_init(&wdw_test->wdw, wdw_file);
+    ray_texture_from_image(&wdw_test->wdw1, &wdw_test->wdw.images[0], &wdw_test->wdw.palette, 0xf1);
+}
+
+void wdw_test_tick(wdw_test *wdw_test) {
+    if (IsKeyPressed(KEY_LEFT)) { wdw_test->current -= 1; }
+    if (IsKeyPressed(KEY_RIGHT)) { wdw_test->current += 1; }
+
+    if (wdw_test->current >= tr_wdw_image_count) { wdw_test->current = 0; }
+    if (wdw_test->current < 0) { wdw_test->current = tr_wdw_image_count -1; }
+
+    if (IsKeyPressed(KEY_DOWN)) { wdw_test->current_col -= 1; }
+    if (IsKeyPressed(KEY_UP)) { wdw_test->current_col += 1; }
+
+    if (wdw_test->current_col >= 0x100) { wdw_test->current_col = 0; }
+    if (wdw_test->current_col < 0) { wdw_test->current_col = 0xff; }
+
+    if ((wdw_test->current != wdw_test->prev_current) ||
+        (wdw_test->current_col != wdw_test->prev_current_col))
+    {
+        ray_texture_destroy(&wdw_test->wdw1);
+        ray_texture_from_image(&wdw_test->wdw1,
+                               &wdw_test->wdw.images[wdw_test->current],
+                               &wdw_test->wdw.palette,
+                               0xf1);
+    }
+
+    DrawTexture(wdw_test->wdw1.texture, 100, 100, RAYWHITE);
+
+    int YYY = 20;
+    DrawText("Test", 20, YYY, 20, GREEN); YYY += 20;
+    DrawText(TextFormat("Item %02x col %02x", wdw_test->current, wdw_test->current_col), 20, YYY, 20, GREEN); YYY += 20;
+}
+
 int main() {
     InitWindow(GAME_SIZE_WIDTH  * GAME_SIZE_SCALE,
                GAME_SIZE_HEIGHT * GAME_SIZE_SCALE,
@@ -2419,11 +2585,15 @@ int main() {
     ray_gameloop ray_loop;
     ray_gameloop_init(&ray_loop, &tr_loop);
 
+    wdw_test wdw_test;
+    wdw_test_init(&wdw_test);
+
     while (!WindowShouldClose()) {
         BeginDrawing();
         ClearBackground(BLACK);
 
         ray_gameloop_tick(&ray_loop, &tr_loop);
+//        wdw_test_tick(&wdw_test);
 
         EndDrawing();
     }
