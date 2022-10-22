@@ -2639,64 +2639,170 @@ typedef struct {
     uint16_t count;
     tr_palette palette;
     tr_image_8bpp *images;
+} tr_ani_file;
 
-    /* - */
-
-    ray_single_texture *textures;
-    int current;
-    int prev;
-} ani_test;
-
-
-void ani_test_init(ani_test *ani_test) {
-    uint8_t *ani_file = load_file("GAME_DIR/PLR/BNK/ANIX05.ANI");
-
-    ani_test->count         = read16_unaligned(ani_file + 2) - 1;
+void tr_ani_file_init(tr_ani_file *ani, uint8_t *ani_file) {
+    ani->count              = read16_unaligned(ani_file + 2) - 1;
+    printf(" >> %d\n", ani->count);
     uint32_t palette_offset = read32_unaligned(ani_file + 10);
 
     uint8_t *items = ani_file + 14;
     uint8_t *palette_data = ani_file + palette_offset + 15;
 
     for (int i = 0; i < 0x100; i++) {
-        ani_test->palette.color[i] = 0xff000000 |
+        ani->palette.color[i] = 0xff000000 |
             (palette_data[(i * 3) + 0] <<  2) |
             (palette_data[(i * 3) + 1] << 10) |
             (palette_data[(i * 3) + 2] << 18);
     }
 
-    ani_test->images = calloc(ani_test->count, sizeof(tr_image_8bpp));
+    ani->images = calloc(ani->count, sizeof(tr_image_8bpp));
 
-    for (int i = 0; i < ani_test->count; i++) {
+    for (int i = 0; i < ani->count; i++) {
         uint32_t offset = read32_unaligned(items + i * 4);
         uint8_t *ele_data = ani_file + 10 + offset;
-        tr_render_ele_ani(ele_data, &ani_test->images[i]);
+        tr_render_ele_ani(ele_data, &ani->images[i]);
+    }
+}
+
+static const char* ani_files[] = {
+    "ANID01.ANI",
+    "ANID02.ANI",
+    "ANID03.ANI",
+    "ANID04.ANI",
+    "ANID05.ANI",
+    "ANID06.ANI",
+    "ANIG01.ANI",
+    "ANIG02.ANI",
+    "ANIG03.ANI",
+    "ANIG03B.ANI",
+    "ANIG04.ANI",
+    "ANII01.ANI",
+    "ANIM01.ANI",
+    "ANIM03.ANI",
+    "ANIM04.ANI",
+    "ANIM05.ANI",
+    "ANIM06.ANI",
+    "ANIM54.ANI",
+    "ANIO01.ANI",
+    "ANIP01.ANI",
+    "ANIS00.ANI",
+    "ANIS01.ANI",
+    "ANIS01A.ANI",
+    "ANIS01B.ANI",
+    "ANIS02.ANI",
+    "ANIS03.ANI",
+    "ANIS03A.ANI",
+    "ANIS03B.ANI",
+    "ANIS03C.ANI",
+    "ANIS03D.ANI",
+    "ANIS04.ANI",
+    "ANIS04A.ANI",
+    "ANIS04B.ANI",
+    "ANIS04C.ANI",
+    "ANIS05.ANI",
+    "ANIS05B.ANI",
+    "ANIS06.ANI",
+    "ANIS07.ANI",
+    "ANIS07B.ANI",
+    "ANIS08.ANI",
+    "ANIS09.ANI",
+    "ANIT01.ANI",
+    "ANIT01B.ANI",
+    "ANIV01.ANI",
+    "ANIV02.ANI",
+    "ANIV02B.ANI",
+    "ANIX01.ANI",
+    "ANIX02.ANI",
+    "ANIX03.ANI",
+    "ANIX04.ANI",
+    "ANIX05.ANI",
+    "ANIX06.ANI",
+    "ANIX07.ANI",
+    "ANIX08.ANI",
+    "ANIZ01.ANI",
+    "ANIZ02.ANI",
+    "ANIZ03.ANI",
+    "ANIZ04.ANI",
+    "ANIZ05.ANI",
+    "ANIZ06.ANI",
+    "ANIZ07.ANI",
+    "CEL.ANI",
+    "COVER.ANI",
+    "LOGO.ANI",
+    "PERGAM.ANI",
+};
+
+const int ani_files_count = sizeof(ani_files) / sizeof(char *);
+
+typedef struct {
+    bool inited[ani_files_count];
+    tr_ani_file ani[ani_files_count];
+    ray_single_texture *textures[ani_files_count];
+
+    int current;
+    int prev;
+
+    int current_ani;
+    int prev_ani;
+} ani_test;
+
+
+void ani_test_init(ani_test *test) {
+    memset(test, 0, sizeof(ani_test));
+}
+
+ray_single_texture *ani_test_get_textures(ani_test * ani_test, int ani_idx) {
+    if (ani_test->inited[ani_idx]) {
+        return ani_test->textures[ani_idx];
     }
 
-    /* - */
+    uint8_t *ani_file = load_file(TextFormat("GAME_DIR/PLR/BNK/%s", ani_files[ani_idx]));
+    tr_ani_file_init(&ani_test->ani[ani_idx], ani_file);
+    ani_test->textures[ani_idx] = calloc(ani_test->ani[ani_idx].count, sizeof(ray_single_texture));
 
-    ani_test->textures = calloc(ani_test->count, sizeof(ray_single_texture));
-
-    for (int i = 0; i < ani_test->count; i++) {
-        ray_texture_from_image(&ani_test->textures[i], &ani_test->images[i], &ani_test->palette, 0);
+    for (int i = 0; i < ani_test->ani[ani_idx].count; i++) {
+        ray_texture_from_image(&ani_test->textures[ani_idx][i],
+                               &ani_test->ani[ani_idx].images[i],
+                               &ani_test->ani[ani_idx].palette,
+                               0);
     }
 
-    ani_test->current = 0;
-    ani_test->prev = 0;
+    ani_test->inited[ani_idx] = true;
+    return ani_test->textures[ani_idx];
 }
 
 void ani_test_tick(ani_test *ani_test) {
-    if (IsKeyPressed(KEY_LEFT)) { ani_test->current -= 1; }
-    if (IsKeyPressed(KEY_RIGHT)) { ani_test->current += 1; }
+    if (IsKeyPressed(KEY_SPACE)) {
+        ani_test->current++;
 
-    if (ani_test->current >= ani_test->count) { ani_test->current = 0; }
-    if (ani_test->current < 0) { ani_test->current = ani_test->count -1; }
+        if (ani_test->current >= ani_test->ani[ani_test->current_ani].count) {
+            ani_test->current = 0;
+            ani_test->current_ani++;
 
-    DrawTexture(ani_test->textures[ani_test->current].texture, 100, 100, RAYWHITE);
-    
+            if (ani_test->current_ani >= ani_files_count) {
+                ani_test->current = 0;
+                ani_test->current_ani = 0;
+            }
+        }
+    }
+
+    ray_single_texture *tex = ani_test_get_textures(ani_test, ani_test->current_ani);
+    DrawTexture(tex[ani_test->current].texture, 100, 100, RAYWHITE);
+
     int YYY = 20;
 
-    DrawText("ANI", 20, YYY, 20, GREEN); YYY += 20;
-    DrawText(TextFormat("Item %02x", ani_test->current), 20, YYY, 20, GREEN); YYY += 20;
+    DrawText("ANI", 20, YYY, 40, MAROON); YYY += 40;
+    DrawText(TextFormat("Item %02d - count %02d - ani: %02x (%s)",
+                        ani_test->current,
+                        ani_test->ani[ani_test->current_ani].count,
+                        ani_test->current_ani,
+                        ani_files[ani_test->current_ani]),
+             20,
+             YYY,
+             20,
+             GREEN);
+    YYY += 20;
 }
 
 int main() {
