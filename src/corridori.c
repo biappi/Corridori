@@ -2070,7 +2070,7 @@ void draw_punti_faccia_pistolina(tr_game *game) {
     draw_punti(game);
 }
 
-void tr_gameloop(tr_game *game, tr_resources *resources, uint8_t direction) {
+void tr_gameloop_tick(tr_game *game, tr_resources *resources, uint8_t direction) {
     tr_bobs_reset(&game->bobs);
     // animate & render background
     draw_punti_faccia_pistolina(game);
@@ -2188,15 +2188,7 @@ void tr_game_reset(tr_game *game, tr_resources *resources) {
     swi_elements_init(game, resources);
 }
 
-int main() {
-    InitWindow(GAME_SIZE_WIDTH  * GAME_SIZE_SCALE,
-               GAME_SIZE_HEIGHT * GAME_SIZE_SCALE,
-               "Corridori");
-
-    SetWindowPosition(2000, 200);
-
-    SetTargetFPS(20);
-
+typedef struct {
     tr_resources resources;
     tr_palette   palette;
     tr_tilesets  tilesets;
@@ -2208,18 +2200,27 @@ int main() {
     tr_graphics ucci0_ele;
     tr_graphics ucci1_ele;
 
-    resources_load(&resources);
+    tr_bg bg;
+    tr_game game;
+} tr_gameloop;
 
-    palette_init(&palette, &resources);
-    tilesets_init(&tilesets, &resources);
+void tr_gameloop_init(tr_gameloop *loop) {
+    resources_load(&loop->resources);
 
-    tr_graphics_init(&status_ele, resources.status_ele);
-    tr_graphics_init(&numeri_ele, resources.numeri_ele);
-    tr_graphics_init(&k_ele, resources.k_ele);
-    tr_graphics_init(&tr_ele, resources.tr_ele);
-    tr_graphics_init(&ucci0_ele, resources.ucci0_ele);
-    tr_graphics_init(&ucci1_ele, resources.ucci1_ele);
+    palette_init(&loop->palette, &loop->resources);
+    tilesets_init(&loop->tilesets, &loop->resources);
 
+    tr_graphics_init(&loop->status_ele, loop->resources.status_ele);
+    tr_graphics_init(&loop->numeri_ele, loop->resources.numeri_ele);
+    tr_graphics_init(&loop->k_ele, loop->resources.k_ele);
+    tr_graphics_init(&loop->tr_ele, loop->resources.tr_ele);
+    tr_graphics_init(&loop->ucci0_ele, loop->resources.ucci0_ele);
+    tr_graphics_init(&loop->ucci1_ele, loop->resources.ucci1_ele);
+
+    tr_game_reset(&loop->game, &loop->resources);
+}
+
+typedef struct {
     ray_textures status_tex;
     ray_textures numeri_tex;
     ray_textures k_tex;
@@ -2227,177 +2228,168 @@ int main() {
     ray_textures ucci0_tex;
     ray_textures ucci1_tex;
 
-    tr_graphics_to_textures(&status_tex, &status_ele, &palette, 0xc1);
-    tr_graphics_to_textures(&numeri_tex, &numeri_ele, &palette, 0xc1);
-    tr_graphics_to_textures(&k_tex,      &k_ele,      &palette, 0xc1);
-    tr_graphics_to_textures(&tr_tex,     &tr_ele,     &palette, 0xc1);
-    tr_graphics_to_textures(&ucci0_tex,  &ucci0_ele,  &palette, 0xc1);
-    tr_graphics_to_textures(&ucci1_tex,  &ucci1_ele,  &palette, 0xc1);
-
-    ray_textures *ele_textures[tr_ele_count] = {
-        &status_tex,
-        &numeri_tex,
-        &k_tex,
-        &tr_tex,
-        &ucci0_tex,
-        &ucci1_tex,
-    };
+    ray_textures *ele_textures[tr_ele_count];
 
     ray_bg_renderer bg_renderer;
 
-    ray_bg_renderer_init(&bg_renderer,
-                         &resources,
-                         &tilesets,
-                         &palette);
+    int rendered_room;
+    bool show_anidbg;
+    bool show_types;
+} ray_gameloop;
 
-    tr_bg bg;
+void ray_gameloop_init(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
+    tr_graphics_to_textures(&ray_loop->status_tex, &tr_loop->status_ele, &tr_loop->palette, 0xc1);
+    tr_graphics_to_textures(&ray_loop->numeri_tex, &tr_loop->numeri_ele, &tr_loop->palette, 0xc1);
+    tr_graphics_to_textures(&ray_loop->k_tex,      &tr_loop->k_ele,      &tr_loop->palette, 0xc1);
+    tr_graphics_to_textures(&ray_loop->tr_tex,     &tr_loop->tr_ele,     &tr_loop->palette, 0xc1);
+    tr_graphics_to_textures(&ray_loop->ucci0_tex,  &tr_loop->ucci0_ele,  &tr_loop->palette, 0xc1);
+    tr_graphics_to_textures(&ray_loop->ucci1_tex,  &tr_loop->ucci1_ele,  &tr_loop->palette, 0xc1);
 
-    tr_game game;
-    tr_game_reset(&game, &resources);
+    ray_loop->ele_textures[tr_ele_status] = &ray_loop->status_tex;
+    ray_loop->ele_textures[tr_ele_numeri] = &ray_loop->numeri_tex;
+    ray_loop->ele_textures[tr_ele_k]      = &ray_loop->k_tex;
+    ray_loop->ele_textures[tr_ele_tr]     = &ray_loop->tr_tex;
+    ray_loop->ele_textures[tr_ele_ucci0]  = &ray_loop->ucci0_tex;
+    ray_loop->ele_textures[tr_ele_ucci1]  = &ray_loop->ucci1_tex;
 
-    int rendered_room = 0;
-    ray_bg_render_room(&bg_renderer, 0, 0);
+    ray_bg_renderer_init(&ray_loop->bg_renderer,
+                         &tr_loop->resources,
+                         &tr_loop->tilesets,
+                         &tr_loop->palette);
 
-    int dbg_ani = 0;
+    ray_bg_render_room(&ray_loop->bg_renderer, 0, 0);
 
-    bool show_types  = true;
-    bool show_anidbg = true;
-    bool show_dbg_ani = false;
+    ray_loop->rendered_room = 0;
+    ray_loop->show_types  = true;
+    ray_loop->show_anidbg  = true;
+}
+
+void ray_gameloop_tick(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
+    if (IsKeyPressed(KEY_U)) {
+        ray_loop->show_types = !ray_loop->show_types;
+    }
+
+    if (IsKeyPressed(KEY_I)) {
+        ray_loop->show_anidbg = !ray_loop->show_anidbg;
+    }
+
+    if (IsKeyPressed(KEY_R)) {
+        tr_game_reset(&tr_loop->game, &tr_loop->resources);
+    }
+
+    if (IsKeyPressed(KEY_BACKSPACE)) {
+        tr_loop->game.x = tr_loop->game.to_set_x;
+        tr_loop->game.y = tr_loop->game.to_set_y;
+    }
+
+    if (IsKeyPressed(KEY_PAGE_DOWN)) {
+        tr_loop->game.current_room = tr_loop->game.current_room + 1;
+    }
+
+    if (IsKeyPressed(KEY_PAGE_UP)) {
+        tr_loop->game.current_room = tr_loop->game.current_room - 1;
+    }
+
+
+    char direction = tr_keys_to_direction(
+        IsKeyDown(KEY_DOWN),
+        IsKeyDown(KEY_UP),
+        IsKeyDown(KEY_LEFT),
+        IsKeyDown(KEY_RIGHT),
+        IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)
+    );
+
+    tr_gameloop_tick(&tr_loop->game, &tr_loop->resources, direction);
+
+    bool redraw_bg = bg_step(&tr_loop->bg);
+
+    if ((ray_loop->rendered_room != tr_loop->game.current_room) || redraw_bg) {
+        ray_bg_render_room(&ray_loop->bg_renderer, tr_loop->game.current_room, tr_loop->bg.frame);
+        ray_loop->rendered_room = tr_loop->game.current_room;
+    }
+
+    DrawTextureScaled(ray_loop->bg_renderer.texture, 0, 0, GAME_SIZE_WIDTH, GAME_SIZE_HEIGHT, false);
+
+    for (int i = 0; i < tr_loop->game.bobs.count; i++) {
+        tr_bob *bob = &(tr_loop->game.bobs.bobs[i]);
+
+        Texture texture = ray_loop->ele_textures[bob->ele]->textures[bob->ele_idx];
+
+        DrawTextureScaled(texture,
+                          bob->x - texture.width / 2,
+                          bob->y - texture.height,
+                          texture.width,
+                          texture.height,
+                          bob->flip);
+    }
+
+    char suca[0x100];
+
+    if (ray_loop->show_types)
+        DrawTileTypes(&tr_loop->resources, tr_loop->game.current_room);
+
+    if (ray_loop->show_anidbg) {
+        int YYY = 0;
+
+        sprintf(suca, "dir:   %2x", direction);
+        DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
+        sprintf(suca, "ani:   %2x", tr_loop->game.ani);
+        DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
+        sprintf(suca, "frame: %2x", tr_loop->game.frame_nr);
+        DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
+        sprintf(suca, "ctd:   %2x", tr_loop->game.countdown);
+        DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
+        sprintf(suca, "pupo:  %4x %4x", tr_loop->game.x, tr_loop->game.y);
+        DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
+        sprintf(suca, "room:  %2x", tr_loop->game.current_room);
+        DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
+        sprintf(suca, "to_set_x:  %2x", tr_loop->game.to_set_x);
+        DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
+        sprintf(suca, "to_set_y:  %2x", tr_loop->game.to_set_y);
+        DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
+        sprintf(suca, "count caduta:  %2x", tr_loop->game.counter_caduta);
+        DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
+    }
+
+    uint16_t line1, line2;
+    get_explanation(&tr_loop->game, &tr_loop->resources, &line1, &line2);
+
+    char line1_str[0x100];
+    char line2_str[0x100];
+
+    line1_str[0] = 0;
+    line2_str[0] = 0;
+
+    get_pti_line(&tr_loop->resources, line1, line1_str);
+    get_pti_line(&tr_loop->resources, line2, line2_str);
+
+    sprintf(suca, "line1:  %s", line1_str);
+    DrawText(suca, 20, 200, 20, GREEN);
+
+    sprintf(suca, "line2:  %s", line2_str);
+    DrawText(suca, 20, 220, 20, GREEN);
+}
+
+int main() {
+    InitWindow(GAME_SIZE_WIDTH  * GAME_SIZE_SCALE,
+               GAME_SIZE_HEIGHT * GAME_SIZE_SCALE,
+               "Corridori");
+
+    SetWindowPosition(2000, 200);
+
+    SetTargetFPS(20);
+
+    tr_gameloop tr_loop;
+    tr_gameloop_init(&tr_loop);
+
+    ray_gameloop ray_loop;
+    ray_gameloop_init(&ray_loop, &tr_loop);
 
     while (!WindowShouldClose()) {
         BeginDrawing();
         ClearBackground(BLACK);
 
-        if (IsKeyPressed(KEY_U)) {
-            show_types = !show_types;
-        }
-
-        if (IsKeyPressed(KEY_P)) {
-            show_anidbg = !show_anidbg;
-        }
-
-        if (IsKeyPressed(KEY_I)) {
-            show_dbg_ani = !show_dbg_ani;
-        }
-
-        if (IsKeyPressed(KEY_R)) {
-            tr_game_reset(&game, &resources);
-        }
-
-        if (IsKeyPressed(KEY_BACKSPACE)) {
-            game.x = game.to_set_x;
-            game.y = game.to_set_y;
-        }
-
-        if (IsKeyPressed(KEY_PAGE_DOWN)) {
-            game.current_room = game.current_room + 1;
-        }
-
-        if (IsKeyPressed(KEY_PAGE_UP)) {
-            game.current_room = game.current_room - 1;
-        }
-
-
-        char direction = tr_keys_to_direction(
-            IsKeyDown(KEY_DOWN),
-            IsKeyDown(KEY_UP),
-            IsKeyDown(KEY_LEFT),
-            IsKeyDown(KEY_RIGHT),
-            IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)
-        );
-
-        if (show_dbg_ani) {
-            if (IsKeyPressed(KEY_LEFT)) dbg_ani++;
-            if (IsKeyPressed(KEY_RIGHT)) dbg_ani--;
-
-            direction = tr_keys_to_direction(
-              false,
-              false,
-              false,
-              false,
-              false
-            );
-
-            update_pupo(&game, &resources, direction, 0x10000 + dbg_ani);
-        }
-        else {
-            tr_gameloop(&game, &resources, direction);
-        }
-
-        bool redraw_bg = bg_step(&bg);
-
-        if ((rendered_room != game.current_room) || redraw_bg) {
-            ray_bg_render_room(&bg_renderer, game.current_room, bg.frame);
-            rendered_room = game.current_room;
-        }
-
-        DrawTextureScaled(bg_renderer.texture, 0, 0, GAME_SIZE_WIDTH, GAME_SIZE_HEIGHT, false);
-
-        for (int i = 0; i < game.bobs.count; i++) {
-            tr_bob *bob = &(game.bobs.bobs[i]);
-
-            Texture texture = ele_textures[bob->ele]->textures[bob->ele_idx];
-
-            DrawTextureScaled(texture,
-                              bob->x - texture.width / 2,
-                              bob->y - texture.height,
-                              texture.width,
-                              texture.height,
-                              bob->flip);
-        }
-
-        char suca[0x100];
-
-        if (show_dbg_ani) {
-            sprintf(suca, "dbg_ani:   %4x", dbg_ani);
-            DrawText(suca, 0, 100, 40, PINK);
-        }
-        else {
-        if (show_types)
-            DrawTileTypes(&resources, game.current_room);
-
-        if (show_anidbg) {
-            int YYY = 0;
-
-            sprintf(suca, "dir:   %2x", direction);
-            DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
-            sprintf(suca, "ani:   %2x", game.ani);
-            DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
-            sprintf(suca, "frame: %2x", game.frame_nr);
-            DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
-            sprintf(suca, "ctd:   %2x", game.countdown);
-            DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
-            sprintf(suca, "pupo:  %4x %4x", game.x, game.y);
-            DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
-            sprintf(suca, "room:  %2x", game.current_room);
-            DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
-            sprintf(suca, "to_set_x:  %2x", game.to_set_x);
-            DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
-            sprintf(suca, "to_set_y:  %2x", game.to_set_y);
-            DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
-            sprintf(suca, "count caduta:  %2x", game.counter_caduta);
-            DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
-
-        }
-        }
-
-        uint16_t line1, line2;
-        get_explanation(&game, &resources, &line1, &line2);
-
-        char line1_str[0x100];
-        char line2_str[0x100];
-
-        line1_str[0] = 0;
-        line2_str[0] = 0;
-
-        get_pti_line(&resources, line1, line1_str);
-        get_pti_line(&resources, line2, line2_str);
-
-        sprintf(suca, "line1:  %s", line1_str);
-        DrawText(suca, 20, 200, 20, GREEN);
-
-        sprintf(suca, "line2:  %s", line2_str);
-        DrawText(suca, 20, 220, 20, GREEN);
+        ray_gameloop_tick(&ray_loop, &tr_loop);
 
         EndDrawing();
     }
