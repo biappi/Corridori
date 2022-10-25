@@ -5,6 +5,7 @@
 #include <assert.h>
 
 #include "raylib.h"
+#include "cimgui-raylib.h"
 
 // #ifndef PIXELFORMAT_UNCOMPRESSED_R8G8B8A8
 // #define PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 UNCOMPRESSED_R8G8B8A8
@@ -2480,7 +2481,9 @@ void ray_gameloop_tick(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
         ray_bg_render_room(&ray_loop->bg_renderer, tr_loop->game.current_room, tr_loop->bg.frame);
         ray_loop->rendered_room = tr_loop->game.current_room;
     }
+}
 
+void ray_grameloop_draw(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
     DrawTextureScaled(ray_loop->bg_renderer.texture, 0, 0, GAME_SIZE_WIDTH, GAME_SIZE_HEIGHT, false);
 
     for (int i = 0; i < tr_loop->game.bobs.count; i++) {
@@ -2504,8 +2507,6 @@ void ray_gameloop_tick(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
     if (ray_loop->show_anidbg) {
         int YYY = 0;
 
-        sprintf(suca, "dir:   %2x", direction);
-        DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
         sprintf(suca, "ani:   %2x", tr_loop->game.ani);
         DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
         sprintf(suca, "frame: %2x", tr_loop->game.frame_nr);
@@ -2788,7 +2789,7 @@ void ani_test_tick(ani_test *ani_test) {
     }
 
     ray_single_texture *tex = ani_test_get_textures(ani_test, ani_test->current_ani);
-    DrawTexture(tex[ani_test->current].texture, 100, 100, RAYWHITE);
+    DrawTexture(tex[ani_test->current].texture, 0, 250, RAYWHITE);
 
     int YYY = 20;
 
@@ -2805,14 +2806,84 @@ void ani_test_tick(ani_test *ani_test) {
     YYY += 20;
 }
 
+typedef struct {
+    struct ImGuiIO *io;
+    Texture2D font_texture;
+} dbg_ui;
+
+void dbg_ui_init(dbg_ui *ui) {
+    igCreateContext(NULL);
+    igStyleColorsDark(NULL);
+
+    ImGui_ImplRaylib_Init();
+
+    ui->io = igGetIO();
+
+    Image font_image;
+    font_image.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+    font_image.mipmaps = 1;
+
+    ImFontAtlas_GetTexDataAsRGBA32(ui->io->Fonts,
+                                   (uint8_t **)&font_image.data,
+                                   &font_image.width,
+                                   &font_image.height,
+                                   NULL);
+
+    ui->font_texture = LoadTextureFromImage(font_image);
+    ui->io->Fonts->TexID = (ImTextureID *)(&ui->font_texture.id);
+}
+
+void dbg_ui_update(dbg_ui *ui) {
+    ImGui_ImplRaylib_NewFrame();
+    ImGui_ImplRaylib_ProcessEvent();
+
+    igNewFrame();
+
+    igShowDemoWindow(NULL);
+}
+
+void dbg_ui_render(void) {
+    igRender();
+    raylib_render_cimgui(igGetDrawData());
+    igUpdatePlatformWindows();
+}
+
+typedef struct  {
+    float elapsed;
+    float frame_time;
+    bool  do_frame;
+} ray_framerate;
+
+void ray_framerate_init(ray_framerate *framerate, int fps) {
+    framerate->elapsed    = 0;
+    framerate->frame_time = 1/((float) fps);
+    framerate->do_frame   = false;
+}
+
+void ray_framerate_update(ray_framerate *framerate) {
+    framerate->do_frame = false;
+    framerate->elapsed += GetFrameTime();
+
+    if (framerate->elapsed > framerate->frame_time) {
+        framerate->do_frame = true;
+        framerate->elapsed -= framerate->frame_time;
+    }
+}
+
+bool ray_framerate_do_frame(ray_framerate *framerate) {
+    return framerate->do_frame;
+}
+
 int main() {
     InitWindow(GAME_SIZE_WIDTH  * GAME_SIZE_SCALE,
                GAME_SIZE_HEIGHT * GAME_SIZE_SCALE,
                "Corridori");
 
-    SetWindowPosition(2000, 200);
+    dbg_ui ui;
+    dbg_ui_init(&ui);
 
-    SetTargetFPS(20);
+    SetWindowPosition(2000, 200);
+    SetTargetFPS(60);
 
     tr_gameloop tr_loop;
     tr_gameloop_init(&tr_loop);
@@ -2826,14 +2897,27 @@ int main() {
     ani_test ani_test;
     ani_test_init(&ani_test);
 
+    ray_framerate framerate;
+    ray_framerate_init(&framerate, 20);
+
     while (!WindowShouldClose()) {
+        dbg_ui_update(&ui);
+
+        if (ray_framerate_do_frame(&framerate)) {
+            ray_gameloop_tick(&ray_loop, &tr_loop);
+        }
+
         BeginDrawing();
         ClearBackground(BLACK);
 
-        ray_gameloop_tick(&ray_loop, &tr_loop);
+        ray_grameloop_draw(&ray_loop, &tr_loop);
+
 //        wdw_test_tick(&wdw_test);
 //        ani_test_tick(&ani_test);
+        dbg_ui_render();
         EndDrawing();
+
+        ray_framerate_update(&framerate);
     }
 
     CloseWindow();

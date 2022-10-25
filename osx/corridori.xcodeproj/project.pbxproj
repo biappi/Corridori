@@ -12,6 +12,8 @@
 		3F6C1FFB271A69EE00B28F2F /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3F6C1FFA271A69EE00B28F2F /* AppKit.framework */; };
 		3F6C1FFD271A69FE00B28F2F /* OpenGL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3F6C1FFC271A69FE00B28F2F /* OpenGL.framework */; };
 		3F6C1FFF271A6A0A00B28F2F /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3F6C1FFE271A6A0A00B28F2F /* IOKit.framework */; };
+		3FC9BE902907FC8A00D13A45 /* cimgui.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3FC9BE8F2907FB5200D13A45 /* cimgui.a */; };
+		3FC9BE932907FCAF00D13A45 /* stub.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3FC9BE912907FCAF00D13A45 /* stub.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -41,6 +43,10 @@
 		3F6C1FFC271A69FE00B28F2F /* OpenGL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenGL.framework; path = System/Library/Frameworks/OpenGL.framework; sourceTree = SDKROOT; };
 		3F6C1FFE271A6A0A00B28F2F /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
 		3F9BB24C271A67FA005F19AD /* corridori */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = corridori; sourceTree = BUILT_PRODUCTS_DIR; };
+		3FC9BE8D2907FB3C00D13A45 /* cimgui-raylib.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "cimgui-raylib.h"; sourceTree = SOURCE_ROOT; };
+		3FC9BE8E2907FB4C00D13A45 /* cimgui.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = cimgui.h; path = "cimgui-9ce2c32/cimgui.h"; sourceTree = SOURCE_ROOT; };
+		3FC9BE8F2907FB5200D13A45 /* cimgui.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = cimgui.a; path = "cimgui-9ce2c32/cimgui.a"; sourceTree = SOURCE_ROOT; };
+		3FC9BE912907FCAF00D13A45 /* stub.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = stub.cpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -51,6 +57,7 @@
 				3F2F2B5F2904624300B86B54 /* libraylib.a in Frameworks */,
 				3F6C1FFF271A6A0A00B28F2F /* IOKit.framework in Frameworks */,
 				3F6C1FFD271A69FE00B28F2F /* OpenGL.framework in Frameworks */,
+				3FC9BE902907FC8A00D13A45 /* cimgui.a in Frameworks */,
 				3F6C1FFB271A69EE00B28F2F /* AppKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -66,6 +73,10 @@
 				3F2F2B5C2904624300B86B54 /* raymath.h */,
 				3F2F2B5D2904624300B86B54 /* raygui.h */,
 				3F2F2B5E2904624300B86B54 /* raylib.h */,
+				3FC9BE8D2907FB3C00D13A45 /* cimgui-raylib.h */,
+				3FC9BE8E2907FB4C00D13A45 /* cimgui.h */,
+				3FC9BE8F2907FB5200D13A45 /* cimgui.a */,
+				3FC9BE912907FCAF00D13A45 /* stub.cpp */,
 			);
 			path = "raylib-4.2.0";
 			sourceTree = "<group>";
@@ -169,6 +180,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3F6C1FF3271A691300B28F2F /* corridori.c in Sources */,
+				3FC9BE932907FCAF00D13A45 /* stub.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -295,6 +307,7 @@
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/raylib-4.2.0",
+					"$(PROJECT_DIR)/cimgui-9ce2c32",
 				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
@@ -309,6 +322,7 @@
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/raylib-4.2.0",
+					"$(PROJECT_DIR)/cimgui-9ce2c32",
 				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
