@@ -13,6 +13,7 @@
 
 #define PACKED __attribute__((packed))
 
+const int DEBUG_PANE_WIDTH = 300;
 const int GAME_SIZE_WIDTH  = 320;
 const int GAME_SIZE_HEIGHT = 200;
 const int GAME_SIZE_SCALE  =   3;
@@ -2342,14 +2343,10 @@ void get_pti_line(tr_resources *resources, uint16_t line_idx, char *line_str) {
 void tr_game_reset(tr_game *game, tr_resources *resources) {
     memset(game, 0, sizeof(tr_game));
 
-    game->x = 0x08;
+    game->current_room = 0x00;
+    game->x = 0xb8;
     game->y = 0xa0;
     game->ani = 0x03;
-
-    game->x = 0xc8;
-    game->y = 0xaa;
-    game->ani = 0x03;
-    game->current_room = 0x28;
 
     game->frame_nr = 0x00;
     game->flip = 0;
@@ -2407,7 +2404,6 @@ typedef struct {
     ray_bg_renderer bg_renderer;
 
     int rendered_room;
-    bool show_anidbg;
     bool show_types;
 } ray_gameloop;
 
@@ -2435,16 +2431,11 @@ void ray_gameloop_init(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
 
     ray_loop->rendered_room = 0;
     ray_loop->show_types  = true;
-    ray_loop->show_anidbg  = true;
 }
 
-void ray_gameloop_tick(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
+void ray_gameloop_update(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
     if (IsKeyPressed(KEY_U)) {
         ray_loop->show_types = !ray_loop->show_types;
-    }
-
-    if (IsKeyPressed(KEY_I)) {
-        ray_loop->show_anidbg = !ray_loop->show_anidbg;
     }
 
     if (IsKeyPressed(KEY_R)) {
@@ -2463,8 +2454,9 @@ void ray_gameloop_tick(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
     if (IsKeyPressed(KEY_PAGE_UP)) {
         tr_loop->game.current_room = tr_loop->game.current_room - 1;
     }
+}
 
-
+void ray_gameloop_tick(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
     char direction = tr_keys_to_direction(
         IsKeyDown(KEY_DOWN),
         IsKeyDown(KEY_UP),
@@ -2483,7 +2475,7 @@ void ray_gameloop_tick(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
     }
 }
 
-void ray_grameloop_draw(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
+void ray_gameloop_draw(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
     DrawTextureScaled(ray_loop->bg_renderer.texture, 0, 0, GAME_SIZE_WIDTH, GAME_SIZE_HEIGHT, false);
 
     for (int i = 0; i < tr_loop->game.bobs.count; i++) {
@@ -2499,49 +2491,8 @@ void ray_grameloop_draw(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
                           bob->flip);
     }
 
-    char suca[0x100];
-
     if (ray_loop->show_types)
         DrawTileTypes(&tr_loop->resources, tr_loop->game.current_room);
-
-    if (ray_loop->show_anidbg) {
-        int YYY = 0;
-
-        sprintf(suca, "ani:   %2x", tr_loop->game.ani);
-        DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
-        sprintf(suca, "frame: %2x", tr_loop->game.frame_nr);
-        DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
-        sprintf(suca, "ctd:   %2x", tr_loop->game.countdown);
-        DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
-        sprintf(suca, "pupo:  %4x %4x", tr_loop->game.x, tr_loop->game.y);
-        DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
-        sprintf(suca, "room:  %2x", tr_loop->game.current_room);
-        DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
-        sprintf(suca, "to_set_x:  %2x", tr_loop->game.to_set_x);
-        DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
-        sprintf(suca, "to_set_y:  %2x", tr_loop->game.to_set_y);
-        DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
-        sprintf(suca, "count caduta:  %2x", tr_loop->game.counter_caduta);
-        DrawText(suca, 20, YYY, 20, GREEN); YYY += 20;
-    }
-
-    uint16_t line1, line2;
-    get_explanation(&tr_loop->game, &tr_loop->resources, &line1, &line2);
-
-    char line1_str[0x100];
-    char line2_str[0x100];
-
-    line1_str[0] = 0;
-    line2_str[0] = 0;
-
-    get_pti_line(&tr_loop->resources, line1, line1_str);
-    get_pti_line(&tr_loop->resources, line2, line2_str);
-
-    sprintf(suca, "line1:  %s", line1_str);
-    DrawText(suca, 20, 200, 20, GREEN);
-
-    sprintf(suca, "line2:  %s", line2_str);
-    DrawText(suca, 20, 220, 20, GREEN);
 }
 
 const int tr_wdw_image_count = 9;
@@ -2809,6 +2760,7 @@ void ani_test_tick(ani_test *ani_test) {
 typedef struct {
     struct ImGuiIO *io;
     Texture2D font_texture;
+    bool show_imgui_demo;
 } dbg_ui;
 
 void dbg_ui_init(dbg_ui *ui) {
@@ -2818,6 +2770,7 @@ void dbg_ui_init(dbg_ui *ui) {
     ImGui_ImplRaylib_Init();
 
     ui->io = igGetIO();
+    ui->io->ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
     Image font_image;
     font_image.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
@@ -2831,15 +2784,74 @@ void dbg_ui_init(dbg_ui *ui) {
 
     ui->font_texture = LoadTextureFromImage(font_image);
     ui->io->Fonts->TexID = (ImTextureID *)(&ui->font_texture.id);
+
+    ui->show_imgui_demo = false;
 }
 
-void dbg_ui_update(dbg_ui *ui) {
+void dbg_ui_update(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
     ImGui_ImplRaylib_NewFrame();
     ImGui_ImplRaylib_ProcessEvent();
 
     igNewFrame();
 
-    igShowDemoWindow(NULL);
+    ImVec2 zero = { 0 };
+    ImVec2 position = { GAME_SIZE_WIDTH * GAME_SIZE_SCALE, 0 };
+    ImVec2 size = { DEBUG_PANE_WIDTH, GAME_SIZE_HEIGHT * GAME_SIZE_SCALE };
+
+    igSetNextWindowPos(position, 0, zero);
+    igSetNextWindowSize(size, 0);
+
+    int main_window_flags = 0       |
+        ImGuiWindowFlags_NoTitleBar |
+        ImGuiWindowFlags_NoMove     |
+        ImGuiWindowFlags_NoCollapse;
+
+    igBegin("main", NULL, main_window_flags);
+
+    igInputInt("room nr", &tr_loop->game.current_room, 1, 1, ImGuiInputTextFlags_CharsHexadecimal);
+    igLabelText("pupo",         "%4x %4x", tr_loop->game.x, tr_loop->game.y);
+    igNewLine();
+    igLabelText("ani",          "%02x",    tr_loop->game.ani);
+    igLabelText("frame",        "%02x",    tr_loop->game.frame_nr);
+    igLabelText("ctd",          "%2x",     tr_loop->game.countdown);
+    igLabelText("room",         "%2x",     tr_loop->game.current_room);
+    igLabelText("to_set_x",     "%2x",     tr_loop->game.to_set_x);
+    igLabelText("to_set_y",     "%2x",     tr_loop->game.to_set_y);
+    igLabelText("count caduta", "%2x",     tr_loop->game.counter_caduta);
+    igNewLine();
+
+    uint16_t line1, line2;
+    get_explanation(&tr_loop->game, &tr_loop->resources, &line1, &line2);
+
+    char line1_str[0x100];
+    char line2_str[0x100];
+
+    line1_str[0] = 0;
+    line2_str[0] = 0;
+
+    get_pti_line(&tr_loop->resources, line1, line1_str);
+    get_pti_line(&tr_loop->resources, line2, line2_str);
+
+    igText("%s", line1_str);
+    igText("%s", line2_str);
+
+    igNewLine();
+    igCheckbox("show tile types", &ray_loop->show_types);
+    igCheckbox("show demo", &ui->show_imgui_demo);
+
+    if (igButton("Reset", zero)) {
+        tr_game_reset(&tr_loop->game, &tr_loop->resources);
+    }
+
+    if (igButton("Room pos", zero)) {
+        tr_loop->game.x = tr_loop->game.to_set_x;
+        tr_loop->game.y = tr_loop->game.to_set_y;
+    }
+
+    igEnd();
+
+    if (ui->show_imgui_demo)
+        igShowDemoWindow(NULL);
 }
 
 void dbg_ui_render(void) {
@@ -2875,7 +2887,7 @@ bool ray_framerate_do_frame(ray_framerate *framerate) {
 }
 
 int main() {
-    InitWindow(GAME_SIZE_WIDTH  * GAME_SIZE_SCALE,
+    InitWindow(GAME_SIZE_WIDTH  * GAME_SIZE_SCALE + DEBUG_PANE_WIDTH,
                GAME_SIZE_HEIGHT * GAME_SIZE_SCALE,
                "Corridori");
 
@@ -2901,7 +2913,8 @@ int main() {
     ray_framerate_init(&framerate, 20);
 
     while (!WindowShouldClose()) {
-        dbg_ui_update(&ui);
+        dbg_ui_update(&ui, &ray_loop, &tr_loop);
+        ray_gameloop_update(&ray_loop, &tr_loop);
 
         if (ray_framerate_do_frame(&framerate)) {
             ray_gameloop_tick(&ray_loop, &tr_loop);
@@ -2910,11 +2923,12 @@ int main() {
         BeginDrawing();
         ClearBackground(BLACK);
 
-        ray_grameloop_draw(&ray_loop, &tr_loop);
+        ray_gameloop_draw(&ray_loop, &tr_loop);
 
 //        wdw_test_tick(&wdw_test);
 //        ani_test_tick(&ani_test);
         dbg_ui_render();
+
         EndDrawing();
 
         ray_framerate_update(&framerate);
