@@ -2523,8 +2523,6 @@ void tr_wdw_init_palette(tr_wdw *wdw, uint8_t *data) {
 
 void tr_wdw_init(tr_wdw *wdw, uint8_t *wdw_file) {
     for (int i = 0; i < tr_wdw_image_count; i++) {
-        printf("\n\n == %02x ==\n\n", i);
-
         uint16_t ele_offset = *((uint16_t *)(wdw_file + i * 2));
         tr_render_ele_wdw(wdw_file + ele_offset, &wdw->images[i]);
     }
@@ -2595,7 +2593,6 @@ typedef struct {
 
 void tr_ani_file_init(tr_ani_file *ani, uint8_t *ani_file) {
     ani->count              = read16_unaligned(ani_file + 2) - 1;
-    printf(" >> %d\n", ani->count);
     uint32_t palette_offset = read32_unaligned(ani_file + 10);
 
     uint8_t *items = ani_file + 14;
@@ -2693,15 +2690,12 @@ typedef struct {
     ray_single_texture *textures[ani_files_count];
 
     int current;
-    int prev;
-
-    int current_ani;
-    int prev_ani;
+    int scale;
 } ani_test;
-
 
 void ani_test_init(ani_test *test) {
     memset(test, 0, sizeof(ani_test));
+    test->scale = 1;
 }
 
 ray_single_texture *ani_test_get_textures(ani_test * ani_test, int ani_idx) {
@@ -2724,43 +2718,71 @@ ray_single_texture *ani_test_get_textures(ani_test * ani_test, int ani_idx) {
     return ani_test->textures[ani_idx];
 }
 
-void ani_test_tick(ani_test *ani_test) {
-    if (IsKeyPressed(KEY_SPACE)) {
-        ani_test->current++;
+void ani_test_ui(ani_test *test, bool *show) {
+    ImVec2 zero  = { 0 };
+    ImVec2 one   = { 1, 1 };
+    ImVec4 zero4 = { 0 };
+    ImVec4 white = { 1, 1, 1, 1 };
 
-        if (ani_test->current >= ani_test->ani[ani_test->current_ani].count) {
-            ani_test->current = 0;
-            ani_test->current_ani++;
+    igSetNextWindowSize((ImVec2){500, 440}, ImGuiCond_FirstUseEver);
 
-            if (ani_test->current_ani >= ani_files_count) {
-                ani_test->current = 0;
-                ani_test->current_ani = 0;
-            }
-        }
+    igBegin("ANI files", show, 0);
+    igBeginChild_Str("left", (ImVec2){150, 0}, true, 0);
+
+    for (int i = 0; i < ani_files_count; i++) {
+        if (igSelectable_Bool(TextFormat("%s", ani_files[i]), test->current == i, 0, zero))
+            test->current = i;
     }
 
-    ray_single_texture *tex = ani_test_get_textures(ani_test, ani_test->current_ani);
-    DrawTexture(tex[ani_test->current].texture, 0, 250, RAYWHITE);
+    igEndChild();
+    igSameLine(0, 0 );
 
-    int YYY = 20;
+    igBeginGroup();
+    igBeginChild_Str("right", (ImVec2) {0, -igGetFrameHeightWithSpacing() }, 0, 0);
 
-    DrawText("ANI", 20, YYY, 40, MAROON); YYY += 40;
-    DrawText(TextFormat("Item %02d - count %02d - ani: %02x (%s)",
-                        ani_test->current,
-                        ani_test->ani[ani_test->current_ani].count,
-                        ani_test->current_ani,
-                        ani_files[ani_test->current_ani]),
-             20,
-             YYY,
-             20,
-             GREEN);
-    YYY += 20;
+    igText("%s", ani_files[test->current]);
+
+    igSeparator();
+
+    igRadioButton_IntPtr("1x", &test->scale, 1); igSameLine(0, 0);
+    igRadioButton_IntPtr("2x", &test->scale, 2); igSameLine(0, 0);
+    igRadioButton_IntPtr("3x", &test->scale, 3);
+
+    igSeparator();
+
+    ani_test_get_textures(test, test->current);
+
+    for (int i = 0; i < test->ani[test->current].count; i++) {
+        igText("%d. %dx%d",
+               i,
+               test->ani[test->current].images[i].width,
+               test->ani[test->current].images[i].height);
+
+        ray_single_texture *ani_text = ani_test_get_textures(test, test->current);
+
+        ImVec2 ani_size = {
+            ani_text[i].texture.width  * test->scale,
+            ani_text[i].texture.height * test->scale
+        };
+
+        ImTextureID tid = &ani_text[i].texture.id;
+
+        igImage(tid, ani_size, zero, one, white, zero4);
+        igSeparator();
+    }
+    igEndChild();
+
+    igEndGroup();
+    igEnd();
 }
 
 typedef struct {
     struct ImGuiIO *io;
     Texture2D font_texture;
     bool show_imgui_demo;
+
+    ani_test ani;
+    bool show_ani;
 } dbg_ui;
 
 void dbg_ui_init(dbg_ui *ui) {
@@ -2786,6 +2808,8 @@ void dbg_ui_init(dbg_ui *ui) {
     ui->io->Fonts->TexID = (ImTextureID *)(&ui->font_texture.id);
 
     ui->show_imgui_demo = false;
+    ui->show_ani = false;
+    ani_test_init(&ui->ani);
 }
 
 void dbg_ui_update(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
@@ -2848,10 +2872,22 @@ void dbg_ui_update(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
         tr_loop->game.y = tr_loop->game.to_set_y;
     }
 
+    igNewLine();
+    igSeparator();
+    igNewLine();
+
+    if (igButton("Show ani images", zero)) {
+        ui->show_ani = true;
+    }
+
     igEnd();
 
     if (ui->show_imgui_demo)
         igShowDemoWindow(NULL);
+
+    if (ui->show_ani) {
+        ani_test_ui(&ui->ani, &ui->show_ani);
+    }
 }
 
 void dbg_ui_render(void) {
@@ -2926,7 +2962,6 @@ int main() {
         ray_gameloop_draw(&ray_loop, &tr_loop);
 
 //        wdw_test_tick(&wdw_test);
-//        ani_test_tick(&ani_test);
         dbg_ui_render();
 
         EndDrawing();
