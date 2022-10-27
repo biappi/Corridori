@@ -2502,19 +2502,16 @@ typedef struct {
     tr_palette palette;
 } tr_wdw;
 
-void tr_wdw_init_palette(tr_wdw *wdw, uint8_t *data) {
+void tr_wdw_init_palette(tr_palette *palette, uint8_t *data) {
     int16_t start = read16_unaligned(data + 0);
     int16_t end   = read16_unaligned(data + 2);
 
     int16_t count = end - start - 1;
     uint8_t start_c = *(data + 0) + 1;
-    uint8_t *color_start = data + 4;
+    uint8_t *color_start = data + 8;
 
     for (int i = 0; i < count; i++) {
-        if ((i + start_c) > 0xff)
-            continue;
-
-        wdw->palette.color[i + start_c] = 0xff000000 |
+        palette->color[i + start_c] = 0xff000000 |
             (color_start[(i * 3) + 0] <<  2) |
             (color_start[(i * 3) + 1] << 10) |
             (color_start[(i * 3) + 2] << 18);
@@ -2529,11 +2526,8 @@ void tr_wdw_init(tr_wdw *wdw, uint8_t *wdw_file) {
 
     uint16_t palette_offset = *((uint16_t *)(wdw_file + 18));
     uint8_t *palette_data = wdw_file + palette_offset;
-    tr_wdw_init_palette(wdw, palette_data);
+    tr_wdw_init_palette(&wdw->palette, palette_data);
 }
-
-// "PMOUSE.I16"
-// "TR.PTR"
 
 static const char *wdw_files[] = {
     "TR.TIL",
@@ -2763,6 +2757,49 @@ ray_single_texture *ani_test_get_textures(ani_test * ani_test, int ani_idx) {
     return ani_test->textures[ani_idx];
 }
 
+typedef struct {
+    tr_palette palette;
+    tr_image_8bpp image1;
+    tr_image_8bpp image2;
+} tr_ptr;
+
+void tr_ptr_init(tr_ptr *ptr, uint8_t *data) {
+    uint16_t data1   = read16_unaligned(data + 0);
+    uint16_t data2   = read16_unaligned(data + 2);
+    uint16_t palette = read16_unaligned(data + 4);
+
+    tr_wdw_init_palette(&ptr->palette, data + palette);
+    tr_render_ele(data + data1, &ptr->image1);
+    tr_render_ele(data + data2, &ptr->image2);
+}
+
+typedef struct {
+    tr_ptr ptr;
+    ray_single_texture tex1;
+    ray_single_texture tex2;
+} dbg_ptr;
+
+void dbg_ptr_init(dbg_ptr *dbg, const char *file) {
+    uint8_t *pmouse = load_file(file);
+    tr_ptr_init(&dbg->ptr, pmouse);
+    ray_texture_from_image(&dbg->tex1, &dbg->ptr.image1, &dbg->ptr.palette, 0xf1);
+    ray_texture_from_image(&dbg->tex2, &dbg->ptr.image2, &dbg->ptr.palette, 0xf1);
+}
+
+void dbg_image_list_show_image(int i, Texture *texture, int scale);
+
+void dbg_ptr_show(dbg_ptr *dbg, bool *show) {
+    igSetNextWindowSize((ImVec2){500, 440}, ImGuiCond_FirstUseEver);
+
+    igBegin("PTRs", show, 0);
+
+    dbg_image_list_show_image(0, &dbg->tex1.texture, 10);
+    dbg_image_list_show_image(0, &dbg->tex2.texture, 10);
+
+    igEnd();
+}
+
+
 void dbg_image_list_prepare_left_pane(const char *title, bool *show) {
     igSetNextWindowSize((ImVec2){500, 440}, ImGuiCond_FirstUseEver);
 
@@ -2863,6 +2900,9 @@ typedef struct {
 
     wdw_test wdw;
     bool show_wdw;
+
+    dbg_ptr ptr;
+    bool show_ptr;
 } dbg_ui;
 
 void dbg_ui_init(dbg_ui *ui) {
@@ -2894,6 +2934,9 @@ void dbg_ui_init(dbg_ui *ui) {
 
     ui->show_wdw = false;
     wdw_test_init(&ui->wdw);
+
+    ui->show_ptr = true;
+    dbg_ptr_init(&ui->ptr, "GAME_DIR/PLR/WDW/PMOUSE.I16");
 }
 
 // void dbg_ui_props(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
@@ -2972,26 +3015,28 @@ void dbg_ui_update(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
     igSeparator();
     igNewLine();
 
-    if (igButton("Show ani images", zero)) {
+    if (igButton("Show ani images", zero))
         ui->show_ani = true;
-    }
 
-    if (igButton("Show wdw images", zero)) {
+    if (igButton("Show wdw images", zero))
         ui->show_wdw = true;
-    }
+
+    if (igButton("Show ptr images", zero))
+        ui->show_ptr = true;
 
     igEnd();
 
     if (ui->show_imgui_demo)
         igShowDemoWindow(NULL);
 
-    if (ui->show_ani) {
+    if (ui->show_ani)
         dbg_show_ani_window(&ui->ani, &ui->show_ani);
-    }
 
-    if (ui->show_wdw) {
+    if (ui->show_wdw)
         dbg_show_wdw_window(&ui->wdw, &ui->show_wdw);
-    }
+
+    if (ui->show_ptr)
+        dbg_ptr_show(&ui->ptr, &ui->show_ptr);
 }
 
 void dbg_ui_render(void) {
