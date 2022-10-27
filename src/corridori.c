@@ -2506,8 +2506,8 @@ void tr_wdw_init_palette(tr_wdw *wdw, uint8_t *data) {
     int16_t start = read16_unaligned(data + 0);
     int16_t end   = read16_unaligned(data + 2);
 
-    int16_t count = end - start;
-    uint8_t start_c = *(data + 0);
+    int16_t count = end - start - 1;
+    uint8_t start_c = *(data + 0) + 1;
     uint8_t *color_start = data + 4;
 
     for (int i = 0; i < count; i++) {
@@ -2532,6 +2532,17 @@ void tr_wdw_init(tr_wdw *wdw, uint8_t *wdw_file) {
     tr_wdw_init_palette(wdw, palette_data);
 }
 
+// "PMOUSE.I16"
+// "TR.PTR"
+
+static const char *wdw_files[] = {
+    "TR.TIL",
+    "GHOST.TIL",
+    "VUOTI.TIL",
+};
+
+const int wdw_files_count = sizeof(wdw_files) / sizeof(char *);
+
 typedef struct {
     int current;
     int current_col;
@@ -2539,21 +2550,47 @@ typedef struct {
     int prev_current;
     int prev_current_col;
 
+    int scale;
+
+    bool inited[wdw_files_count];
+    tr_wdw wdws[wdw_files_count];
+    ray_single_texture *textures[wdw_files_count];
+
     tr_wdw wdw;
     ray_single_texture wdw1;
 } wdw_test;
 
-void wdw_test_init(wdw_test *wdw_test) {
-    wdw_test->current = 0;
-    wdw_test->current_col = 0;
+void wdw_test_init(wdw_test *test) {
+    memset(test, 0, sizeof(wdw_test));
 
-    wdw_test->prev_current = 0;
-    wdw_test->prev_current_col = 0;
-
+    test->scale = 1;
+    test->current_col = 0xf1;
     uint8_t *wdw_file = load_file("GAME_DIR/PLR/WDW/TR.TIL");
-    tr_wdw_init(&wdw_test->wdw, wdw_file);
-    ray_texture_from_image(&wdw_test->wdw1, &wdw_test->wdw.images[0], &wdw_test->wdw.palette, 0xf1);
+    tr_wdw_init(&test->wdw, wdw_file);
+    ray_texture_from_image(&test->wdw1, &test->wdw.images[0], &test->wdw.palette, 0xf1);
 }
+
+ray_single_texture *wdw_test_get_texture(wdw_test *test, int idx) {
+    if (test->inited[idx]) {
+        return test->textures[idx];
+    }
+
+    const char *file_path = TextFormat("GAME_DIR/PLR/WDW/%s", wdw_files[idx]);
+    uint8_t *wdw_file = load_file(file_path);
+    tr_wdw_init(&test->wdws[idx], wdw_file);
+    test->textures[idx] = calloc(tr_wdw_image_count, sizeof(ray_single_texture));
+
+    for (int i = 0; i < tr_wdw_image_count; i++) {
+        ray_texture_from_image(&test->textures[idx][i],
+                               &test->wdws[idx].images[i],
+                               &test->wdws[idx].palette,
+                               0xf1);
+    }
+
+    test->inited[idx] = true;
+    return test->textures[idx];
+}
+
 
 void wdw_test_tick(wdw_test *wdw_test) {
     if (IsKeyPressed(KEY_LEFT)) { wdw_test->current -= 1; }
@@ -2575,10 +2612,13 @@ void wdw_test_tick(wdw_test *wdw_test) {
         ray_texture_from_image(&wdw_test->wdw1,
                                &wdw_test->wdw.images[wdw_test->current],
                                &wdw_test->wdw.palette,
-                               0xf1);
+                               wdw_test->current_col);
+
+        wdw_test->prev_current_col = wdw_test->current_col;
+        wdw_test->prev_current = wdw_test->current;
     }
 
-    DrawTexture(wdw_test->wdw1.texture, 100, 100, RAYWHITE);
+    DrawTextureScaled(wdw_test->wdw1.texture, 0, 50, wdw_test->wdw1.texture.width, wdw_test->wdw1.texture.height, false);
 
     int YYY = 20;
     DrawText("Test", 20, YYY, 20, GREEN); YYY += 20;
@@ -2613,6 +2653,11 @@ void tr_ani_file_init(tr_ani_file *ani, uint8_t *ani_file) {
         tr_render_ele_ani(ele_data, &ani->images[i]);
     }
 }
+
+static const ImVec2 zero  = { 0 };
+static const ImVec2 one   = { 1, 1 };
+static const ImVec4 zero4 = { 0 };
+static const ImVec4 white = { 1, 1, 1, 1 };
 
 static const char* ani_files[] = {
     "ANID01.ANI",
@@ -2718,62 +2763,94 @@ ray_single_texture *ani_test_get_textures(ani_test * ani_test, int ani_idx) {
     return ani_test->textures[ani_idx];
 }
 
-void dbg_show_ani_window(ani_test *test, bool *show) {
-    ImVec2 zero  = { 0 };
-    ImVec2 one   = { 1, 1 };
-    ImVec4 zero4 = { 0 };
-    ImVec4 white = { 1, 1, 1, 1 };
-
+void dbg_image_list_prepare_left_pane(const char *title, bool *show) {
     igSetNextWindowSize((ImVec2){500, 440}, ImGuiCond_FirstUseEver);
 
-    igBegin("ANI files", show, 0);
+    igBegin(title, show, 0);
     igBeginChild_Str("left", (ImVec2){150, 0}, true, 0);
+}
 
-    for (int i = 0; i < ani_files_count; i++) {
-        if (igSelectable_Bool(TextFormat("%s", ani_files[i]), test->current == i, 0, zero))
-            test->current = i;
-    }
+bool dbg_image_list_item(const char *name, bool selected) {
+    return igSelectable_Bool(name, selected, 0, zero);
+}
 
+void dbg_image_list_prepare_right_pane(const char *name, int *scale) {
     igEndChild();
     igSameLine(0, 0 );
 
     igBeginGroup();
     igBeginChild_Str("right", (ImVec2) {0, -igGetFrameHeightWithSpacing() }, 0, 0);
 
-    igText("%s", ani_files[test->current]);
+    igText("%s", name);
 
     igSeparator();
 
-    igRadioButton_IntPtr("1x", &test->scale, 1); igSameLine(0, 0);
-    igRadioButton_IntPtr("2x", &test->scale, 2); igSameLine(0, 0);
-    igRadioButton_IntPtr("3x", &test->scale, 3);
+    igRadioButton_IntPtr("1x", scale, 1); igSameLine(0, 0);
+    igRadioButton_IntPtr("2x", scale, 2); igSameLine(0, 0);
+    igRadioButton_IntPtr("3x", scale, 3);
 
     igSeparator();
+}
 
-    ani_test_get_textures(test, test->current);
+void dbg_image_list_show_image(int i, Texture *texture, int scale) {
+    igText("%d. %dx%d",
+           i,
+           texture->width,
+           texture->height);
 
-    for (int i = 0; i < test->ani[test->current].count; i++) {
-        igText("%d. %dx%d",
-               i,
-               test->ani[test->current].images[i].width,
-               test->ani[test->current].images[i].height);
+    ImVec2 ani_size = {
+        texture->width  * scale,
+        texture->height * scale
+    };
 
-        ray_single_texture *ani_text = ani_test_get_textures(test, test->current);
+    ImTextureID tid = &texture->id;
 
-        ImVec2 ani_size = {
-            ani_text[i].texture.width  * test->scale,
-            ani_text[i].texture.height * test->scale
-        };
+    igImage(tid, ani_size, zero, one, white, zero4);
+    igSeparator();
+}
 
-        ImTextureID tid = &ani_text[i].texture.id;
-
-        igImage(tid, ani_size, zero, one, white, zero4);
-        igSeparator();
-    }
+void dbg_image_list_end(void) {
     igEndChild();
 
     igEndGroup();
     igEnd();
+}
+
+void dbg_show_ani_window(ani_test *test, bool *show) {
+    dbg_image_list_prepare_left_pane("ANI files", show);
+
+    for (int i = 0; i < ani_files_count; i++) {
+        if (dbg_image_list_item(TextFormat("%s", ani_files[i]), test->current == i))
+            test->current = i;
+    }
+
+    dbg_image_list_prepare_right_pane(ani_files[test->current], &test->scale);
+
+    ani_test_get_textures(test, test->current);
+
+    for (int i = 0; i < test->ani[test->current].count; i++) {
+        ray_single_texture *ani_text = ani_test_get_textures(test, test->current);
+        dbg_image_list_show_image(i, &ani_text[i].texture, test->scale);
+    }
+
+    dbg_image_list_end();
+}
+
+void dbg_show_wdw_window(wdw_test *wdw, bool *show) {
+    dbg_image_list_prepare_left_pane("WDW images", show);
+
+    for (int i = 0; i < wdw_files_count; i++)
+        if (dbg_image_list_item(wdw_files[i], wdw->current == i))
+            wdw->current = i;
+
+    dbg_image_list_prepare_right_pane("xx", &wdw->scale);
+
+    for (int i = 0; i < tr_wdw_image_count; i++) {
+        ray_single_texture *text = wdw_test_get_texture(wdw, wdw->current);
+        dbg_image_list_show_image(i, &text[i].texture, wdw->scale);
+    }
+
+    dbg_image_list_end();
 }
 
 typedef struct {
@@ -2783,6 +2860,9 @@ typedef struct {
 
     ani_test ani;
     bool show_ani;
+
+    wdw_test wdw;
+    bool show_wdw;
 } dbg_ui;
 
 void dbg_ui_init(dbg_ui *ui) {
@@ -2808,8 +2888,12 @@ void dbg_ui_init(dbg_ui *ui) {
     ui->io->Fonts->TexID = (ImTextureID *)(&ui->font_texture.id);
 
     ui->show_imgui_demo = false;
+
     ui->show_ani = false;
     ani_test_init(&ui->ani);
+
+    ui->show_wdw = false;
+    wdw_test_init(&ui->wdw);
 }
 
 // void dbg_ui_props(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
@@ -2853,7 +2937,6 @@ void dbg_ui_update(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
 
     igNewFrame();
 
-    ImVec2 zero = { 0 };
     ImVec2 position = { GAME_SIZE_WIDTH * GAME_SIZE_SCALE, 0 };
     ImVec2 size = { DEBUG_PANE_WIDTH, GAME_SIZE_HEIGHT * GAME_SIZE_SCALE };
 
@@ -2893,6 +2976,10 @@ void dbg_ui_update(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
         ui->show_ani = true;
     }
 
+    if (igButton("Show wdw images", zero)) {
+        ui->show_wdw = true;
+    }
+
     igEnd();
 
     if (ui->show_imgui_demo)
@@ -2900,6 +2987,10 @@ void dbg_ui_update(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
 
     if (ui->show_ani) {
         dbg_show_ani_window(&ui->ani, &ui->show_ani);
+    }
+
+    if (ui->show_wdw) {
+        dbg_show_wdw_window(&ui->wdw, &ui->show_wdw);
     }
 }
 
