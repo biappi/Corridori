@@ -2799,7 +2799,6 @@ void dbg_ptr_show(dbg_ptr *dbg, bool *show) {
     igEnd();
 }
 
-
 void dbg_image_list_prepare_left_pane(const char *title, bool *show) {
     igSetNextWindowSize((ImVec2){500, 440}, ImGuiCond_FirstUseEver);
 
@@ -2822,9 +2821,11 @@ void dbg_image_list_prepare_right_pane(const char *name, int *scale) {
 
     igSeparator();
 
-    igRadioButton_IntPtr("1x", scale, 1); igSameLine(0, 0);
-    igRadioButton_IntPtr("2x", scale, 2); igSameLine(0, 0);
-    igRadioButton_IntPtr("3x", scale, 3);
+    igRadioButton_IntPtr("1x",  scale,  1); igSameLine(0, 0);
+    igRadioButton_IntPtr("2x",  scale,  2); igSameLine(0, 0);
+    igRadioButton_IntPtr("3x",  scale,  3); igSameLine(0, 0);
+    igRadioButton_IntPtr("5x",  scale,  5); igSameLine(0, 0);
+    igRadioButton_IntPtr("10x", scale, 10); igSameLine(0, 0);
 
     igSeparator();
 }
@@ -2891,6 +2892,106 @@ void dbg_show_wdw_window(wdw_test *wdw, bool *show) {
 }
 
 typedef struct {
+    uint8_t first_char;
+    uint8_t last_char;
+    uint8_t format;
+    uint8_t space_width;
+
+    tr_image_8bpp *images;
+} tr_chv;
+
+int tr_chv_get_count(tr_chv *chv) {
+    return chv->last_char - chv->first_char - 1;
+}
+
+void tr_chv_init(tr_chv *chv, uint8_t *data) {
+    chv->first_char  = data[0];
+    chv->last_char   = data[1];
+    chv->format      = data[2];
+    chv->space_width = data[3];
+
+    uint8_t *offset_start = data + 5;
+
+    chv->images = calloc(tr_chv_get_count(chv), sizeof(tr_image_8bpp));
+
+    for (int i = 0; i < tr_chv_get_count(chv); i++) {
+        uint32_t offset = read32_unaligned(offset_start + i * 4);
+        uint8_t *ele_data = offset_start + offset;
+
+        if (offset != 0xffffffff)
+            tr_render_ele(ele_data, &chv->images[i]);
+    }
+}
+
+static const char *chv_files[] = {
+    "GENE.CHV",
+    "MANAGER.CHV",
+    "HELP.CHV",
+    "TXT.CHV",
+    "INTRO.CHV",
+};
+
+static const int chv_files_count = sizeof(chv_files) / sizeof(char *);
+
+typedef struct {
+    tr_chv chvs[chv_files_count];
+    ray_single_texture *textures[chv_files_count];
+    int current;
+    int scale;
+} dbg_chv;
+
+void dbg_chv_init(dbg_chv *dbg) {
+    tr_palette_file *pp = load_file("GAME_DIR/AR1/STA/ARCADE.PAL");
+
+    tr_palette pal;
+    palette_load_from_file(&pal, pp);
+
+    dbg->scale = 1;
+
+    for (int i = 0; i < chv_files_count; i++) {
+        uint8_t *data = load_file(TextFormat("GAME_DIR/FNT/%s", chv_files[i]));
+        tr_chv_init(&dbg->chvs[i], data);
+
+        dbg->textures[i] = calloc(tr_chv_get_count(&dbg->chvs[i]), sizeof(ray_single_texture));
+
+        for (int t = 0; t < tr_chv_get_count(&dbg->chvs[i]); t++) {
+            if ((dbg->chvs[i].images[t].width +
+                 dbg->chvs[i].images[t].height) != 0) {
+                ray_texture_from_image(&dbg->textures[i][t],
+                                       &dbg->chvs[i].images[t],
+                                       &pal,
+                                       0x10);
+            }
+        }
+    }
+}
+
+void dbg_chv_show(dbg_chv *dbg, bool *show) {
+    dbg_image_list_prepare_left_pane("Fonts", show);
+
+    for (int i = 0; i < chv_files_count; i++)
+        if (dbg_image_list_item(chv_files[i], dbg->current == i))
+            dbg->current = i;
+
+    dbg_image_list_prepare_right_pane(chv_files[dbg->current], &dbg->scale);
+
+    tr_chv *chv = &dbg->chvs[dbg->current];
+
+    igText("first_char  %02x", chv->first_char);
+    igText("last_char   %02x", chv->last_char);
+    igText("format      %02x", chv->format);
+    igText("space_width %02x", chv->space_width);
+
+    for (int i = 0; i < tr_chv_get_count(chv); i++) {
+        if ((chv->images[i].width + chv->images[i].height) != 0) {
+            dbg_image_list_show_image(i, &dbg->textures[dbg->current][i].texture, dbg->scale);
+        }
+    }
+
+    dbg_image_list_end();
+}
+
+typedef struct {
     struct ImGuiIO *io;
     Texture2D font_texture;
     bool show_imgui_demo;
@@ -2903,6 +3004,9 @@ typedef struct {
 
     dbg_ptr ptr;
     bool show_ptr;
+
+    dbg_chv chv;
+    bool show_chv;
 } dbg_ui;
 
 void dbg_ui_init(dbg_ui *ui) {
@@ -2935,8 +3039,11 @@ void dbg_ui_init(dbg_ui *ui) {
     ui->show_wdw = false;
     wdw_test_init(&ui->wdw);
 
-    ui->show_ptr = true;
+    ui->show_ptr = false;
     dbg_ptr_init(&ui->ptr, "GAME_DIR/PLR/WDW/PMOUSE.I16");
+
+    ui->show_chv = false;
+    dbg_chv_init(&ui->chv);
 }
 
 // void dbg_ui_props(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
@@ -3015,28 +3122,19 @@ void dbg_ui_update(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
     igSeparator();
     igNewLine();
 
-    if (igButton("Show ani images", zero))
-        ui->show_ani = true;
-
-    if (igButton("Show wdw images", zero))
-        ui->show_wdw = true;
-
-    if (igButton("Show ptr images", zero))
-        ui->show_ptr = true;
+    if (igButton("ani", zero)) ui->show_ani = !ui->show_ani; igSameLine(0, 0);
+    if (igButton("wdw", zero)) ui->show_wdw = !ui->show_wdw; igSameLine(0, 0);
+    if (igButton("ptr", zero)) ui->show_ptr = !ui->show_ptr; igSameLine(0, 0);
+    if (igButton("chv", zero)) ui->show_chv = !ui->show_chv; igSameLine(0, 0);
 
     igEnd();
 
-    if (ui->show_imgui_demo)
-        igShowDemoWindow(NULL);
+    if (ui->show_imgui_demo) igShowDemoWindow(NULL);
 
-    if (ui->show_ani)
-        dbg_show_ani_window(&ui->ani, &ui->show_ani);
-
-    if (ui->show_wdw)
-        dbg_show_wdw_window(&ui->wdw, &ui->show_wdw);
-
-    if (ui->show_ptr)
-        dbg_ptr_show(&ui->ptr, &ui->show_ptr);
+    if (ui->show_ani) dbg_show_ani_window(&ui->ani, &ui->show_ani);
+    if (ui->show_wdw) dbg_show_wdw_window(&ui->wdw, &ui->show_wdw);
+    if (ui->show_ptr) dbg_ptr_show(&ui->ptr, &ui->show_ptr);
+    if (ui->show_chv) dbg_chv_show(&ui->chv, &ui->show_chv);
 }
 
 void dbg_ui_render(void) {
