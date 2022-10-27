@@ -2718,7 +2718,7 @@ ray_single_texture *ani_test_get_textures(ani_test * ani_test, int ani_idx) {
     return ani_test->textures[ani_idx];
 }
 
-void ani_test_ui(ani_test *test, bool *show) {
+void dbg_show_ani_window(ani_test *test, bool *show) {
     ImVec2 zero  = { 0 };
     ImVec2 one   = { 1, 1 };
     ImVec4 zero4 = { 0 };
@@ -2812,6 +2812,41 @@ void dbg_ui_init(dbg_ui *ui) {
     ani_test_init(&ui->ani);
 }
 
+// void dbg_ui_props(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
+//
+// }
+
+void dbg_ui_props(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
+    igInputInt("room nr", &tr_loop->game.current_room, 1, 1, ImGuiInputTextFlags_CharsHexadecimal);
+    igLabelText("pupo",         "%4x %4x", tr_loop->game.x, tr_loop->game.y);
+    igNewLine();
+    igLabelText("ani",          "%02x",    tr_loop->game.ani);
+    igLabelText("frame",        "%02x",    tr_loop->game.frame_nr);
+    igLabelText("ctd",          "%2x",     tr_loop->game.countdown);
+    igLabelText("room",         "%2x",     tr_loop->game.current_room);
+    igLabelText("to_set_x",     "%2x",     tr_loop->game.to_set_x);
+    igLabelText("to_set_y",     "%2x",     tr_loop->game.to_set_y);
+    igLabelText("count caduta", "%2x",     tr_loop->game.counter_caduta);
+}
+
+
+void dbg_ui_hint_lines(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
+    uint16_t line1, line2;
+    get_explanation(&tr_loop->game, &tr_loop->resources, &line1, &line2);
+
+    char line1_str[0x100];
+    char line2_str[0x100];
+
+    line1_str[0] = 0;
+    line2_str[0] = 0;
+
+    get_pti_line(&tr_loop->resources, line1, line1_str);
+    get_pti_line(&tr_loop->resources, line2, line2_str);
+
+    igText("%s", line1_str);
+    igText("%s", line2_str);
+}
+
 void dbg_ui_update(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
     ImGui_ImplRaylib_NewFrame();
     ImGui_ImplRaylib_ProcessEvent();
@@ -2832,34 +2867,12 @@ void dbg_ui_update(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
 
     igBegin("main", NULL, main_window_flags);
 
-    igInputInt("room nr", &tr_loop->game.current_room, 1, 1, ImGuiInputTextFlags_CharsHexadecimal);
-    igLabelText("pupo",         "%4x %4x", tr_loop->game.x, tr_loop->game.y);
-    igNewLine();
-    igLabelText("ani",          "%02x",    tr_loop->game.ani);
-    igLabelText("frame",        "%02x",    tr_loop->game.frame_nr);
-    igLabelText("ctd",          "%2x",     tr_loop->game.countdown);
-    igLabelText("room",         "%2x",     tr_loop->game.current_room);
-    igLabelText("to_set_x",     "%2x",     tr_loop->game.to_set_x);
-    igLabelText("to_set_y",     "%2x",     tr_loop->game.to_set_y);
-    igLabelText("count caduta", "%2x",     tr_loop->game.counter_caduta);
+    dbg_ui_props(ui, ray_loop, tr_loop);
     igNewLine();
 
-    uint16_t line1, line2;
-    get_explanation(&tr_loop->game, &tr_loop->resources, &line1, &line2);
-
-    char line1_str[0x100];
-    char line2_str[0x100];
-
-    line1_str[0] = 0;
-    line2_str[0] = 0;
-
-    get_pti_line(&tr_loop->resources, line1, line1_str);
-    get_pti_line(&tr_loop->resources, line2, line2_str);
-
-    igText("%s", line1_str);
-    igText("%s", line2_str);
-
+    dbg_ui_hint_lines(ui, ray_loop, tr_loop);
     igNewLine();
+
     igCheckbox("show tile types", &ray_loop->show_types);
     igCheckbox("show demo", &ui->show_imgui_demo);
 
@@ -2886,7 +2899,7 @@ void dbg_ui_update(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
         igShowDemoWindow(NULL);
 
     if (ui->show_ani) {
-        ani_test_ui(&ui->ani, &ui->show_ani);
+        dbg_show_ani_window(&ui->ani, &ui->show_ani);
     }
 }
 
