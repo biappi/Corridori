@@ -47,6 +47,7 @@
 		3FC9BE8E2907FB4C00D13A45 /* cimgui.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = cimgui.h; path = "cimgui-9ce2c32/cimgui.h"; sourceTree = SOURCE_ROOT; };
 		3FC9BE8F2907FB5200D13A45 /* cimgui.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = cimgui.a; path = "cimgui-9ce2c32/cimgui.a"; sourceTree = SOURCE_ROOT; };
 		3FC9BE912907FCAF00D13A45 /* stub.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = stub.cpp; sourceTree = "<group>"; };
+		3FC9BECD290B632700D13A45 /* pla_token_infos.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = pla_token_infos.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -88,6 +89,7 @@
 				3F6C1FEF271A68E700B28F2F /* arca.c */,
 				3F6C1FF0271A68E700B28F2F /* loader.asm */,
 				3F6C1FF1271A68E700B28F2F /* corridori.c */,
+				3FC9BECD290B632700D13A45 /* pla_token_infos.h */,
 				3F6C1FF2271A68E700B28F2F /* mana.c */,
 			);
 			name = src;
