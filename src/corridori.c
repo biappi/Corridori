@@ -2552,10 +2552,10 @@ typedef struct {
 
     tr_wdw wdw;
     ray_single_texture wdw1;
-} wdw_test;
+} dbg_wdw;
 
-void wdw_test_init(wdw_test *test) {
-    memset(test, 0, sizeof(wdw_test));
+void dbg_wdw_init(dbg_wdw *test) {
+    memset(test, 0, sizeof(dbg_wdw));
 
     test->scale = 1;
     test->current_col = 0xf1;
@@ -2564,7 +2564,7 @@ void wdw_test_init(wdw_test *test) {
     ray_texture_from_image(&test->wdw1, &test->wdw.images[0], &test->wdw.palette, 0xf1);
 }
 
-ray_single_texture *wdw_test_get_texture(wdw_test *test, int idx) {
+ray_single_texture *dbg_wdw_get_texture(dbg_wdw *test, int idx) {
     if (test->inited[idx]) {
         return test->textures[idx];
     }
@@ -2586,7 +2586,7 @@ ray_single_texture *wdw_test_get_texture(wdw_test *test, int idx) {
 }
 
 
-void wdw_test_tick(wdw_test *wdw_test) {
+void dbg_wdw_ray_tick(dbg_wdw *wdw_test) {
     if (IsKeyPressed(KEY_LEFT)) { wdw_test->current -= 1; }
     if (IsKeyPressed(KEY_RIGHT)) { wdw_test->current += 1; }
 
@@ -2730,14 +2730,14 @@ typedef struct {
 
     int current;
     int scale;
-} ani_test;
+} dbg_ani;
 
-void ani_test_init(ani_test *test) {
-    memset(test, 0, sizeof(ani_test));
+void dbg_ani_init(dbg_ani *test) {
+    memset(test, 0, sizeof(dbg_ani));
     test->scale = 1;
 }
 
-ray_single_texture *ani_test_get_textures(ani_test * ani_test, int ani_idx) {
+ray_single_texture *dbg_ani_get_textures(dbg_ani * ani_test, int ani_idx) {
     if (ani_test->inited[ani_idx]) {
         return ani_test->textures[ani_idx];
     }
@@ -2854,7 +2854,7 @@ void dbg_image_list_end(void) {
     igEnd();
 }
 
-void dbg_show_ani_window(ani_test *test, bool *show) {
+void dbg_show_ani_window(dbg_ani *test, bool *show) {
     dbg_image_list_prepare_left_pane("ANI files", show);
 
     for (int i = 0; i < ani_files_count; i++) {
@@ -2864,17 +2864,17 @@ void dbg_show_ani_window(ani_test *test, bool *show) {
 
     dbg_image_list_prepare_right_pane(ani_files[test->current], &test->scale);
 
-    ani_test_get_textures(test, test->current);
+    dbg_ani_get_textures(test, test->current);
 
     for (int i = 0; i < test->ani[test->current].count; i++) {
-        ray_single_texture *ani_text = ani_test_get_textures(test, test->current);
+        ray_single_texture *ani_text = dbg_ani_get_textures(test, test->current);
         dbg_image_list_show_image(i, &ani_text[i].texture, test->scale);
     }
 
     dbg_image_list_end();
 }
 
-void dbg_show_wdw_window(wdw_test *wdw, bool *show) {
+void dbg_show_wdw_window(dbg_wdw *wdw, bool *show) {
     dbg_image_list_prepare_left_pane("WDW images", show);
 
     for (int i = 0; i < wdw_files_count; i++)
@@ -2884,7 +2884,7 @@ void dbg_show_wdw_window(wdw_test *wdw, bool *show) {
     dbg_image_list_prepare_right_pane("xx", &wdw->scale);
 
     for (int i = 0; i < tr_wdw_image_count; i++) {
-        ray_single_texture *text = wdw_test_get_texture(wdw, wdw->current);
+        ray_single_texture *text = dbg_wdw_get_texture(wdw, wdw->current);
         dbg_image_list_show_image(i, &text[i].texture, wdw->scale);
     }
 
@@ -2996,10 +2996,10 @@ typedef struct {
     Texture2D font_texture;
     bool show_imgui_demo;
 
-    ani_test ani;
+    dbg_ani ani;
     bool show_ani;
 
-    wdw_test wdw;
+    dbg_wdw wdw;
     bool show_wdw;
 
     dbg_ptr ptr;
@@ -3034,10 +3034,10 @@ void dbg_ui_init(dbg_ui *ui) {
     ui->show_imgui_demo = false;
 
     ui->show_ani = false;
-    ani_test_init(&ui->ani);
+    dbg_ani_init(&ui->ani);
 
     ui->show_wdw = false;
-    wdw_test_init(&ui->wdw);
+    dbg_wdw_init(&ui->wdw);
 
     ui->show_ptr = false;
     dbg_ptr_init(&ui->ptr, "GAME_DIR/PLR/WDW/PMOUSE.I16");
@@ -3045,10 +3045,6 @@ void dbg_ui_init(dbg_ui *ui) {
     ui->show_chv = false;
     dbg_chv_init(&ui->chv);
 }
-
-// void dbg_ui_props(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
-//
-// }
 
 void dbg_ui_props(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
     igInputInt("room nr", &tr_loop->game.current_room, 1, 1, ImGuiInputTextFlags_CharsHexadecimal);
@@ -3186,12 +3182,6 @@ int main() {
     ray_gameloop ray_loop;
     ray_gameloop_init(&ray_loop, &tr_loop);
 
-    wdw_test wdw_test;
-    wdw_test_init(&wdw_test);
-
-    ani_test ani_test;
-    ani_test_init(&ani_test);
-
     ray_framerate framerate;
     ray_framerate_init(&framerate, 20);
 
@@ -3208,7 +3198,7 @@ int main() {
 
         ray_gameloop_draw(&ray_loop, &tr_loop);
 
-//        wdw_test_tick(&wdw_test);
+//        dnbg_wdw_ray_tick(&ui->wdw);
         dbg_ui_render();
 
         EndDrawing();
