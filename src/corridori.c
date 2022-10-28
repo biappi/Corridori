@@ -2997,21 +2997,69 @@ void dbg_chv_show(dbg_chv *dbg, bool *show) {
 }
 
 typedef enum {
-    pla_args_type_16,
-    pla_args_type_32,
-    pla_args_type_string,
-} pla_args_type;
+    tr_pla_args_type_16,
+    tr_pla_args_type_32,
+    tr_pla_args_type_string,
+} tr_pla_args_type;
 
-const int pla_token_max_args = 0x10;
+const int tr_pla_token_max_args = 0x10;
 
 typedef struct {
     const char *name;
     int nargs;
-    pla_args_type args[pla_token_max_args];
-    const char *argnames[pla_token_max_args];
-} pla_token_info;
+    tr_pla_args_type args[tr_pla_token_max_args];
+    const char *argnames[tr_pla_token_max_args];
+} tr_pla_token_info;
 
 #include "pla_token_infos.h"
+
+typedef struct {
+    uint8_t *content;
+    size_t size;
+    uint8_t *current;
+} tr_pla_iterator;
+
+void tr_pla_iterator_init(tr_pla_iterator *it, uint8_t *content, size_t size) {
+    it->content = content;
+    it->size = size;
+    it->current = content;
+}
+
+size_t tr_pla_iterator_offset(tr_pla_iterator *it) {
+    return it->current - it->content;
+}
+
+bool tr_pla_iterator_at_end(tr_pla_iterator *it) {
+    return tr_pla_iterator_offset(it) >= it->size;
+}
+
+uint16_t tr_pla_iterator_next_16(tr_pla_iterator *it) {
+    uint16_t val = from_big_endian(read16_unaligned(it->current));
+    it->current += 2;
+    return val;
+}
+
+uint32_t tr_pla_iterator_next_32(tr_pla_iterator *it) {
+    uint32_t h = tr_pla_iterator_next_16(it);
+    uint32_t l = tr_pla_iterator_next_16(it);
+    return (h << 16) | l;
+}
+
+uint8_t *tr_pla_iterator_next_string(tr_pla_iterator *it) {
+    uint8_t *s = it->current;
+    uint8_t *ch = it->current;
+
+    while (*ch != 0) {
+        ch++;
+        ch++;
+        it->current += 2;
+    }
+
+    if (read16_unaligned(it->current) == 0)
+        it->content += 2;
+
+    return s;
+}
 
 static const char *pla_files[] = {
     "AN00.PLA",
@@ -3060,40 +3108,26 @@ void dbg_pla_init(dbg_pla *pla) {
     dbg_pla_load(pla, 0);
 }
 
-void dbg_pla_show(dbg_pla *pla, bool *show) {
-    igSetNextWindowSize((ImVec2){600, 400}, ImGuiCond_FirstUseEver);
+void dbg_pla_dump(uint8_t *content, size_t size) {
+    tr_pla_iterator it;
 
-    igBegin("PLA", show, 0);
+    tr_pla_iterator_init(&it, content, size);
 
-    igCombo_Str_arr("pla", &pla->selected, pla_files, pla_files_count, 0);
-    igSameLine(0, 0);
-    if (igButton("load", zero)) {
-        dbg_pla_load(pla, pla->selected);
-    }
-
-    igBeginGroup();
-
-    uint16_t *start = (uint16_t *)pla->content;
-    uint16_t *token = start;
-
-//    for (int i = 0; i < 10; i++) {
-    while ((((uint8_t *)token) - ((uint8_t *)start))
-           < pla->size)
+    while (!tr_pla_iterator_at_end(&it))
     {
         igPushStyleColor_U32(ImGuiCol_Text, 0xffaaaaaa);
-        igText("%5x - ", (uint8_t *)token - (uint8_t *)start);
+        igText("%5x - ", tr_pla_iterator_offset(&it));
         igSameLine(0, 0);
         igPopStyleColor(1);
 
-        uint16_t opcode = from_big_endian(*token);
-        token += 1;
+        uint16_t opcode = tr_pla_iterator_next_16(&it);
 
         if (opcode > pla_token_infos_count) {
             igText("AA opcode: %04x", opcode);
             break;
         }
 
-        pla_token_info info = pla_token_infos[opcode];
+        tr_pla_token_info info = pla_token_infos[opcode];
 
         if (pla_token_infos[opcode].name)
             igText("%s: ", pla_token_infos[opcode].name);
@@ -3110,41 +3144,18 @@ void dbg_pla_show(dbg_pla *pla, bool *show) {
             }
 
             switch (info.args[a]) {
-                case pla_args_type_16:
-                    igText("%02x ", from_big_endian(*token));
+                case tr_pla_args_type_16:
+                    igText("%02x ", tr_pla_iterator_next_16(&it));
                     igSameLine(0, 0);
-                    token++;
                     break;
 
-                case pla_args_type_32:
-                    igText("%02x",  from_big_endian(*token));
+                case tr_pla_args_type_32:
+                    igText("%04x ", tr_pla_iterator_next_32(&it));
                     igSameLine(0, 0);
-                    token++;
-
-                    igText("%02x ", from_big_endian(*token));
-                    igSameLine(0, 0);
-                    token ++;
                     break;
 
-                case pla_args_type_string: {
-                    uint8_t *ch = (uint8_t *)token;
-                    while (*ch != 0) {
-                        igText("%c", *ch);
-                        igSameLine(0, 0);
-                        ch++;
-
-                        if (*ch != 0) {
-                            igText("%c", *ch);
-                            igSameLine(0, 0);
-                        }
-                        ch++;
-                        token++;
-                    }
-
-                    if (*token == 0)
-                        token++;
-
-                    igText(" ");
+                case tr_pla_args_type_string: {
+                    igText("%s ", tr_pla_iterator_next_string(&it));
                     igSameLine(0, 0);
                     break;
                 }
@@ -3153,7 +3164,26 @@ void dbg_pla_show(dbg_pla *pla, bool *show) {
 
         igNewLine();
     }
-    igEndGroup();
+}
+
+void dbg_pla_show(dbg_pla *pla, bool *show) {
+    igSetNextWindowSize((ImVec2){600, 400}, ImGuiCond_FirstUseEver);
+
+    igBegin("PLA", show, 0);
+
+    igCombo_Str_arr("pla", &pla->selected, pla_files, pla_files_count, 0);
+    igSameLine(0, 0);
+
+    if (igButton("load", zero)) {
+        dbg_pla_load(pla, pla->selected);
+    }
+
+    igSeparator();
+
+    igBeginChild_Str("disass", zero, false, 0);
+    dbg_pla_dump(pla->content, pla->size);
+    igEndChild();
+
     igEnd();
 }
 
