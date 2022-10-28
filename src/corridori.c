@@ -2991,6 +2991,71 @@ void dbg_chv_show(dbg_chv *dbg, bool *show) {
     dbg_image_list_end();
 }
 
+static const char *pla_files[] = {
+    "AN00.PLA",
+    "AN01.PLA",
+    "AN02.PLA",
+    "AN03.PLA",
+    "AN04.PLA",
+    "AN05.PLA",
+    "AN06.PLA",
+    "AN07.PLA",
+    "AN08.PLA",
+    "AN09.PLA",
+    "AN0A.PLA",
+    "AN0B.PLA",
+    "AN0C.PLA",
+    "AN0D.PLA",
+    "AN0E.PLA",
+    "AN0F.PLA",
+    "ANDC.PLA",
+    "ANDD.PLA",
+    "GAMEOVER.PLA",
+    "INTRO.PLA",
+    "LOGO.PLA",
+};
+
+static int pla_files_count = sizeof(pla_files) / sizeof(char*);
+
+typedef struct {
+    uint8_t *content;
+    int loaded;
+    int selected;
+} dbg_pla;
+
+void dbg_pla_load(dbg_pla *pla, int pla_idx) {
+    if (pla->content)
+        free(pla->content);
+
+
+    pla->content = load_file(TextFormat("GAME_DIR/PLR/PLA/%s", pla_files[pla_idx]));
+    pla->loaded = pla_idx;
+}
+
+void dbg_pla_init(dbg_pla *pla) {
+    dbg_pla_load(pla, 0);
+}
+
+void dbg_pla_show(dbg_pla *pla, bool *show) {
+    igSetNextWindowSize((ImVec2){500, 440}, ImGuiCond_FirstUseEver);
+
+    igBegin("PLA", show, 0);
+
+    igCombo_Str_arr("pla", &pla->selected, pla_files, pla_files_count, 0);
+    igSameLine(0, 0);
+    if (igButton("load", zero)) {
+        dbg_pla_load(pla, pla->selected);
+    }
+
+    uint16_t *start = (uint16_t *)pla->content;
+
+    for (int i = 0; i < 10; i++) {
+        igText("%04x", from_big_endian(start[i]));
+    }
+
+    igEnd();
+}
+
 typedef struct {
     struct ImGuiIO *io;
     Texture2D font_texture;
@@ -3007,6 +3072,9 @@ typedef struct {
 
     dbg_chv chv;
     bool show_chv;
+
+    dbg_pla pla;
+    bool show_pla;
 } dbg_ui;
 
 void dbg_ui_init(dbg_ui *ui) {
@@ -3044,6 +3112,9 @@ void dbg_ui_init(dbg_ui *ui) {
 
     ui->show_chv = false;
     dbg_chv_init(&ui->chv);
+
+    ui->show_pla = true;
+    dbg_pla_init(&ui->pla);
 }
 
 void dbg_ui_props(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
@@ -3131,6 +3202,7 @@ void dbg_ui_update(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
     if (ui->show_wdw) dbg_wdw_show(&ui->wdw, &ui->show_wdw);
     if (ui->show_ptr) dbg_ptr_show(&ui->ptr, &ui->show_ptr);
     if (ui->show_chv) dbg_chv_show(&ui->chv, &ui->show_chv);
+    if (ui->show_pla) dbg_pla_show(&ui->pla, &ui->show_pla);
 }
 
 void dbg_ui_render(void) {
