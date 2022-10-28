@@ -255,17 +255,16 @@ uint16_t from_big_endian(uint16_t x) {
 
 uint16_t read16_unaligned(void *x) {
     uint8_t *b = (uint8_t *)x;
-    uint8_t l = *(b + 0);
-    uint8_t h = *(b + 1);
+    uint16_t l = *(b + 0);
+    uint16_t h = *(b + 1);
     return (h << 8) + l;
 }
 
 uint32_t read32_unaligned(void *x) {
     uint16_t *b = (uint16_t *)x;
-    uint16_t l = read16_unaligned((uint16_t *)(b + 0));
-    uint16_t h = read16_unaligned((uint16_t *)(b + 1));
-    uint32_t H = (uint32_t)(h << 16u);
-    return H + l;
+    uint32_t l = read16_unaligned((uint16_t *)(b + 0));
+    uint32_t h = read16_unaligned((uint16_t *)(b + 1));
+    return (h << 16) + l;
 }
 
 void *load_file_return_length(const char *path, size_t *size) {
@@ -3233,7 +3232,6 @@ void dbg_ui_props(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
     igLabelText("to_set_y",     "%2x",     tr_loop->game.to_set_y);
     igLabelText("count caduta", "%2x",     tr_loop->game.counter_caduta);
 }
-
 
 void dbg_ui_hint_lines(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
     uint16_t line1, line2;
