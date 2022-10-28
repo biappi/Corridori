@@ -2854,7 +2854,7 @@ void dbg_image_list_end(void) {
     igEnd();
 }
 
-void dbg_show_ani_window(dbg_ani *test, bool *show) {
+void dbg_ani_show(dbg_ani *test, bool *show) {
     dbg_image_list_prepare_left_pane("ANI files", show);
 
     for (int i = 0; i < ani_files_count; i++) {
@@ -2874,7 +2874,7 @@ void dbg_show_ani_window(dbg_ani *test, bool *show) {
     dbg_image_list_end();
 }
 
-void dbg_show_wdw_window(dbg_wdw *wdw, bool *show) {
+void dbg_wdw_show(dbg_wdw *wdw, bool *show) {
     dbg_image_list_prepare_left_pane("WDW images", show);
 
     for (int i = 0; i < wdw_files_count; i++)
@@ -3127,8 +3127,8 @@ void dbg_ui_update(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
 
     if (ui->show_imgui_demo) igShowDemoWindow(NULL);
 
-    if (ui->show_ani) dbg_show_ani_window(&ui->ani, &ui->show_ani);
-    if (ui->show_wdw) dbg_show_wdw_window(&ui->wdw, &ui->show_wdw);
+    if (ui->show_ani) dbg_ani_show(&ui->ani, &ui->show_ani);
+    if (ui->show_wdw) dbg_wdw_show(&ui->wdw, &ui->show_wdw);
     if (ui->show_ptr) dbg_ptr_show(&ui->ptr, &ui->show_ptr);
     if (ui->show_chv) dbg_chv_show(&ui->chv, &ui->show_chv);
 }
