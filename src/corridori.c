@@ -3187,6 +3187,8 @@ void dbg_ui_init(dbg_ui *ui) {
 
     ui->io = igGetIO();
     ui->io->ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    ui->io->LogFilename = NULL;
+    ui->io->IniFilename = NULL;
 
     Image font_image;
     font_image.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
