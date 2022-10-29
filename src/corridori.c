@@ -207,7 +207,8 @@ typedef struct {
 
     uint16_t palette_mangling;
 
-    bool swivar2[0x40];
+    uint32_t swivar1[0x400];
+    bool     swivar2[0x400];
 
     void *swi_elements[0x40];
 
@@ -2250,7 +2251,7 @@ void draw_punti_faccia_pistolina(tr_game *game) {
     draw_punti(game);
 }
 
-void tr_gameloop_tick(tr_game *game, tr_resources *resources, uint8_t direction) {
+void tr_arcade_gameloop_tick(tr_game *game, tr_resources *resources, uint8_t direction) {
     tr_bobs_reset(&game->bobs);
     // animate & render background
     draw_punti_faccia_pistolina(game);
@@ -2394,110 +2395,6 @@ void tr_gameloop_init(tr_gameloop *loop) {
     tr_graphics_init(&loop->ucci1_ele, loop->resources.ucci1_ele);
 
     tr_game_reset(&loop->game, &loop->resources);
-}
-
-typedef struct {
-    ray_textures status_tex;
-    ray_textures numeri_tex;
-    ray_textures k_tex;
-    ray_textures tr_tex;
-    ray_textures ucci0_tex;
-    ray_textures ucci1_tex;
-
-    ray_textures *ele_textures[tr_ele_count];
-
-    ray_bg_renderer bg_renderer;
-
-    int rendered_room;
-    bool show_types;
-} ray_gameloop;
-
-void ray_gameloop_init(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
-    tr_graphics_to_textures(&ray_loop->status_tex, &tr_loop->status_ele, &tr_loop->palette, 0xc1);
-    tr_graphics_to_textures(&ray_loop->numeri_tex, &tr_loop->numeri_ele, &tr_loop->palette, 0xc1);
-    tr_graphics_to_textures(&ray_loop->k_tex,      &tr_loop->k_ele,      &tr_loop->palette, 0xc1);
-    tr_graphics_to_textures(&ray_loop->tr_tex,     &tr_loop->tr_ele,     &tr_loop->palette, 0xc1);
-    tr_graphics_to_textures(&ray_loop->ucci0_tex,  &tr_loop->ucci0_ele,  &tr_loop->palette, 0xc1);
-    tr_graphics_to_textures(&ray_loop->ucci1_tex,  &tr_loop->ucci1_ele,  &tr_loop->palette, 0xc1);
-
-    ray_loop->ele_textures[tr_ele_status] = &ray_loop->status_tex;
-    ray_loop->ele_textures[tr_ele_numeri] = &ray_loop->numeri_tex;
-    ray_loop->ele_textures[tr_ele_k]      = &ray_loop->k_tex;
-    ray_loop->ele_textures[tr_ele_tr]     = &ray_loop->tr_tex;
-    ray_loop->ele_textures[tr_ele_ucci0]  = &ray_loop->ucci0_tex;
-    ray_loop->ele_textures[tr_ele_ucci1]  = &ray_loop->ucci1_tex;
-
-    ray_bg_renderer_init(&ray_loop->bg_renderer,
-                         &tr_loop->resources,
-                         &tr_loop->tilesets,
-                         &tr_loop->palette);
-
-    ray_bg_render_room(&ray_loop->bg_renderer, 0, 0);
-
-    ray_loop->rendered_room = 0;
-    ray_loop->show_types  = true;
-}
-
-void ray_gameloop_update(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
-    if (IsKeyPressed(KEY_U)) {
-        ray_loop->show_types = !ray_loop->show_types;
-    }
-
-    if (IsKeyPressed(KEY_R)) {
-        tr_game_reset(&tr_loop->game, &tr_loop->resources);
-    }
-
-    if (IsKeyPressed(KEY_BACKSPACE)) {
-        tr_loop->game.x = tr_loop->game.to_set_x;
-        tr_loop->game.y = tr_loop->game.to_set_y;
-    }
-
-    if (IsKeyPressed(KEY_PAGE_DOWN)) {
-        tr_loop->game.current_room = tr_loop->game.current_room + 1;
-    }
-
-    if (IsKeyPressed(KEY_PAGE_UP)) {
-        tr_loop->game.current_room = tr_loop->game.current_room - 1;
-    }
-}
-
-void ray_gameloop_tick(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
-    char direction = tr_keys_to_direction(
-        IsKeyDown(KEY_DOWN),
-        IsKeyDown(KEY_UP),
-        IsKeyDown(KEY_LEFT),
-        IsKeyDown(KEY_RIGHT),
-        IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)
-    );
-
-    tr_gameloop_tick(&tr_loop->game, &tr_loop->resources, direction);
-
-    bool redraw_bg = bg_step(&tr_loop->bg);
-
-    if ((ray_loop->rendered_room != tr_loop->game.current_room) || redraw_bg) {
-        ray_bg_render_room(&ray_loop->bg_renderer, tr_loop->game.current_room, tr_loop->bg.frame);
-        ray_loop->rendered_room = tr_loop->game.current_room;
-    }
-}
-
-void ray_gameloop_draw(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
-    DrawTextureScaled(ray_loop->bg_renderer.texture, 0, 0, GAME_SIZE_WIDTH, GAME_SIZE_HEIGHT, false);
-
-    for (int i = 0; i < tr_loop->game.bobs.count; i++) {
-        tr_bob *bob = &(tr_loop->game.bobs.bobs[i]);
-
-        Texture texture = ray_loop->ele_textures[bob->ele]->textures[bob->ele_idx];
-
-        DrawTextureScaled(texture,
-                          bob->x - texture.width / 2,
-                          bob->y - texture.height,
-                          texture.width,
-                          texture.height,
-                          bob->flip);
-    }
-
-    if (ray_loop->show_types)
-        DrawTileTypes(&tr_loop->resources, tr_loop->game.current_room);
 }
 
 const int tr_wdw_image_count = 9;
@@ -2728,21 +2625,26 @@ static const char* ani_files[] = {
 
 const int ani_files_count = sizeof(ani_files) / sizeof(char *);
 
-typedef struct {
+int tr_ani_file_idx_from_string(const char *ani) {
+    for (int i = 0; i < ani_files_count; i++) {
+        if (strcmp(ani, ani_files[i]) == 0)
+            return i;
+    }
+
+    return -1;
+}
+
+typedef struct  {
     bool inited[ani_files_count];
     tr_ani_file ani[ani_files_count];
     ray_single_texture *textures[ani_files_count];
+} ray_ani_files;
 
-    int current;
-    int scale;
-} dbg_ani;
-
-void dbg_ani_init(dbg_ani *test) {
-    memset(test, 0, sizeof(dbg_ani));
-    test->scale = 1;
+void ray_ani_files_init(ray_ani_files *ani_files) {
+    memset(ani_files, 0, sizeof(ray_ani_files));
 }
 
-ray_single_texture *dbg_ani_get_textures(dbg_ani * ani_test, int ani_idx) {
+ray_single_texture *ray_ani_files_get_textures(ray_ani_files *ani_test, int ani_idx) {
     if (ani_test->inited[ani_idx]) {
         return ani_test->textures[ani_idx];
     }
@@ -2826,11 +2728,11 @@ void dbg_image_list_prepare_right_pane(const char *name, int *scale) {
 
     igSeparator();
 
-    igRadioButton_IntPtr("1x",  scale,  1); igSameLine(0, 0);
-    igRadioButton_IntPtr("2x",  scale,  2); igSameLine(0, 0);
-    igRadioButton_IntPtr("3x",  scale,  3); igSameLine(0, 0);
-    igRadioButton_IntPtr("5x",  scale,  5); igSameLine(0, 0);
-    igRadioButton_IntPtr("10x", scale, 10); igSameLine(0, 0);
+    igRadioButton_IntPtr("1x",  scale,  1); igSameLine(0, 1);
+    igRadioButton_IntPtr("2x",  scale,  2); igSameLine(0, 1);
+    igRadioButton_IntPtr("3x",  scale,  3); igSameLine(0, 1);
+    igRadioButton_IntPtr("5x",  scale,  5); igSameLine(0, 1);
+    igRadioButton_IntPtr("10x", scale, 10); igSameLine(0, 1);
 
     igSeparator();
 }
@@ -2859,6 +2761,18 @@ void dbg_image_list_end(void) {
     igEnd();
 }
 
+typedef struct {
+    ray_ani_files *ani_files;
+    int current;
+    int scale;
+} dbg_ani;
+
+void dbg_ani_init(dbg_ani *test, ray_ani_files *ani_files) {
+    memset(test, 0, sizeof(dbg_ani));
+    test->ani_files = ani_files;
+    test->scale = 1;
+}
+
 void dbg_ani_show(dbg_ani *test, bool *show) {
     dbg_image_list_prepare_left_pane("ANI files", show);
 
@@ -2869,10 +2783,10 @@ void dbg_ani_show(dbg_ani *test, bool *show) {
 
     dbg_image_list_prepare_right_pane(ani_files[test->current], &test->scale);
 
-    dbg_ani_get_textures(test, test->current);
+    ray_ani_files_get_textures(test->ani_files, test->current);
 
-    for (int i = 0; i < test->ani[test->current].count; i++) {
-        ray_single_texture *ani_text = dbg_ani_get_textures(test, test->current);
+    for (int i = 0; i < test->ani_files->ani[test->current].count; i++) {
+        ray_single_texture *ani_text = ray_ani_files_get_textures(test->ani_files, test->current);
         dbg_image_list_show_image(i, &ani_text[i].texture, test->scale);
     }
 
@@ -2996,6 +2910,41 @@ void dbg_chv_show(dbg_chv *dbg, bool *show) {
     dbg_image_list_end();
 }
 
+static const char *pla_files[] = {
+    "AN00.PLA",
+    "AN01.PLA",
+    "AN02.PLA",
+    "AN03.PLA",
+    "AN04.PLA",
+    "AN05.PLA",
+    "AN06.PLA",
+    "AN07.PLA",
+    "AN08.PLA",
+    "AN09.PLA",
+    "AN0A.PLA",
+    "AN0B.PLA",
+    "AN0C.PLA",
+    "AN0D.PLA",
+    "AN0E.PLA",
+    "AN0F.PLA",
+    "ANDC.PLA",
+    "ANDD.PLA",
+    "GAMEOVER.PLA",
+    "INTRO.PLA",
+    "LOGO.PLA",
+};
+
+static int pla_files_count = sizeof(pla_files) / sizeof(char*);
+
+int tr_pla_file_idx_from_string(const char *pla) {
+    for (int i = 0; i < pla_files_count; i++) {
+        if (strcmp(pla, pla_files[i]) == 0)
+            return i;
+    }
+
+    return -1;
+}
+
 typedef enum {
     tr_pla_args_type_16,
     tr_pla_args_type_32,
@@ -3029,6 +2978,10 @@ size_t tr_pla_iterator_offset(tr_pla_iterator *it) {
     return it->current - it->content;
 }
 
+void tr_pla_iterator_set_offset(tr_pla_iterator *it, size_t offset) {
+    it->current = it->content + offset;
+}
+
 bool tr_pla_iterator_at_end(tr_pla_iterator *it) {
     return tr_pla_iterator_offset(it) >= it->size;
 }
@@ -3045,8 +2998,8 @@ uint32_t tr_pla_iterator_next_32(tr_pla_iterator *it) {
     return (h << 16) | l;
 }
 
-uint8_t *tr_pla_iterator_next_string(tr_pla_iterator *it) {
-    uint8_t *s = it->current;
+const char *tr_pla_iterator_next_string(tr_pla_iterator *it) {
+    const char *s = (const char *)it->current;
     uint8_t *ch = it->current;
 
     while (*ch != 0) {
@@ -3055,72 +3008,486 @@ uint8_t *tr_pla_iterator_next_string(tr_pla_iterator *it) {
         it->current += 2;
     }
 
-    if (read16_unaligned(it->current) == 0)
-        it->content += 2;
+    if ((*(ch - 1) != 0) && (read16_unaligned(it->current) == 0))
+        it->current += 2;
 
     return s;
 }
 
-static const char *pla_files[] = {
-    "AN00.PLA",
-    "AN01.PLA",
-    "AN02.PLA",
-    "AN03.PLA",
-    "AN04.PLA",
-    "AN05.PLA",
-    "AN06.PLA",
-    "AN07.PLA",
-    "AN08.PLA",
-    "AN09.PLA",
-    "AN0A.PLA",
-    "AN0B.PLA",
-    "AN0C.PLA",
-    "AN0D.PLA",
-    "AN0E.PLA",
-    "AN0F.PLA",
-    "ANDC.PLA",
-    "ANDD.PLA",
-    "GAMEOVER.PLA",
-    "INTRO.PLA",
-    "LOGO.PLA",
-};
+typedef enum {
+    tr_player_state_ok,
+    tr_player_state_stopped,
+    tr_player_state_ended,
+    tr_player_state_change_pla,
+    tr_player_state_ko,
+} tr_pla_player_state;
 
-static int pla_files_count = sizeof(pla_files) / sizeof(char*);
+static const char *tr_player_state_strings[] = { "ok", "stopped", "ended", "change pla", "ko" };
+
+typedef enum {
+    tr_pla_player_command_type_render_ani,
+    tr_pla_player_command_type_render_box_text,
+} tr_pla_player_command_type;
 
 typedef struct {
+    int x;
+    int y;
+    int ani_idx;
+    int frame_idx;
+} tr_render_ani_command;
+
+typedef struct {
+    int x;
+    int y;
+    int width;
+    int height;
+    uint32_t color;
+    const char *text;
+    int slot;
+} tr_render_box_text_command;
+
+typedef struct {
+    tr_pla_player_command_type type;
+    union {
+        tr_render_ani_command render_ani;
+        tr_render_box_text_command render_box_text;
+    } command;
+} tr_pla_player_command;
+
+typedef struct {
+    tr_game *game;
+    tr_resources *resources;
+
     uint8_t *content;
     size_t size;
+    tr_pla_iterator it;
+
+    tr_pla_player_state state;
+
+    uint8_t *chv_data;
+    tr_chv chv;
+
+    uint32_t text_colors[2];
+    int current_text_color;
+
+    int ani_file_index;
+
+    tr_pla_player_command commands[0x100];
+    int commands_count;
+
+    struct {
+        int width;
+        int height;
+        char string[0x1000];
+    } text_slots[10];
+
+    int change_to_pla;
+
+    size_t gosub_stack[0x10];
+    int gosub_stack_count;
+} tr_pla_player;
+
+void tr_pla_player_init(tr_pla_player *player, tr_game *game, tr_resources *resources) {
+    memset(player, 0, sizeof(tr_pla_player));
+    player->game = game;
+    player->resources = resources;
+}
+
+void tr_pla_unload(tr_pla_player *player) {
+    free(player->content);
+    if (player->chv_data) free(player->chv_data);
+
+    tr_pla_player_init(player, player->game, player->resources);
+}
+
+void tr_pla_player_load(tr_pla_player *player, const char *path) {
+    if (player->content)
+        tr_pla_unload(player);
+
+    player->content = load_file_return_length(path, &player->size);
+    player->state = tr_player_state_ok;
+    tr_pla_iterator_init(&player->it, player->content, player->size);
+}
+
+void tr_pla_player__nop(tr_pla_player *player, const tr_pla_token_info *info) {
+    for (int i = 0; i < info->nargs; i++) {
+        switch (info->args[i]) {
+            case tr_pla_args_type_16:
+                tr_pla_iterator_next_16(&player->it);
+                break;
+            case tr_pla_args_type_32:
+                tr_pla_iterator_next_32(&player->it);
+                break;
+            case tr_pla_args_type_string:
+                tr_pla_iterator_next_string(&player->it);
+                break;
+        }
+    }
+}
+
+void tr_pla_player__init(tr_pla_player *player) {
+    tr_pla_player__nop(player, &pla_token_infos[0x0001]);
+}
+
+void tr_pla_player__load_ani(tr_pla_player *player) {
+    const char* ani_name = tr_pla_iterator_next_string(&player->it);
+    uint16_t ani_slot = tr_pla_iterator_next_16(&player->it);
+
+    int idx = tr_ani_file_idx_from_string(ani_name);
+
+    if (idx == -1)
+        printf("bad ani %d\n", idx);
+    else
+        player->ani_file_index = idx;
+
+    if (ani_slot != 0)
+        printf("bad ani slot %d\n", ani_slot);
+}
+
+void tr_pla_player__render_ani(tr_pla_player *player) {
+    tr_pla_player_command *command = &player->commands[player->commands_count++];
+    tr_render_ani_command *render_ani = &command->command.render_ani;
+
+    command->type = tr_pla_player_command_type_render_ani;
+    render_ani->x         = tr_pla_iterator_next_16(&player->it);
+    render_ani->y         = tr_pla_iterator_next_16(&player->it);
+    /* unused */            tr_pla_iterator_next_16(&player->it);
+    render_ani->frame_idx = tr_pla_iterator_next_16(&player->it);
+    render_ani->ani_idx   = tr_pla_iterator_next_16(&player->it);
+
+    if (render_ani->ani_idx != 0) {
+        printf("bad ani idx!\n");
+    }
+
+    render_ani->ani_idx   = player->ani_file_index;
+}
+
+void tr_pla_player__opcode_0006(tr_pla_player *player) {
+    uint16_t boh = tr_pla_iterator_next_16(&player->it);
+    printf("0006 boh %04x\n", boh);
+}
+
+void tr_pla_player__delay(tr_pla_player *player) {
+    /* uint16_t time     = */ tr_pla_iterator_next_16(&player->it);
+
+    // todo
+    player->state = tr_player_state_stopped;
+}
+
+void tr_pla_player__set_swivar(tr_pla_player *player) {
+    uint16_t idx = tr_pla_iterator_next_16(&player->it);
+    uint32_t val = tr_pla_iterator_next_32(&player->it);
+
+    if (idx >= 0x400) {
+        printf("bad swivar id %04x\n", idx);
+        return;
+    }
+
+    player->game->swivar1[idx] = val;
+}
+
+void tr_pla_player__setup_animation(tr_pla_player *player) {
+    uint16_t boh1        = tr_pla_iterator_next_16(&player->it);
+    uint16_t boh2        = tr_pla_iterator_next_16(&player->it);
+    uint32_t data_offset = tr_pla_iterator_next_32(&player->it);
+
+    printf("setup animation %02x %02x %04x\n", boh1, boh2, data_offset);
+
+    // todo
+}
+
+void tr_pla_player__teardown_animation(tr_pla_player *player) {
+    uint16_t boh1 = tr_pla_iterator_next_16(&player->it);
+    printf("teardown animation %02x\n", boh1);
+
+    // todo
+}
+
+void tr_pla_player__fade_in(tr_pla_player *player) {
+    /* uint16_t color    = */ tr_pla_iterator_next_16(&player->it);
+    /* uint16_t time     = */ tr_pla_iterator_next_16(&player->it);
+    /* uint16_t ani_slot = */ tr_pla_iterator_next_16(&player->it);
+
+    // todo
+    player->state = tr_player_state_stopped;
+}
+
+void tr_pla_player__fade_out(tr_pla_player *player) {
+    /* uint16_t color    = */ tr_pla_iterator_next_16(&player->it);
+    /* uint16_t time     = */ tr_pla_iterator_next_16(&player->it);
+
+    // todo
+    player->commands_count = 0;
+    player->state = tr_player_state_stopped;
+}
+
+void tr_pla_player__goto_pla(tr_pla_player *player) {
+    const char *pla_file = tr_pla_iterator_next_string(&player->it);
+
+    int idx = tr_pla_file_idx_from_string(pla_file);
+    if (idx == -1) {
+        player->state = tr_player_state_ko;
+        printf("cannot find pla %s\n", pla_file);
+        return;
+    }
+
+    player->state = tr_player_state_change_pla;
+    player->change_to_pla = idx;
+}
+
+void tr_pla_player__end(tr_pla_player *player) {
+    player->state = tr_player_state_ended;
+}
+
+void tr_pla_player__start_music(tr_pla_player *player) {
+    tr_pla_player__nop(player, &pla_token_infos[0x000b]);
+}
+
+void tr_pla_player__stop_music(tr_pla_player *player) {
+    tr_pla_player__nop(player, &pla_token_infos[0x000c]);
+}
+
+void tr_pla_player__load_font(tr_pla_player *player) {
+    const char *name = tr_pla_iterator_next_string(&player->it);
+    printf("want font: %s\n", name);
+
+    if (player->chv_data)
+        free(player->chv_data);
+
+    player->chv_data = load_file(TextFormat("GAME_DIR/FNT/%s", name));
+    tr_chv_init(&player->chv, player->chv_data);
+}
+
+void tr_pla_player__load_mdi(tr_pla_player *player) {
+    tr_pla_player__nop(player, &pla_token_infos[0x001c]);
+}
+
+void tr_pla_player__reset_swivar2(tr_pla_player *player) {
+    uint16_t idx = tr_pla_iterator_next_16(&player->it);
+    player->game->swivar2[idx] = 0;
+}
+
+void tr_pla_player__set_swivar2(tr_pla_player *player) {
+    uint16_t idx = tr_pla_iterator_next_16(&player->it);
+    player->game->swivar2[idx] = 1;
+}
+
+void tr_pla_player__load_ptr(tr_pla_player *player) {
+    tr_pla_player__nop(player, &pla_token_infos[0x0023]);
+}
+
+void tr_pla_player__load_wdw(tr_pla_player *player) {
+    tr_pla_player__nop(player, &pla_token_infos[0x0028]);
+}
+
+void tr_pla_player__load_texts(tr_pla_player *player) {
+    tr_pla_player__nop(player, &pla_token_infos[0x0029]);
+}
+
+void tr_pla_player__append_text(tr_pla_player *player) {
+    uint16_t slot = tr_pla_iterator_next_16(&player->it);
+    uint16_t line = tr_pla_iterator_next_16(&player->it);
+
+    char text[0x100];
+    get_pti_line(player->resources, line, text);
+
+    strlcat(player->text_slots[slot].string, text, sizeof(player->text_slots[slot].string));
+
+    printf("slot line now: %s\n", player->text_slots[slot].string);
+}
+
+void tr_pla_player__render_box_text(tr_pla_player *player) {
+    uint16_t slot = tr_pla_iterator_next_16(&player->it);
+    /* uint16_t wdw_slot = */ tr_pla_iterator_next_16(&player->it);
+    uint16_t x = tr_pla_iterator_next_16(&player->it);
+    uint16_t y = tr_pla_iterator_next_16(&player->it);
+
+    tr_pla_player_command *command = &player->commands[player->commands_count++];
+    tr_render_box_text_command *render_text = &command->command.render_box_text;
+
+    command->type = tr_pla_player_command_type_render_box_text;
+    render_text->slot   = slot;
+    render_text->x      = x;
+    render_text->y      = y;
+    render_text->width  = player->text_slots[slot].width;
+    render_text->height = player->text_slots[slot].height;
+    render_text->text   = player->text_slots[slot].string;
+    render_text->color  = player->text_colors[player->current_text_color];
+
+}
+
+void tr_pla_player__remove_text(tr_pla_player *player) {
+    uint16_t slot = tr_pla_iterator_next_16(&player->it);
+
+    player->text_slots[slot].string[0] = 0;
+
+    tr_pla_player_command *last = NULL;
+
+    if (player->commands_count)
+        last = &player->commands[player->commands_count - 1];
+
+    if (last && last->type == tr_pla_player_command_type_render_box_text)
+        if (last->command.render_box_text.slot == slot)
+            player->commands_count--;
+}
+
+void tr_pla_player__set_text_bounds(tr_pla_player *player) {
+    uint16_t slot = tr_pla_iterator_next_16(&player->it);
+
+    player->text_slots[slot].width  = tr_pla_iterator_next_16(&player->it);
+    player->text_slots[slot].height = tr_pla_iterator_next_16(&player->it);
+}
+
+void tr_pla_player__set_text_color(tr_pla_player *player) {
+    uint16_t i = tr_pla_iterator_next_16(&player->it);
+    uint16_t r = tr_pla_iterator_next_16(&player->it);
+    uint16_t g = tr_pla_iterator_next_16(&player->it);
+    uint16_t b = tr_pla_iterator_next_16(&player->it);
+
+    if (i > sizeof(player->text_colors)) {
+        printf("bad text color %d", i);
+        return;
+    }
+
+    uint32_t R = r & 0xff;
+    uint32_t G = g & 0xff;
+    uint32_t B = b & 0xff;
+
+
+    player->text_colors[i] = 0xffu |
+        (R <<  8u) |
+        (G << 16u) |
+        (B << 24u);
+}
+
+void tr_pla_player__change_text_color(tr_pla_player *player) {
+    uint16_t i = tr_pla_iterator_next_16(&player->it);
+
+    if (i > sizeof(player->text_colors)) {
+        printf("bad text color %d", i);
+        return;
+    }
+
+    player->current_text_color = i;
+}
+
+void tr_pla_player__gosub(tr_pla_player *player) {
+    uint16_t offset = tr_pla_iterator_next_32(&player->it);
+    /* uint16_t boh = */ tr_pla_iterator_next_16(&player->it);
+
+    player->gosub_stack[player->gosub_stack_count++] = tr_pla_iterator_offset(&player->it);
+    tr_pla_iterator_set_offset(&player->it, offset);
+}
+
+void tr_pla_player__return(tr_pla_player *player) {
+    if (player->gosub_stack_count == 0) {
+        printf("stack underflow!");
+        player->state = tr_player_state_ko;
+        return;
+    }
+
+    tr_pla_iterator_set_offset(&player->it, player->gosub_stack[--player->gosub_stack_count]);
+}
+
+void tr_pla_player_step(tr_pla_player *player) {
+    uint32_t opcode = tr_pla_iterator_next_16(&player->it);
+
+    switch (opcode) {
+        case 0x0001: tr_pla_player__init               (player); break;
+        case 0x0003: tr_pla_player__load_ani           (player); break;
+        case 0x0004: tr_pla_player__render_ani         (player); break;
+        case 0x0006: tr_pla_player__opcode_0006        (player); break;
+        case 0x0007: tr_pla_player__delay              (player); break;
+        case 0x0009: tr_pla_player__set_swivar         (player); break;
+        case 0x000a: tr_pla_player__end                (player); break;
+        case 0x000b: tr_pla_player__start_music        (player); break;
+        case 0x000c: tr_pla_player__stop_music         (player); break;
+        case 0x000e: tr_pla_player__setup_animation    (player); break;
+        case 0x000f: tr_pla_player__teardown_animation (player); break;
+        case 0x0010: tr_pla_player__fade_in            (player); break;
+        case 0x0011: tr_pla_player__fade_out           (player); break;
+        case 0x0013: tr_pla_player__goto_pla           (player); break;
+        case 0x0019: tr_pla_player__load_font          (player); break;
+        case 0x001c: tr_pla_player__load_mdi           (player); break;
+        case 0x001f: tr_pla_player__reset_swivar2      (player); break;
+        case 0x0020: tr_pla_player__set_swivar2        (player); break;
+        case 0x0023: tr_pla_player__load_ptr           (player); break;
+        case 0x0028: tr_pla_player__load_wdw           (player); break;
+        case 0x0029: tr_pla_player__load_texts         (player); break;
+        case 0x002a: tr_pla_player__append_text        (player); break;
+        case 0x002c: tr_pla_player__render_box_text    (player); break;
+        case 0x002d: tr_pla_player__remove_text        (player); break;
+        case 0x002e: tr_pla_player__set_text_bounds    (player); break;
+        case 0x0031: tr_pla_player__set_text_color     (player); break;
+        case 0x0032: tr_pla_player__change_text_color  (player); break;
+        case 0x0035: tr_pla_player__gosub              (player); break;
+        case 0x0036: tr_pla_player__return             (player); break;
+
+        default:
+            player->state = tr_player_state_ko;
+            printf("cant op-code %04x\n", opcode);
+
+            player->it.current -= 2;
+            break;
+    }
+}
+
+void tr_pla_player_resume(tr_pla_player *player) {
+    if (player->state == tr_player_state_stopped)
+        player->state = tr_player_state_ok;
+
+    while (!tr_pla_iterator_at_end(&player->it) && player->state == tr_player_state_ok) {
+        printf("playing: %lx\n", tr_pla_iterator_offset(&player->it));
+        tr_pla_player_step(player);
+    }
+}
+
+typedef struct {
+    tr_pla_player *player;
 
     int loaded;
     int selected;
 } dbg_pla;
 
 void dbg_pla_load(dbg_pla *pla, int pla_idx) {
-    if (pla->content)
-        free(pla->content);
-
     const char *path = TextFormat("GAME_DIR/PLR/PLA/%s", pla_files[pla_idx]);
-    pla->content = load_file_return_length(path, &pla->size);
+    tr_pla_player_load(pla->player, path);
     pla->loaded = pla_idx;
+    pla->selected = pla->player->change_to_pla;
 }
 
-void dbg_pla_init(dbg_pla *pla) {
+void dbg_pla_init(dbg_pla *pla, tr_pla_player *player) {
+    pla->player = player;
     dbg_pla_load(pla, 0);
 }
 
-void dbg_pla_dump(uint8_t *content, size_t size) {
+void dbg_pla_dump(uint8_t *content, size_t size, size_t ip) {
     tr_pla_iterator it;
 
     tr_pla_iterator_init(&it, content, size);
 
     while (!tr_pla_iterator_at_end(&it))
     {
+        size_t offset = tr_pla_iterator_offset(&it);
+
+        if (offset == ip)
+            igText("-> ");
+        else
+            igText("   ");
+
+        igSameLine(0, 0);
+
         igPushStyleColor_U32(ImGuiCol_Text, 0xffaaaaaa);
-        igText("%5x - ", tr_pla_iterator_offset(&it));
+        igText("%5x ", offset);
         igSameLine(0, 0);
         igPopStyleColor(1);
 
         uint16_t opcode = tr_pla_iterator_next_16(&it);
+
+        igPushStyleColor_U32(ImGuiCol_Text, 0xffcccccc);
+        igText("(%04x) ", opcode);
+        igSameLine(0, 0);
+        igPopStyleColor(1);
 
         if (opcode > pla_token_infos_count) {
             igText("AA opcode: %04x", opcode);
@@ -3134,12 +3501,12 @@ void dbg_pla_dump(uint8_t *content, size_t size) {
         else
             igText("opcode_%04x: ", opcode);
 
-        igSameLine(0, 0);
+        igSameLine(0, 1);
 
         for (int a = 0; a < info.nargs; a++) {
             if (info.argnames[a] != NULL) {
                 igPushStyleColor_U32(ImGuiCol_Text, 0xff555555);
-                igText("%s: ", info.argnames[a]); igSameLine(0, 0);
+                igText("%s: ", info.argnames[a]); igSameLine(0, 1);
                 igPopStyleColor(1);
             }
 
@@ -3171,8 +3538,10 @@ void dbg_pla_show(dbg_pla *pla, bool *show) {
 
     igBegin("PLA", show, 0);
 
+    igText("loaded: %s", pla_files[pla->loaded]);
+    
     igCombo_Str_arr("pla", &pla->selected, pla_files, pla_files_count, 0);
-    igSameLine(0, 0);
+    igSameLine(0, 1);
 
     if (igButton("load", zero)) {
         dbg_pla_load(pla, pla->selected);
@@ -3180,17 +3549,158 @@ void dbg_pla_show(dbg_pla *pla, bool *show) {
 
     igSeparator();
 
+    igText("current: %05x", tr_pla_iterator_offset(&pla->player->it));
+    igText("state:   %s", tr_player_state_strings[pla->player->state]);
+
+    if (igButton("step", zero)) {
+        tr_pla_player_step(pla->player);
+    }
+
+    igSameLine(0, -1);
+
+    if (igButton("resume", zero)) {
+        tr_pla_player_resume(pla->player);
+
+        if (pla->player->state == tr_player_state_change_pla) {
+            dbg_pla_load(pla, pla->player->change_to_pla);
+        }
+    }
+
+    igSeparator();
+
     igBeginChild_Str("disass", zero, false, 0);
-    dbg_pla_dump(pla->content, pla->size);
+    dbg_pla_dump(pla->player->content, pla->player->size, tr_pla_iterator_offset(&pla->player->it));
     igEndChild();
 
     igEnd();
 }
 
 typedef struct {
+    ray_textures status_tex;
+    ray_textures numeri_tex;
+    ray_textures k_tex;
+    ray_textures tr_tex;
+    ray_textures ucci0_tex;
+    ray_textures ucci1_tex;
+
+    ray_textures *ele_textures[tr_ele_count];
+
+    ray_ani_files ani_files;
+
+    ray_bg_renderer bg_renderer;
+
+    struct tr_pla_player *player;
+
+    int rendered_room;
+    bool show_types;
+    bool show_arcade;
+} ray_gameloop;
+
+void ray_gameloop_init(ray_gameloop *ray_loop, tr_gameloop *tr_loop, struct tr_pla_player *player) {
+    tr_graphics_to_textures(&ray_loop->status_tex, &tr_loop->status_ele, &tr_loop->palette, 0xc1);
+    tr_graphics_to_textures(&ray_loop->numeri_tex, &tr_loop->numeri_ele, &tr_loop->palette, 0xc1);
+    tr_graphics_to_textures(&ray_loop->k_tex,      &tr_loop->k_ele,      &tr_loop->palette, 0xc1);
+    tr_graphics_to_textures(&ray_loop->tr_tex,     &tr_loop->tr_ele,     &tr_loop->palette, 0xc1);
+    tr_graphics_to_textures(&ray_loop->ucci0_tex,  &tr_loop->ucci0_ele,  &tr_loop->palette, 0xc1);
+    tr_graphics_to_textures(&ray_loop->ucci1_tex,  &tr_loop->ucci1_ele,  &tr_loop->palette, 0xc1);
+
+    ray_loop->ele_textures[tr_ele_status] = &ray_loop->status_tex;
+    ray_loop->ele_textures[tr_ele_numeri] = &ray_loop->numeri_tex;
+    ray_loop->ele_textures[tr_ele_k]      = &ray_loop->k_tex;
+    ray_loop->ele_textures[tr_ele_tr]     = &ray_loop->tr_tex;
+    ray_loop->ele_textures[tr_ele_ucci0]  = &ray_loop->ucci0_tex;
+    ray_loop->ele_textures[tr_ele_ucci1]  = &ray_loop->ucci1_tex;
+
+    ray_ani_files_init(&ray_loop->ani_files);
+
+    ray_bg_renderer_init(&ray_loop->bg_renderer,
+                         &tr_loop->resources,
+                         &tr_loop->tilesets,
+                         &tr_loop->palette);
+
+    ray_bg_render_room(&ray_loop->bg_renderer, 0, 0);
+
+    ray_loop->player = player;
+
+    ray_loop->show_arcade = false;
+    ray_loop->rendered_room = 0;
+    ray_loop->show_types  = true;
+}
+
+void ray_gameloop_update(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
+    if (IsKeyPressed(KEY_U)) {
+        ray_loop->show_types = !ray_loop->show_types;
+    }
+
+    if (IsKeyPressed(KEY_R)) {
+        tr_game_reset(&tr_loop->game, &tr_loop->resources);
+    }
+
+    if (IsKeyPressed(KEY_BACKSPACE)) {
+        tr_loop->game.x = tr_loop->game.to_set_x;
+        tr_loop->game.y = tr_loop->game.to_set_y;
+    }
+
+    if (IsKeyPressed(KEY_PAGE_DOWN)) {
+        tr_loop->game.current_room = tr_loop->game.current_room + 1;
+    }
+
+    if (IsKeyPressed(KEY_PAGE_UP)) {
+        tr_loop->game.current_room = tr_loop->game.current_room - 1;
+    }
+}
+
+void ray_arcade_gameloop_tick(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
+    char direction = tr_keys_to_direction(
+        IsKeyDown(KEY_DOWN),
+        IsKeyDown(KEY_UP),
+        IsKeyDown(KEY_LEFT),
+        IsKeyDown(KEY_RIGHT),
+        IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)
+    );
+
+    tr_arcade_gameloop_tick(&tr_loop->game, &tr_loop->resources, direction);
+
+    bool redraw_bg = bg_step(&tr_loop->bg);
+
+    if ((ray_loop->rendered_room != tr_loop->game.current_room) || redraw_bg) {
+        ray_bg_render_room(&ray_loop->bg_renderer, tr_loop->game.current_room, tr_loop->bg.frame);
+        ray_loop->rendered_room = tr_loop->game.current_room;
+    }
+}
+
+void ray_gameloop_tick(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
+    if (ray_loop->show_arcade) {
+        ray_arcade_gameloop_tick(ray_loop, tr_loop);
+    }
+}
+
+void ray_gameloop_arcade_draw(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
+    DrawTextureScaled(ray_loop->bg_renderer.texture, 0, 0, GAME_SIZE_WIDTH, GAME_SIZE_HEIGHT, false);
+
+    for (int i = 0; i < tr_loop->game.bobs.count; i++) {
+        tr_bob *bob = &(tr_loop->game.bobs.bobs[i]);
+
+        Texture texture = ray_loop->ele_textures[bob->ele]->textures[bob->ele_idx];
+
+        DrawTextureScaled(texture,
+                          bob->x - texture.width / 2,
+                          bob->y - texture.height,
+                          texture.width,
+                          texture.height,
+                          bob->flip);
+    }
+
+    if (ray_loop->show_types)
+        DrawTileTypes(&tr_loop->resources, tr_loop->game.current_room);
+}
+
+typedef struct {
     struct ImGuiIO *io;
     Texture2D font_texture;
     bool show_imgui_demo;
+
+    tr_pla_player *player;
 
     dbg_ani ani;
     bool show_ani;
@@ -3208,7 +3718,7 @@ typedef struct {
     bool show_pla;
 } dbg_ui;
 
-void dbg_ui_init(dbg_ui *ui) {
+void dbg_ui_init(dbg_ui *ui, tr_game *game, tr_resources *resources, tr_pla_player *player, ray_gameloop *ray_loop) {
     igCreateContext(NULL);
     igStyleColorsDark(NULL);
 
@@ -3232,10 +3742,11 @@ void dbg_ui_init(dbg_ui *ui) {
     ui->font_texture = LoadTextureFromImage(font_image);
     ui->io->Fonts->TexID = (ImTextureID *)(&ui->font_texture.id);
 
+
     ui->show_imgui_demo = false;
 
     ui->show_ani = false;
-    dbg_ani_init(&ui->ani);
+    dbg_ani_init(&ui->ani, &ray_loop->ani_files);
 
     ui->show_wdw = false;
     dbg_wdw_init(&ui->wdw);
@@ -3247,7 +3758,8 @@ void dbg_ui_init(dbg_ui *ui) {
     dbg_chv_init(&ui->chv);
 
     ui->show_pla = true;
-    dbg_pla_init(&ui->pla);
+    ui->player = player;
+    dbg_pla_init(&ui->pla, ui->player);
 }
 
 void dbg_ui_props(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
@@ -3306,6 +3818,7 @@ void dbg_ui_update(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
     igNewLine();
 
     igCheckbox("show tile types", &ray_loop->show_types);
+    igCheckbox("show arcade game", &ray_loop->show_arcade);
     igCheckbox("show demo", &ui->show_imgui_demo);
 
     if (igButton("Reset", zero)) {
@@ -3321,10 +3834,10 @@ void dbg_ui_update(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
     igSeparator();
     igNewLine();
 
-    if (igButton("ani", zero)) ui->show_ani = !ui->show_ani; igSameLine(0, 0);
-    if (igButton("wdw", zero)) ui->show_wdw = !ui->show_wdw; igSameLine(0, 0);
-    if (igButton("ptr", zero)) ui->show_ptr = !ui->show_ptr; igSameLine(0, 0);
-    if (igButton("chv", zero)) ui->show_chv = !ui->show_chv; igSameLine(0, 0);
+    if (igButton("ani", zero)) ui->show_ani = !ui->show_ani; igSameLine(0, 1);
+    if (igButton("wdw", zero)) ui->show_wdw = !ui->show_wdw; igSameLine(0, 1);
+    if (igButton("ptr", zero)) ui->show_ptr = !ui->show_ptr; igSameLine(0, 1);
+    if (igButton("chv", zero)) ui->show_chv = !ui->show_chv; igSameLine(0, 1);
 
     igEnd();
 
@@ -3369,13 +3882,55 @@ bool ray_framerate_do_frame(ray_framerate *framerate) {
     return framerate->do_frame;
 }
 
+tr_pla_player *ray_loop_player(ray_gameloop *ray_loop) {
+    return (tr_pla_player *)ray_loop->player;
+}
+
+void ray_gameloop_player_draw(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
+    for (int i = 0; i < ray_loop_player(ray_loop)->commands_count; i++) {
+        tr_pla_player_command *cmd = &ray_loop_player(ray_loop)->commands[i];
+        switch (cmd->type) {
+            case tr_pla_player_command_type_render_ani: {
+                tr_render_ani_command *render_ani = &cmd->command.render_ani;
+                ray_single_texture *texts = ray_ani_files_get_textures(&ray_loop->ani_files, render_ani->ani_idx);
+
+                DrawTextureScaled(texts[render_ani->frame_idx].texture,
+                                  render_ani->x,
+                                  render_ani->y,
+                                  texts[render_ani->frame_idx].texture.width,
+                                  texts[render_ani->frame_idx].texture.height,
+                                  false);
+                break;
+            }
+
+            case tr_pla_player_command_type_render_box_text: {
+                tr_render_box_text_command *text_cmd = &cmd->command.render_box_text;
+                DrawRectangleLines(text_cmd->x * GAME_SIZE_SCALE,
+                                   text_cmd->y * GAME_SIZE_SCALE,
+                                   text_cmd->width * GAME_SIZE_SCALE,
+                                   text_cmd->y * GAME_SIZE_SCALE,
+                                   PINK);
+                DrawText(text_cmd->text,
+                         text_cmd->x * GAME_SIZE_SCALE,
+                         text_cmd->y * GAME_SIZE_SCALE,
+                         20,
+                         GetColor(text_cmd->color));
+            }
+        }
+    }
+}
+
+void ray_gameloop_draw(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
+    if (ray_loop->show_arcade)
+        ray_gameloop_arcade_draw(ray_loop, tr_loop);
+    else
+        ray_gameloop_player_draw(ray_loop, tr_loop);
+}
+
 int main() {
     InitWindow(GAME_SIZE_WIDTH  * GAME_SIZE_SCALE + DEBUG_PANE_WIDTH,
                GAME_SIZE_HEIGHT * GAME_SIZE_SCALE,
                "Corridori");
-
-    dbg_ui ui;
-    dbg_ui_init(&ui);
 
     SetWindowPosition(2000, 200);
     SetTargetFPS(60);
@@ -3383,11 +3938,17 @@ int main() {
     tr_gameloop tr_loop;
     tr_gameloop_init(&tr_loop);
 
+    tr_pla_player player;
+    tr_pla_player_init(&player, &tr_loop.game, &tr_loop.resources);
+
     ray_gameloop ray_loop;
-    ray_gameloop_init(&ray_loop, &tr_loop);
+    ray_gameloop_init(&ray_loop, &tr_loop, (struct tr_pla_player *)&player);
 
     ray_framerate framerate;
     ray_framerate_init(&framerate, 20);
+
+    dbg_ui ui;
+    dbg_ui_init(&ui, &tr_loop.game, &tr_loop.resources, &player, &ray_loop);
 
     while (!WindowShouldClose()) {
         dbg_ui_update(&ui, &ray_loop, &tr_loop);
