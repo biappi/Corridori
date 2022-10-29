@@ -3058,6 +3058,7 @@ typedef struct {
     tr_game *game;
     tr_resources *resources;
 
+    int loaded;
     uint8_t *content;
     size_t size;
     tr_pla_iterator it;
@@ -3100,10 +3101,13 @@ void tr_pla_unload(tr_pla_player *player) {
     tr_pla_player_init(player, player->game, player->resources);
 }
 
-void tr_pla_player_load(tr_pla_player *player, const char *path) {
+void tr_pla_player_load(tr_pla_player *player, int pla_idx) {
+    const char *path = TextFormat("GAME_DIR/PLR/PLA/%s", pla_files[pla_idx]);
+
     if (player->content)
         tr_pla_unload(player);
 
+    player->loaded = pla_idx;
     player->content = load_file_return_length(path, &player->size);
     player->state = tr_player_state_ok;
     tr_pla_iterator_init(&player->it, player->content, player->size);
@@ -3440,12 +3444,15 @@ void tr_pla_player_resume(tr_pla_player *player) {
         printf("playing: %lx\n", tr_pla_iterator_offset(&player->it));
         tr_pla_player_step(player);
     }
+
+    if (player->state == tr_player_state_change_pla) {
+        tr_pla_player_load(player, player->change_to_pla);
+    }
 }
 
 typedef struct {
     tr_pla_player *player;
 
-    int loaded;
     int selected;
 
     bool show_script_offset;
@@ -3453,16 +3460,8 @@ typedef struct {
     bool show_script_arg_names;
 } dbg_pla;
 
-void dbg_pla_load(dbg_pla *pla, int pla_idx) {
-    const char *path = TextFormat("GAME_DIR/PLR/PLA/%s", pla_files[pla_idx]);
-    tr_pla_player_load(pla->player, path);
-    pla->loaded = pla_idx;
-    pla->selected = pla->player->change_to_pla;
-}
-
 void dbg_pla_init(dbg_pla *pla, tr_pla_player *player) {
     pla->player = player;
-    dbg_pla_load(pla, 0);
 
     pla->show_script_offset = true;
     pla->show_script_opcode = true;
@@ -3552,7 +3551,7 @@ void dbg_pla_show_load(dbg_pla *pla, bool *show) {
     igCombo_Str_arr("pla", &pla->selected, pla_files, pla_files_count, 0);
 
     if (igButton("load", zero)) {
-        dbg_pla_load(pla, pla->selected);
+        tr_pla_player_load(pla->player, pla->selected);
         *show = false;
     }
 
@@ -3564,7 +3563,7 @@ void dbg_pla_show_script(dbg_pla *pla, bool *show) {
 
     igBegin("Current PLA", show, 0);
 
-    igText("loaded: %s", pla_files[pla->loaded]);
+    igText("loaded: %s", pla_files[pla->player->loaded]);
 
     igCheckbox("offsets", &pla->show_script_offset); igSameLine(0, -1);
     igCheckbox("opcodes", &pla->show_script_opcode); igSameLine(0, -1);
@@ -3599,14 +3598,17 @@ typedef struct {
 
     ray_bg_renderer bg_renderer;
 
-    struct tr_pla_player *player;
-
     int rendered_room;
     bool show_types;
     int show_arcade;
+
+    bool did_autoplay;
+    bool running;
+    int resume_countdown;
+    bool open_script;
 } ray_gameloop;
 
-void ray_gameloop_init(ray_gameloop *ray_loop, tr_gameloop *tr_loop, struct tr_pla_player *player) {
+void ray_gameloop_init(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
     tr_graphics_to_textures(&ray_loop->status_tex, &tr_loop->status_ele, &tr_loop->palette, 0xc1);
     tr_graphics_to_textures(&ray_loop->numeri_tex, &tr_loop->numeri_ele, &tr_loop->palette, 0xc1);
     tr_graphics_to_textures(&ray_loop->k_tex,      &tr_loop->k_ele,      &tr_loop->palette, 0xc1);
@@ -3630,11 +3632,12 @@ void ray_gameloop_init(ray_gameloop *ray_loop, tr_gameloop *tr_loop, struct tr_p
 
     ray_bg_render_room(&ray_loop->bg_renderer, 0, 0);
 
-    ray_loop->player = player;
-
     ray_loop->show_arcade = false;
     ray_loop->rendered_room = 0;
     ray_loop->show_types  = true;
+    ray_loop->did_autoplay = false;
+    ray_loop->open_script = false;
+    ray_loop->resume_countdown = 0;
 }
 
 void ray_gameloop_update(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
@@ -3676,12 +3679,6 @@ void ray_arcade_gameloop_tick(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
     if ((ray_loop->rendered_room != tr_loop->game.current_room) || redraw_bg) {
         ray_bg_render_room(&ray_loop->bg_renderer, tr_loop->game.current_room, tr_loop->bg.frame);
         ray_loop->rendered_room = tr_loop->game.current_room;
-    }
-}
-
-void ray_gameloop_tick(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
-    if (ray_loop->show_arcade) {
-        ray_arcade_gameloop_tick(ray_loop, tr_loop);
     }
 }
 
@@ -3768,6 +3765,7 @@ void dbg_ui_init(dbg_ui *ui, tr_game *game, tr_resources *resources, tr_pla_play
     dbg_chv_init(&ui->chv);
 
     ui->show_load_pla = false;
+    ui->show_script = false;
     ui->player = player;
     dbg_pla_init(&ui->pla, ui->player);
 }
@@ -3805,7 +3803,7 @@ void dbg_ui_hint_lines(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop)
 void dbg_ui_pla_controls(dbg_ui *ui) {
     dbg_pla *pla = &ui->pla;
 
-    igText("loaded:  %s", pla_files[pla->loaded]);
+    igText("loaded:  %s", pla_files[pla->player->loaded]);
     igText("current: %05x", tr_pla_iterator_offset(&pla->player->it));
     igText("state:   %s", tr_player_state_strings[pla->player->state]);
     igText("stack:   %d", pla->player->gosub_stack_count);
@@ -3833,9 +3831,6 @@ void dbg_ui_pla_controls(dbg_ui *ui) {
     if (igButton("resume", zero)) {
         tr_pla_player_resume(pla->player);
 
-        if (pla->player->state == tr_player_state_change_pla) {
-            dbg_pla_load(pla, pla->player->change_to_pla);
-        }
     }
 }
 
@@ -3918,6 +3913,11 @@ void dbg_ui_update(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
     if (ui->show_chv) dbg_chv_show(&ui->chv, &ui->show_chv);
     if (ui->show_load_pla) dbg_pla_show_load(&ui->pla, &ui->show_load_pla);
 
+    if (ray_loop->open_script) {
+        ui->show_script = true;
+        ray_loop->open_script = false;
+    }
+    
     if (ui->show_script) dbg_pla_show_script(&ui->pla, &ui->show_script);
 }
 
@@ -3953,13 +3953,9 @@ bool ray_framerate_do_frame(ray_framerate *framerate) {
     return framerate->do_frame;
 }
 
-tr_pla_player *ray_loop_player(ray_gameloop *ray_loop) {
-    return (tr_pla_player *)ray_loop->player;
-}
-
-void ray_gameloop_player_draw(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
-    for (int i = 0; i < ray_loop_player(ray_loop)->commands_count; i++) {
-        tr_pla_player_command *cmd = &ray_loop_player(ray_loop)->commands[i];
+void ray_gameloop_player_draw(ray_gameloop *ray_loop, tr_gameloop *tr_loop, tr_pla_player *player) {
+    for (int i = 0; i < player->commands_count; i++) {
+        tr_pla_player_command *cmd = &player->commands[i];
         switch (cmd->type) {
             case tr_pla_player_command_type_render_ani: {
                 tr_render_ani_command *render_ani = &cmd->command.render_ani;
@@ -3989,14 +3985,48 @@ void ray_gameloop_player_draw(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
             }
         }
     }
+
+    if (ray_loop->resume_countdown && player->state == tr_player_state_stopped)
+        DrawText(TextFormat("%d", ray_loop->resume_countdown), 0, 0, 40, ORANGE);
 }
 
-void ray_gameloop_draw(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
+void ray_gameloop_draw(ray_gameloop *ray_loop, tr_gameloop *tr_loop, tr_pla_player *player) {
     if (ray_loop->show_arcade)
         ray_gameloop_arcade_draw(ray_loop, tr_loop);
     else
-        ray_gameloop_player_draw(ray_loop, tr_loop);
+        ray_gameloop_player_draw(ray_loop, tr_loop, player);
 }
+
+void ray_player_gameloop_tick(ray_gameloop *ray_loop, tr_gameloop *tr_loop, tr_pla_player *player) {
+    if ((player->state == tr_player_state_ok) && !ray_loop->did_autoplay) {
+        tr_pla_player_resume(player);
+        ray_loop->resume_countdown = 20;
+        ray_loop->running = true;
+    }
+
+    if (!ray_loop->running)
+        return;
+
+    if (player->state == tr_player_state_stopped) {
+        if (ray_loop->resume_countdown-- == 0) {
+            tr_pla_player_resume(player);
+            ray_loop->resume_countdown = 20;
+        }
+    }
+    else {
+        ray_loop->running = false;
+    }
+}
+
+void ray_gameloop_tick(ray_gameloop *ray_loop, tr_gameloop *tr_loop, tr_pla_player *player) {
+    if (ray_loop->show_arcade) {
+        ray_arcade_gameloop_tick(ray_loop, tr_loop);
+    }
+    else {
+        ray_player_gameloop_tick(ray_loop, tr_loop, player);
+    }
+}
+
 
 int main() {
     InitWindow(GAME_SIZE_WIDTH  * GAME_SIZE_SCALE + DEBUG_PANE_WIDTH,
@@ -4011,9 +4041,10 @@ int main() {
 
     tr_pla_player player;
     tr_pla_player_init(&player, &tr_loop.game, &tr_loop.resources);
+    tr_pla_player_load(&player, 0);
 
     ray_gameloop ray_loop;
-    ray_gameloop_init(&ray_loop, &tr_loop, (struct tr_pla_player *)&player);
+    ray_gameloop_init(&ray_loop, &tr_loop);
 
     ray_framerate framerate;
     ray_framerate_init(&framerate, 20);
@@ -4026,13 +4057,13 @@ int main() {
         ray_gameloop_update(&ray_loop, &tr_loop);
 
         if (ray_framerate_do_frame(&framerate)) {
-            ray_gameloop_tick(&ray_loop, &tr_loop);
+            ray_gameloop_tick(&ray_loop, &tr_loop, &player);
         }
 
         BeginDrawing();
         ClearBackground(BLACK);
 
-        ray_gameloop_draw(&ray_loop, &tr_loop);
+        ray_gameloop_draw(&ray_loop, &tr_loop, &player);
 
 //        dnbg_wdw_ray_tick(&ui->wdw);
         dbg_ui_render();
