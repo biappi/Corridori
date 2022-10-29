@@ -3447,6 +3447,10 @@ typedef struct {
 
     int loaded;
     int selected;
+
+    bool show_script_offset;
+    bool show_script_opcode;
+    bool show_script_arg_names;
 } dbg_pla;
 
 void dbg_pla_load(dbg_pla *pla, int pla_idx) {
@@ -3459,9 +3463,13 @@ void dbg_pla_load(dbg_pla *pla, int pla_idx) {
 void dbg_pla_init(dbg_pla *pla, tr_pla_player *player) {
     pla->player = player;
     dbg_pla_load(pla, 0);
+
+    pla->show_script_offset = true;
+    pla->show_script_opcode = true;
+    pla->show_script_arg_names = true;
 }
 
-void dbg_pla_dump(uint8_t *content, size_t size, size_t ip) {
+void dbg_pla_dump(uint8_t *content, size_t size, size_t ip, bool show_offset, bool show_opcode, bool show_arg_names) {
     tr_pla_iterator it;
 
     tr_pla_iterator_init(&it, content, size);
@@ -3477,20 +3485,24 @@ void dbg_pla_dump(uint8_t *content, size_t size, size_t ip) {
 
         igSameLine(0, 0);
 
-        igPushStyleColor_U32(ImGuiCol_Text, 0xffaaaaaa);
-        igText("%5x ", offset);
-        igSameLine(0, 0);
-        igPopStyleColor(1);
+        if (show_offset) {
+            igPushStyleColor_U32(ImGuiCol_Text, 0xffaaaaaa);
+            igText("%5x ", offset);
+            igSameLine(0, 0);
+            igPopStyleColor(1);
+        }
 
         uint16_t opcode = tr_pla_iterator_next_16(&it);
 
-        igPushStyleColor_U32(ImGuiCol_Text, 0xffcccccc);
-        igText("(%04x) ", opcode);
-        igSameLine(0, 0);
-        igPopStyleColor(1);
+        if (show_opcode) {
+            igPushStyleColor_U32(ImGuiCol_Text, 0xffcccccc);
+            igText("(%04x) ", opcode);
+            igSameLine(0, 0);
+            igPopStyleColor(1);
+        }
 
         if (opcode > pla_token_infos_count) {
-            igText("AA opcode: %04x", opcode);
+            igText("bad opcode: %04x", opcode);
             break;
         }
 
@@ -3504,7 +3516,7 @@ void dbg_pla_dump(uint8_t *content, size_t size, size_t ip) {
         igSameLine(0, 1);
 
         for (int a = 0; a < info.nargs; a++) {
-            if (info.argnames[a] != NULL) {
+            if (info.argnames[a] != NULL && show_arg_names) {
                 igPushStyleColor_U32(ImGuiCol_Text, 0xff555555);
                 igText("%s: ", info.argnames[a]); igSameLine(0, 1);
                 igPopStyleColor(1);
@@ -3533,45 +3545,43 @@ void dbg_pla_dump(uint8_t *content, size_t size, size_t ip) {
     }
 }
 
-void dbg_pla_show(dbg_pla *pla, bool *show) {
-    igSetNextWindowSize((ImVec2){600, 400}, ImGuiCond_FirstUseEver);
+void dbg_pla_show_load(dbg_pla *pla, bool *show) {
+    igSetNextWindowSize((ImVec2){600, 0}, ImGuiCond_FirstUseEver);
 
-    igBegin("PLA", show, 0);
-
-    igText("loaded: %s", pla_files[pla->loaded]);
-    
+    igBegin("Load", show, 0);
     igCombo_Str_arr("pla", &pla->selected, pla_files, pla_files_count, 0);
-    igSameLine(0, 1);
 
     if (igButton("load", zero)) {
         dbg_pla_load(pla, pla->selected);
+        *show = false;
     }
+
+    igEnd();
+}
+
+void dbg_pla_show_script(dbg_pla *pla, bool *show) {
+    igSetNextWindowSize((ImVec2){600, 300}, ImGuiCond_FirstUseEver);
+
+    igBegin("Current PLA", show, 0);
+
+    igText("loaded: %s", pla_files[pla->loaded]);
+
+    igCheckbox("offsets", &pla->show_script_offset); igSameLine(0, -1);
+    igCheckbox("opcodes", &pla->show_script_opcode); igSameLine(0, -1);
+    igCheckbox("args", &pla->show_script_arg_names);
 
     igSeparator();
 
-    igText("current: %05x", tr_pla_iterator_offset(&pla->player->it));
-    igText("state:   %s", tr_player_state_strings[pla->player->state]);
+    igBeginChild_Str("scri", zero, 0, 0);
 
-    if (igButton("step", zero)) {
-        tr_pla_player_step(pla->player);
-    }
+    dbg_pla_dump(pla->player->content,
+                 pla->player->size,
+                 tr_pla_iterator_offset(&pla->player->it),
+                 pla->show_script_offset,
+                 pla->show_script_opcode,
+                 pla->show_script_arg_names);
 
-    igSameLine(0, -1);
-
-    if (igButton("resume", zero)) {
-        tr_pla_player_resume(pla->player);
-
-        if (pla->player->state == tr_player_state_change_pla) {
-            dbg_pla_load(pla, pla->player->change_to_pla);
-        }
-    }
-
-    igSeparator();
-
-    igBeginChild_Str("disass", zero, false, 0);
-    dbg_pla_dump(pla->player->content, pla->player->size, tr_pla_iterator_offset(&pla->player->it));
     igEndChild();
-
     igEnd();
 }
 
@@ -3593,7 +3603,7 @@ typedef struct {
 
     int rendered_room;
     bool show_types;
-    bool show_arcade;
+    int show_arcade;
 } ray_gameloop;
 
 void ray_gameloop_init(ray_gameloop *ray_loop, tr_gameloop *tr_loop, struct tr_pla_player *player) {
@@ -3715,7 +3725,8 @@ typedef struct {
     bool show_chv;
 
     dbg_pla pla;
-    bool show_pla;
+    bool show_load_pla;
+    bool show_script;
 } dbg_ui;
 
 void dbg_ui_init(dbg_ui *ui, tr_game *game, tr_resources *resources, tr_pla_player *player, ray_gameloop *ray_loop) {
@@ -3742,7 +3753,6 @@ void dbg_ui_init(dbg_ui *ui, tr_game *game, tr_resources *resources, tr_pla_play
     ui->font_texture = LoadTextureFromImage(font_image);
     ui->io->Fonts->TexID = (ImTextureID *)(&ui->font_texture.id);
 
-
     ui->show_imgui_demo = false;
 
     ui->show_ani = false;
@@ -3757,7 +3767,7 @@ void dbg_ui_init(dbg_ui *ui, tr_game *game, tr_resources *resources, tr_pla_play
     ui->show_chv = false;
     dbg_chv_init(&ui->chv);
 
-    ui->show_pla = true;
+    ui->show_load_pla = false;
     ui->player = player;
     dbg_pla_init(&ui->pla, ui->player);
 }
@@ -3792,6 +3802,43 @@ void dbg_ui_hint_lines(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop)
     igText("%s", line2_str);
 }
 
+void dbg_ui_pla_controls(dbg_ui *ui) {
+    dbg_pla *pla = &ui->pla;
+
+    igText("loaded:  %s", pla_files[pla->loaded]);
+    igText("current: %05x", tr_pla_iterator_offset(&pla->player->it));
+    igText("state:   %s", tr_player_state_strings[pla->player->state]);
+    igText("stack:   %d", pla->player->gosub_stack_count);
+
+    igSeparator();
+
+    if (igButton("show script", zero)) {
+        ui->show_script = !ui->show_script;
+    }
+
+    igSameLine(0, -1);
+
+    if (igButton("load script", zero)) {
+        ui->show_load_pla = !ui->show_load_pla;
+    }
+
+    igSeparator();
+
+    if (igButton("step", zero)) {
+        tr_pla_player_step(pla->player);
+    }
+
+    igSameLine(0, -1);
+
+    if (igButton("resume", zero)) {
+        tr_pla_player_resume(pla->player);
+
+        if (pla->player->state == tr_player_state_change_pla) {
+            dbg_pla_load(pla, pla->player->change_to_pla);
+        }
+    }
+}
+
 void dbg_ui_update(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
     ImGui_ImplRaylib_NewFrame();
     ImGui_ImplRaylib_ProcessEvent();
@@ -3811,33 +3858,55 @@ void dbg_ui_update(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
 
     igBegin("main", NULL, main_window_flags);
 
-    dbg_ui_props(ui, ray_loop, tr_loop);
+    if (igButton("ani", zero)) ui->show_ani = !ui->show_ani; igSameLine(0, -1);
+    if (igButton("wdw", zero)) ui->show_wdw = !ui->show_wdw; igSameLine(0, -1);
+    if (igButton("ptr", zero)) ui->show_ptr = !ui->show_ptr; igSameLine(0, -1);
+    if (igButton("chv", zero)) ui->show_chv = !ui->show_chv; igSameLine(0, -1);
+
+    if (igButton("imgui demo", zero)) ui->show_imgui_demo = !ui->show_imgui_demo;
+
     igNewLine();
 
-    dbg_ui_hint_lines(ui, ray_loop, tr_loop);
-    igNewLine();
+    bool change_game_mode = false;
 
-    igCheckbox("show tile types", &ray_loop->show_types);
-    igCheckbox("show arcade game", &ray_loop->show_arcade);
-    igCheckbox("show demo", &ui->show_imgui_demo);
+    if (igRadioButton_IntPtr("arcade", &ray_loop->show_arcade, 1))
+        change_game_mode = true;
 
-    if (igButton("Reset", zero)) {
-        tr_game_reset(&tr_loop->game, &tr_loop->resources);
-    }
-
-    if (igButton("Room pos", zero)) {
-        tr_loop->game.x = tr_loop->game.to_set_x;
-        tr_loop->game.y = tr_loop->game.to_set_y;
-    }
+    if (igRadioButton_IntPtr("player", &ray_loop->show_arcade, 0))
+        change_game_mode = true;
 
     igNewLine();
     igSeparator();
     igNewLine();
 
-    if (igButton("ani", zero)) ui->show_ani = !ui->show_ani; igSameLine(0, 1);
-    if (igButton("wdw", zero)) ui->show_wdw = !ui->show_wdw; igSameLine(0, 1);
-    if (igButton("ptr", zero)) ui->show_ptr = !ui->show_ptr; igSameLine(0, 1);
-    if (igButton("chv", zero)) ui->show_chv = !ui->show_chv; igSameLine(0, 1);
+    if (change_game_mode)
+        igSetNextItemOpen(ray_loop->show_arcade, 0);
+
+    if (igCollapsingHeader_BoolPtr("arcade debug", NULL, 0)) {
+        dbg_ui_props(ui, ray_loop, tr_loop);
+        igNewLine();
+
+        dbg_ui_hint_lines(ui, ray_loop, tr_loop);
+        igNewLine();
+
+        igCheckbox("show tile types", &ray_loop->show_types);
+
+        if (igButton("Reset", zero)) {
+            tr_game_reset(&tr_loop->game, &tr_loop->resources);
+        }
+
+        if (igButton("Room pos", zero)) {
+            tr_loop->game.x = tr_loop->game.to_set_x;
+            tr_loop->game.y = tr_loop->game.to_set_y;
+        }
+    }
+
+    if (change_game_mode)
+        igSetNextItemOpen(!ray_loop->show_arcade, 0);
+
+    if (igCollapsingHeader_BoolPtr("player debug", NULL, ImGuiTreeNodeFlags_DefaultOpen)) {
+        dbg_ui_pla_controls(ui);
+    }
 
     igEnd();
 
@@ -3847,7 +3916,9 @@ void dbg_ui_update(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
     if (ui->show_wdw) dbg_wdw_show(&ui->wdw, &ui->show_wdw);
     if (ui->show_ptr) dbg_ptr_show(&ui->ptr, &ui->show_ptr);
     if (ui->show_chv) dbg_chv_show(&ui->chv, &ui->show_chv);
-    if (ui->show_pla) dbg_pla_show(&ui->pla, &ui->show_pla);
+    if (ui->show_load_pla) dbg_pla_show_load(&ui->pla, &ui->show_load_pla);
+
+    if (ui->show_script) dbg_pla_show_script(&ui->pla, &ui->show_script);
 }
 
 void dbg_ui_render(void) {
