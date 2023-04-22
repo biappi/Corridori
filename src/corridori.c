@@ -600,6 +600,7 @@ void tr_render_ele_ani(uint8_t *ele_data, tr_image_8bpp *dst_item) {
 
 void tr_render_ele(uint8_t *ele_data, tr_image_8bpp *dst_item) {
     uint8_t *src_item = ele_data;
+    uint8_t *src = src_item + 5;
 
     dst_item->width  = read16_unaligned(src_item + 0 * 2);
     dst_item->height = read16_unaligned(src_item + 1 * 2);
@@ -611,44 +612,38 @@ void tr_render_ele(uint8_t *ele_data, tr_image_8bpp *dst_item) {
     memset(dst_item->pixels, 0, size);
     memset(dst_item->mask,   0, size);
 
-    {
-        uint8_t *src = src_item + 5;
-        uint8_t *dst = dst_item->pixels;
-        uint8_t *msk = dst_item->mask;
+    for (int y = 0; y < dst_item->height; y++) {
+        uint8_t x = 0;
 
-        for (int y = 0; y < dst_item->height; y++) {
-            uint8_t x = 0;
+        while (1) {
+            uint8_t skip = *src++;
+            if (skip == 0xff)
+                break;
 
-            while (1) {
-                uint8_t skip = *src++;
-                if (skip == 0xff)
-                    break;
+            x += skip;
 
-                x += skip;
+            uint8_t count = *src++;
+            if (count == 0xff)
+                break;
 
-                uint8_t count = *src++;
-                if (count == 0xff)
-                    break;
+            for (int i = 0; i < count / 2; i++) {
+                uint8_t colors = *src++;
+                uint8_t color1 = ((colors & 0x0f)     );
+                uint8_t color2 = ((colors & 0xf0) >> 4);
 
-                for (int i = 0; i < count / 2; i++) {
-                    uint8_t colors = *src++;
-                    uint8_t color1 = ((colors & 0x0f)     );
-                    uint8_t color2 = ((colors & 0xf0) >> 4);
+                dst_item->pixels [y * dst_item->width + x  ] = color1;
+                dst_item->mask   [y * dst_item->width + x++] = 1;
 
-                    dst_item->pixels [y * dst_item->width + x  ] = color1;
-                    dst_item->mask   [y * dst_item->width + x++] = 1;
+                dst_item->pixels [y * dst_item->width + x  ] = color2;
+                dst_item->mask   [y * dst_item->width + x++] = 1;
+            }
 
-                    dst_item->pixels [y * dst_item->width + x  ] = color2;
-                    dst_item->mask   [y * dst_item->width + x++] = 1;
-                }
+            if (count & 1) {
+                uint8_t color = *src++;
+                uint8_t color1 = (color & 0x0f);
 
-                if (count & 1) {
-                    uint8_t color = *src++;
-                    uint8_t color1 = (color & 0x0f);
-
-                    dst_item->pixels [y * dst_item->width + x  ] = color1;
-                    dst_item->mask   [y * dst_item->width + x++] = 1;
-                }
+                dst_item->pixels [y * dst_item->width + x  ] = color1;
+                dst_item->mask   [y * dst_item->width + x++] = 1;
             }
         }
     }
