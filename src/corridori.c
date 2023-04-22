@@ -535,81 +535,6 @@ void add_bob_per_background(
     bobs->count = i + 1;
 }
 
-
-void tr_render_ele_wdw(uint8_t *ele_data, tr_image_8bpp *dst_item) {
-    static bool console_log = false;
-
-    uint8_t *src_item = ele_data;
-
-    dst_item->width  = read16_unaligned(src_item + 0 * 2);
-    dst_item->height = read16_unaligned(src_item + 1 * 2);
-
-    int size = dst_item->width * dst_item->height;
-    dst_item->pixels = malloc(size);
-    dst_item->mask   = malloc(size);
-
-    memset(dst_item->pixels, 0, size);
-    memset(dst_item->mask,   0, size);
-
-    uint8_t *src = src_item + 5;
-    uint8_t *dst = dst_item->pixels;
-    uint8_t *msk = dst_item->mask;
-
-    int x_left = dst_item->width;
-
-    for (int k = 0; k < dst_item->height; k++) {
-        uint8_t skip = *src++;
-
-        if (skip == 0xff) {
-            dst += x_left; msk += x_left;
-
-            if (console_log) printf("\n");
-            x_left = dst_item->width;
-            continue;
-        }
-
-        dst += skip;
-        msk += skip;
-
-        x_left -= skip;
-
-        uint8_t count = *src++;
-        if (count == 0xff) {
-            dst += x_left; msk += x_left;
-
-            if (console_log) printf("\n");
-            x_left = dst_item->width;
-            continue;
-        }
-
-        if (console_log)
-            for (int i = 0; i < skip; i++)
-                printf("   ");
-
-        for (int i = 0; i < count / 2; i++) {
-            uint8_t colors = *src++;
-            uint8_t color1 = ((colors & 0x0f)     );
-            uint8_t color2 = ((colors & 0xf0) >> 4);
-
-            *dst++ = color1; *msk++ = 1;
-            *dst++ = color2; *msk++ = 1;
-
-            if (console_log) printf("%02x %02x ", color1, color2);
-
-            x_left -= 2;
-        }
-
-        if (count & 1) {
-            uint8_t color = *src++;
-            uint8_t color1 = (color & 0x0f);
-
-            *dst++ = color1; *msk++ = 1;
-            if (console_log) printf("%02x ", color1);
-            x_left--;
-        }
-    }
-}
-
 void tr_render_ele_ani(uint8_t *ele_data, tr_image_8bpp *dst_item) {
     static bool console_log = false;
 
@@ -632,8 +557,6 @@ void tr_render_ele_ani(uint8_t *ele_data, tr_image_8bpp *dst_item) {
     int x_left = dst_item->width;
 
     int line = 0;
-
-//    for (int k = 0; k < dst_item->height; k++) {
     while (line < dst_item->height) {
         uint8_t skip = *src++;
 
