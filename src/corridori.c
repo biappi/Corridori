@@ -2464,40 +2464,6 @@ ray_single_texture *dbg_wdw_get_texture(dbg_wdw *test, int idx) {
     return test->textures[idx];
 }
 
-
-void dbg_wdw_ray_tick(dbg_wdw *wdw_test) {
-    if (IsKeyPressed(KEY_LEFT)) { wdw_test->current -= 1; }
-    if (IsKeyPressed(KEY_RIGHT)) { wdw_test->current += 1; }
-
-    if (wdw_test->current >= tr_wdw_image_count) { wdw_test->current = 0; }
-    if (wdw_test->current < 0) { wdw_test->current = tr_wdw_image_count -1; }
-
-    if (IsKeyPressed(KEY_DOWN)) { wdw_test->current_col -= 1; }
-    if (IsKeyPressed(KEY_UP)) { wdw_test->current_col += 1; }
-
-    if (wdw_test->current_col >= 0x100) { wdw_test->current_col = 0; }
-    if (wdw_test->current_col < 0) { wdw_test->current_col = 0xff; }
-
-    if ((wdw_test->current != wdw_test->prev_current) ||
-        (wdw_test->current_col != wdw_test->prev_current_col))
-    {
-        ray_texture_destroy(&wdw_test->wdw1);
-        ray_texture_from_image(&wdw_test->wdw1,
-                               &wdw_test->wdw.images[wdw_test->current],
-                               &wdw_test->wdw.palette,
-                               wdw_test->current_col);
-
-        wdw_test->prev_current_col = wdw_test->current_col;
-        wdw_test->prev_current = wdw_test->current;
-    }
-
-    DrawTextureScaled(wdw_test->wdw1.texture, 0, 50, wdw_test->wdw1.texture.width, wdw_test->wdw1.texture.height, false);
-
-    int YYY = 20;
-    DrawText("Test", 20, YYY, 20, GREEN); YYY += 20;
-    DrawText(TextFormat("Item %02x col %02x", wdw_test->current, wdw_test->current_col), 20, YYY, 20, GREEN); YYY += 20;
-}
-
 typedef struct {
     uint16_t count;
     tr_palette palette;
@@ -4042,7 +4008,6 @@ int main() {
 
         ray_gameloop_draw(&ray_loop, &tr_loop, &player);
 
-//        dnbg_wdw_ray_tick(&ui->wdw);
         dbg_ui_render();
 
         EndDrawing();
