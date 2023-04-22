@@ -2385,15 +2385,12 @@ typedef struct {
 } tr_wdw;
 
 void tr_wdw_init_palette(tr_palette *palette, uint8_t *data) {
-    int16_t start = read16_unaligned(data + 0);
-    int16_t end   = read16_unaligned(data + 2);
+    // uint8_t start = data[0]; // (?)
+    // uint8_t end   = data[1]; // (?)
+    uint8_t *color_start = data + 5;
 
-    int16_t count = end - start - 1;
-    uint8_t start_c = *(data + 0) + 1;
-    uint8_t *color_start = data + 8;
-
-    for (int i = 0; i < count; i++) {
-        palette->color[i + start_c] = 0xff000000 |
+    for (int i = 0; i < 0x100; i++) {
+        palette->color[i] = 0xff000000 |
             (color_start[(i * 3) + 0] <<  2) |
             (color_start[(i * 3) + 1] << 10) |
             (color_start[(i * 3) + 2] << 18);
@@ -2403,7 +2400,7 @@ void tr_wdw_init_palette(tr_palette *palette, uint8_t *data) {
 void tr_wdw_init(tr_wdw *wdw, uint8_t *wdw_file) {
     for (int i = 0; i < tr_wdw_image_count; i++) {
         uint16_t ele_offset = *((uint16_t *)(wdw_file + i * 2));
-        tr_render_ele_wdw(wdw_file + ele_offset, &wdw->images[i]);
+        tr_render_ele(wdw_file + ele_offset, &wdw->images[i]);
     }
 
     uint16_t palette_offset = *((uint16_t *)(wdw_file + 18));
