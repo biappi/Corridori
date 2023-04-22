@@ -2809,6 +2809,7 @@ void dbg_chv_init(dbg_chv *dbg) {
     palette_load_from_file(&pal, pp);
 
     dbg->scale = 1;
+    dbg->current = 0;
 
     for (int i = 0; i < chv_files_count; i++) {
         uint8_t *data = load_file(TextFormat("GAME_DIR/FNT/%s", chv_files[i]));
