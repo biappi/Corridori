@@ -82,9 +82,29 @@ static const tr_pla_token_info pla_token_infos[] = {
         { "field1", "field2" } },
 
     // 0x0012
-    { "opcode_0012", 1,
-        { tr_pla_args_type_16 },
-        { } },
+    { "choice", 9,
+        {
+            tr_pla_args_type_16,
+            tr_pla_args_type_16,
+            tr_pla_args_type_16,
+            tr_pla_args_type_16,
+            tr_pla_args_type_16,
+            tr_pla_args_type_16,
+            tr_pla_args_type_16,
+            tr_pla_args_type_16,
+            tr_pla_args_type_16,
+        },
+        {
+            "field1",
+            "field2",
+            "field3",
+            "field4",
+            "field5",
+            "data_offset",
+            "field7",
+            "field8",
+            "code_offset",
+        }},
 
     // 0x0013
     { "maybe_goto_pla", 1,

@@ -3079,6 +3079,18 @@ void tr_pla_player__fade_out(tr_pla_player *player) {
     player->state = tr_player_state_stopped;
 }
 
+void tr_pla_player__choice(tr_pla_player *player) {
+    uint16_t field1 = tr_pla_iterator_next_16(&player->it);
+    uint16_t field2 = tr_pla_iterator_next_16(&player->it);
+    uint16_t field3 = tr_pla_iterator_next_16(&player->it);
+    uint16_t field4 = tr_pla_iterator_next_16(&player->it);
+    uint16_t field5 = tr_pla_iterator_next_16(&player->it);
+    uint16_t data_offset = tr_pla_iterator_next_16(&player->it);
+    uint16_t field7 = tr_pla_iterator_next_16(&player->it);
+    uint16_t field8 = tr_pla_iterator_next_16(&player->it);
+    uint16_t code_offset = tr_pla_iterator_next_16(&player->it);
+}
+
 void tr_pla_player__goto_pla(tr_pla_player *player) {
     const char *pla_file = tr_pla_iterator_next_string(&player->it);
 
@@ -3114,6 +3126,11 @@ void tr_pla_player__load_font(tr_pla_player *player) {
 
     player->chv_data = load_file(TextFormat("GAME_DIR/FNT/%s", name));
     tr_chv_init(&player->chv, player->chv_data);
+}
+
+void tr_pla_player__another_goto(tr_pla_player *player) {
+    uint16_t offset = tr_pla_iterator_next_32(&player->it);
+    tr_pla_iterator_set_offset(&player->it, offset);
 }
 
 void tr_pla_player__load_mdi(tr_pla_player *player) {
@@ -3277,8 +3294,10 @@ void tr_pla_player_step(tr_pla_player *player) {
         case 0x000f: tr_pla_player__teardown_animation (player); break;
         case 0x0010: tr_pla_player__fade_in            (player); break;
         case 0x0011: tr_pla_player__fade_out           (player); break;
+        case 0x0012: tr_pla_player__choice             (player); break;
         case 0x0013: tr_pla_player__goto_pla           (player); break;
         case 0x0019: tr_pla_player__load_font          (player); break;
+        case 0x001b: tr_pla_player__another_goto       (player); break;
         case 0x001c: tr_pla_player__load_mdi           (player); break;
         case 0x001f: tr_pla_player__reset_swivar2      (player); break;
         case 0x0020: tr_pla_player__set_swivar2        (player); break;
