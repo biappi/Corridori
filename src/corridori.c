@@ -2672,8 +2672,7 @@ typedef struct {
     uint8_t last_char;
     uint8_t format;
     uint8_t space_width;
-
-    tr_image_8bpp *images;
+    tr_graphics glyphs;
 } tr_chv;
 
 int tr_chv_get_count(tr_chv *chv) {
@@ -2688,14 +2687,15 @@ void tr_chv_init(tr_chv *chv, uint8_t *data) {
 
     uint8_t *offset_start = data + 5;
 
-    chv->images = calloc(tr_chv_get_count(chv), sizeof(tr_image_8bpp));
+    chv->glyphs.count = tr_chv_get_count(chv);
+    chv->glyphs.items = calloc(chv->glyphs.count, sizeof(tr_image_8bpp));
 
     for (int i = 0; i < tr_chv_get_count(chv); i++) {
         uint32_t offset = read32_unaligned(offset_start + i * 4);
         uint8_t *ele_data = offset_start + offset;
 
         if (offset != 0xffffffff)
-            tr_render_ele(ele_data, &chv->images[i]);
+            tr_render_ele(ele_data, &chv->glyphs.items[i]);
     }
 }
 
@@ -2711,7 +2711,7 @@ static const int chv_files_count = sizeof(chv_files) / sizeof(char *);
 
 typedef struct {
     tr_chv chvs[chv_files_count];
-    ray_single_texture *textures[chv_files_count];
+    ray_textures textures[chv_files_count];
     int current;
     int scale;
 } dbg_chv;
@@ -2728,18 +2728,7 @@ void dbg_chv_init(dbg_chv *dbg) {
     for (int i = 0; i < chv_files_count; i++) {
         uint8_t *data = load_file(TextFormat("GAME_DIR/FNT/%s", chv_files[i]));
         tr_chv_init(&dbg->chvs[i], data);
-
-        dbg->textures[i] = calloc(tr_chv_get_count(&dbg->chvs[i]), sizeof(ray_single_texture));
-
-        for (int t = 0; t < tr_chv_get_count(&dbg->chvs[i]); t++) {
-            if ((dbg->chvs[i].images[t].width +
-                 dbg->chvs[i].images[t].height) != 0) {
-                ray_texture_from_image(&dbg->textures[i][t],
-                                       &dbg->chvs[i].images[t],
-                                       &pal,
-                                       0x10);
-            }
-        }
+        tr_graphics_to_textures(&dbg->textures[i], &dbg->chvs[i].glyphs, &pal, 0x10);
     }
 }
 
@@ -2759,10 +2748,10 @@ void dbg_chv_show(dbg_chv *dbg, bool *show) {
     igText("format      %02x", chv->format);
     igText("space_width %02x", chv->space_width);
 
-    for (int i = 0; i < tr_chv_get_count(chv); i++) {
-        if ((chv->images[i].width + chv->images[i].height) != 0) {
-            dbg_image_list_show_image(i, &dbg->textures[dbg->current][i].texture, dbg->scale);
-        }
+    ray_textures *texts = &dbg->textures[dbg->current];
+
+    for (int i = 0; i < texts->count; i++) {
+        dbg_image_list_show_image(i, &texts->textures[i], dbg->scale);
     }
 
     dbg_image_list_end();
