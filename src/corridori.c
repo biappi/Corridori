@@ -2825,9 +2825,9 @@ typedef enum {
 static const char *tr_player_state_strings[] = { "ok", "stopped", "ended", "change pla", "ko" };
 
 typedef enum {
-    tr_pla_player_command_type_render_ani,
-    tr_pla_player_command_type_render_box_text,
-} tr_pla_player_command_type;
+    tr_render_command_type_render_ani,
+    tr_render_command_type_render_box_text,
+} tr_render_command_type;
 
 typedef struct {
     int x;
@@ -2847,16 +2847,30 @@ typedef struct {
 } tr_render_box_text_command;
 
 typedef struct {
-    tr_pla_player_command_type type;
+    tr_render_command_type type;
     union {
         tr_render_ani_command render_ani;
         tr_render_box_text_command render_box_text;
     } command;
-} tr_pla_player_command;
+} tr_render_command;
+
+typedef struct {
+    tr_render_command commands[0x100];
+    int count;
+} tr_renderer;
+
+void tr_renderer_clear(tr_renderer *renderer) {
+    renderer->count = 0;
+}
+
+tr_render_command *tr_renderer_add_command(tr_renderer *renderer) {
+    return &renderer->commands[renderer->count++];
+}
 
 typedef struct {
     tr_game *game;
     tr_resources *resources;
+    tr_renderer *renderer;
 
     int loaded;
     uint8_t *content;
@@ -2873,9 +2887,6 @@ typedef struct {
 
     int ani_file_index;
 
-    tr_pla_player_command commands[0x100];
-    int commands_count;
-
     struct {
         int width;
         int height;
@@ -2888,17 +2899,18 @@ typedef struct {
     int gosub_stack_count;
 } tr_pla_player;
 
-void tr_pla_player_init(tr_pla_player *player, tr_game *game, tr_resources *resources) {
+void tr_pla_player_init(tr_pla_player *player, tr_game *game, tr_resources *resources, tr_renderer *renderer) {
     memset(player, 0, sizeof(tr_pla_player));
     player->game = game;
     player->resources = resources;
+    player->renderer = renderer;
 }
 
 void tr_pla_unload(tr_pla_player *player) {
     free(player->content);
     if (player->chv_data) free(player->chv_data);
 
-    tr_pla_player_init(player, player->game, player->resources);
+    tr_pla_player_init(player, player->game, player->resources, player->renderer);
 }
 
 void tr_pla_player_load(tr_pla_player *player, int pla_idx) {
@@ -2949,10 +2961,10 @@ void tr_pla_player__load_ani(tr_pla_player *player) {
 }
 
 void tr_pla_player__render_ani(tr_pla_player *player) {
-    tr_pla_player_command *command = &player->commands[player->commands_count++];
+    tr_render_command *command = tr_renderer_add_command(player->renderer);
     tr_render_ani_command *render_ani = &command->command.render_ani;
 
-    command->type = tr_pla_player_command_type_render_ani;
+    command->type = tr_render_command_type_render_ani;
     render_ani->x         = tr_pla_iterator_next_16(&player->it);
     render_ani->y         = tr_pla_iterator_next_16(&player->it);
     /* unused */            tr_pla_iterator_next_16(&player->it);
@@ -3021,7 +3033,7 @@ void tr_pla_player__fade_out(tr_pla_player *player) {
     /* uint16_t time     = */ tr_pla_iterator_next_16(&player->it);
 
     // todo
-    player->commands_count = 0;
+    tr_renderer_clear(player->renderer);
     player->state = tr_player_state_stopped;
 }
 
@@ -3106,10 +3118,10 @@ void tr_pla_player__render_box_text(tr_pla_player *player) {
     uint16_t x = tr_pla_iterator_next_16(&player->it);
     uint16_t y = tr_pla_iterator_next_16(&player->it);
 
-    tr_pla_player_command *command = &player->commands[player->commands_count++];
+    tr_render_command *command = tr_renderer_add_command(player->renderer);
     tr_render_box_text_command *render_text = &command->command.render_box_text;
 
-    command->type = tr_pla_player_command_type_render_box_text;
+    command->type = tr_render_command_type_render_box_text;
     render_text->slot   = slot;
     render_text->x      = x;
     render_text->y      = y;
@@ -3125,14 +3137,14 @@ void tr_pla_player__remove_text(tr_pla_player *player) {
 
     player->text_slots[slot].string[0] = 0;
 
-    tr_pla_player_command *last = NULL;
+    tr_render_command *last = NULL;
 
-    if (player->commands_count)
-        last = &player->commands[player->commands_count - 1];
+    if (player->renderer->count)
+        last = &player->renderer->commands[player->renderer->count - 1];
 
-    if (last && last->type == tr_pla_player_command_type_render_box_text)
+    if (last && last->type == tr_render_command_type_render_box_text)
         if (last->command.render_box_text.slot == slot)
-            player->commands_count--;
+            player->renderer->count--;
 }
 
 void tr_pla_player__set_text_bounds(tr_pla_player *player) {
@@ -3753,11 +3765,12 @@ bool ray_framerate_do_frame(ray_framerate *framerate) {
     return framerate->do_frame;
 }
 
-void ray_gameloop_player_draw(ray_gameloop *ray_loop, tr_gameloop *tr_loop, tr_pla_player *player) {
-    for (int i = 0; i < player->commands_count; i++) {
-        tr_pla_player_command *cmd = &player->commands[i];
+void ray_renderer_draw(ray_gameloop *ray_loop, tr_gameloop *tr_loop, tr_pla_player *player, tr_renderer *renderer) {
+
+    for (int i = 0; i < renderer->count; i++) {
+        tr_render_command *cmd = &renderer->commands[i];
         switch (cmd->type) {
-            case tr_pla_player_command_type_render_ani: {
+            case tr_render_command_type_render_ani: {
                 tr_render_ani_command *render_ani = &cmd->command.render_ani;
                 ray_textures *texts = ray_ani_files_get_textures(&ray_loop->ani_files, render_ani->ani_idx);
 
@@ -3770,7 +3783,7 @@ void ray_gameloop_player_draw(ray_gameloop *ray_loop, tr_gameloop *tr_loop, tr_p
                 break;
             }
 
-            case tr_pla_player_command_type_render_box_text: {
+            case tr_render_command_type_render_box_text: {
                 tr_render_box_text_command *text_cmd = &cmd->command.render_box_text;
                 DrawRectangleLines(text_cmd->x * GAME_SIZE_SCALE,
                                    text_cmd->y * GAME_SIZE_SCALE,
@@ -3788,13 +3801,6 @@ void ray_gameloop_player_draw(ray_gameloop *ray_loop, tr_gameloop *tr_loop, tr_p
 
     if (ray_loop->resume_countdown && player->state == tr_player_state_stopped)
         DrawText(TextFormat("%d", ray_loop->resume_countdown), 0, 0, 40, ORANGE);
-}
-
-void ray_gameloop_draw(ray_gameloop *ray_loop, tr_gameloop *tr_loop, tr_pla_player *player) {
-    if (ray_loop->show_arcade)
-        ray_gameloop_arcade_draw(ray_loop, tr_loop);
-    else
-        ray_gameloop_player_draw(ray_loop, tr_loop, player);
 }
 
 void ray_player_gameloop_tick(ray_gameloop *ray_loop, tr_gameloop *tr_loop, tr_pla_player *player) {
@@ -3839,8 +3845,11 @@ int main() {
     tr_gameloop tr_loop;
     tr_gameloop_init(&tr_loop);
 
+    tr_renderer renderer;
+    tr_renderer_clear(&renderer);
+
     tr_pla_player player;
-    tr_pla_player_init(&player, &tr_loop.game, &tr_loop.resources);
+    tr_pla_player_init(&player, &tr_loop.game, &tr_loop.resources, &renderer);
     tr_pla_player_load(&player, 0);
 
     ray_gameloop ray_loop;
@@ -3863,7 +3872,10 @@ int main() {
         BeginDrawing();
         ClearBackground(BLACK);
 
-        ray_gameloop_draw(&ray_loop, &tr_loop, &player);
+        if (ray_loop.show_arcade)
+            ray_gameloop_arcade_draw(&ray_loop, &tr_loop);
+        else
+            ray_renderer_draw(&ray_loop, &tr_loop, &player, &renderer);
 
         dbg_ui_render();
 
