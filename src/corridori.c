@@ -2883,10 +2883,18 @@ typedef enum {
     tr_player_state_stopped,
     tr_player_state_ended,
     tr_player_state_change_pla,
+    tr_player_state_swivar_if_debug,
     tr_player_state_ko,
 } tr_pla_player_state;
 
-static const char *tr_player_state_strings[] = { "ok", "stopped", "ended", "change pla", "ko" };
+static const char *tr_player_state_strings[] = {
+    "ok",
+    "stopped",
+    "ended",
+    "change pla",
+    "if debug",
+    "ko",
+};
 
 typedef struct {
     tr_game *game;
@@ -2918,6 +2926,13 @@ typedef struct {
 
     size_t gosub_stack[0x10];
     int gosub_stack_count;
+
+    struct {
+        uint16_t swivar_idx;
+        uint16_t kind;
+        uint16_t value;
+        uint16_t offset;
+    } if_swivar_debug;
 } tr_pla_player;
 
 void tr_pla_player_init(tr_pla_player *player, tr_game *game, tr_resources *resources, tr_renderer *renderer) {
@@ -3214,6 +3229,19 @@ void tr_pla_player__change_text_color(tr_pla_player *player) {
     player->current_text_color = i;
 }
 
+void tr_pla_player__if_swivar(tr_pla_player *player) {
+    uint16_t swivar_idx = tr_pla_iterator_next_16(&player->it);
+    uint16_t kind       = tr_pla_iterator_next_16(&player->it);
+    uint16_t value      = tr_pla_iterator_next_32(&player->it);
+    uint16_t offset     = tr_pla_iterator_next_32(&player->it);
+
+    player->state = tr_player_state_swivar_if_debug;
+    player->if_swivar_debug.swivar_idx = swivar_idx;
+    player->if_swivar_debug.kind = kind;
+    player->if_swivar_debug.value = value;
+    player->if_swivar_debug.offset = offset;
+}
+
 void tr_pla_player__gosub(tr_pla_player *player) {
     uint16_t offset = tr_pla_iterator_next_32(&player->it);
     /* uint16_t boh = */ tr_pla_iterator_next_16(&player->it);
@@ -3263,6 +3291,7 @@ void tr_pla_player_step(tr_pla_player *player) {
         case 0x002e: tr_pla_player__set_text_bounds    (player); break;
         case 0x0031: tr_pla_player__set_text_color     (player); break;
         case 0x0032: tr_pla_player__change_text_color  (player); break;
+        case 0x0033: tr_pla_player__if_swivar          (player); break;
         case 0x0035: tr_pla_player__gosub              (player); break;
         case 0x0036: tr_pla_player__return             (player); break;
 
@@ -3658,6 +3687,30 @@ void dbg_ui_pla_controls(dbg_ui *ui) {
     }
 }
 
+void dbg_if_swivar(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
+    if (ui->player->state == tr_player_state_swivar_if_debug) {
+        ui->show_script = true;
+
+        igBegin("if-swivar debug", NULL, 0);
+        igText("if swivar opcode:");
+        igText(TextFormat("swivar idx: %02x", ui->player->if_swivar_debug.swivar_idx));
+        igText(TextFormat("kind:       %02x", ui->player->if_swivar_debug.kind));
+        igText(TextFormat("value:      %04x", ui->player->if_swivar_debug.value));
+        igText(TextFormat("offset:     %04x", ui->player->if_swivar_debug.offset));
+
+        if (igButton("do it", zero)) {
+            ui->player->it.current = ui->player->it.content + ui->player->if_swivar_debug.offset;
+            ui->player->state = tr_player_state_ok;
+        }
+
+        if (igButton("dont do it", zero)) {
+            ui->player->state = tr_player_state_ok;
+        }
+
+        igEnd();
+    }
+}
+
 void dbg_ui_update(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
     ImGui_ImplRaylib_NewFrame();
     ImGui_ImplRaylib_ProcessEvent();
@@ -3728,6 +3781,8 @@ void dbg_ui_update(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
     }
 
     igEnd();
+
+    dbg_if_swivar(ui, ray_loop, tr_loop);
 
     if (ui->show_imgui_demo) igShowDemoWindow(NULL);
 
