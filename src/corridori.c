@@ -2383,13 +2383,12 @@ ray_single_texture *dbg_wdw_get_texture(dbg_wdw *test, int idx) {
 }
 
 typedef struct {
-    uint16_t count;
     tr_palette palette;
-    tr_image_8bpp *images;
+    tr_graphics images;
 } tr_ani_file;
 
 void tr_ani_file_init(tr_ani_file *ani, uint8_t *ani_file) {
-    ani->count              = read16_unaligned(ani_file + 2) - 1;
+    ani->images.count = read16_unaligned(ani_file + 2) - 1;
     uint32_t palette_offset = read32_unaligned(ani_file + 10);
 
     uint8_t *items = ani_file + 14;
@@ -2402,12 +2401,12 @@ void tr_ani_file_init(tr_ani_file *ani, uint8_t *ani_file) {
             (palette_data[(i * 3) + 2] << 18);
     }
 
-    ani->images = calloc(ani->count, sizeof(tr_image_8bpp));
+    ani->images.items = calloc(ani->images.count, sizeof(tr_image_8bpp));
 
-    for (int i = 0; i < ani->count; i++) {
+    for (int i = 0; i < ani->images.count; i++) {
         uint32_t offset = read32_unaligned(items + i * 4);
         uint8_t *ele_data = ani_file + 10 + offset;
-        tr_render_ele_ani(ele_data, &ani->images[i]);
+        tr_render_ele_ani(ele_data, &ani->images.items[i]);
     }
 }
 
@@ -2498,31 +2497,28 @@ int tr_ani_file_idx_from_string(const char *ani) {
 typedef struct  {
     bool inited[ani_files_count];
     tr_ani_file ani[ani_files_count];
-    ray_single_texture *textures[ani_files_count];
+    ray_textures textures[ani_files_count];
 } ray_ani_files;
 
 void ray_ani_files_init(ray_ani_files *ani_files) {
     memset(ani_files, 0, sizeof(ray_ani_files));
 }
 
-ray_single_texture *ray_ani_files_get_textures(ray_ani_files *ani_test, int ani_idx) {
+ray_textures *ray_ani_files_get_textures(ray_ani_files *ani_test, int ani_idx) {
     if (ani_test->inited[ani_idx]) {
-        return ani_test->textures[ani_idx];
+        return &ani_test->textures[ani_idx];
     }
 
     uint8_t *ani_file = load_file(TextFormat("GAME_DIR/PLR/BNK/%s", ani_files[ani_idx]));
     tr_ani_file_init(&ani_test->ani[ani_idx], ani_file);
-    ani_test->textures[ani_idx] = calloc(ani_test->ani[ani_idx].count, sizeof(ray_single_texture));
 
-    for (int i = 0; i < ani_test->ani[ani_idx].count; i++) {
-        ray_texture_from_image(&ani_test->textures[ani_idx][i],
-                               &ani_test->ani[ani_idx].images[i],
-                               &ani_test->ani[ani_idx].palette,
-                               0);
-    }
+    tr_graphics_to_textures(&ani_test->textures[ani_idx],
+                            &ani_test->ani[ani_idx].images,
+                            &ani_test->ani[ani_idx].palette,
+                            0);
 
     ani_test->inited[ani_idx] = true;
-    return ani_test->textures[ani_idx];
+    return &ani_test->textures[ani_idx];
 }
 
 typedef struct {
@@ -2645,10 +2641,10 @@ void dbg_ani_show(dbg_ani *test, bool *show) {
     dbg_image_list_prepare_right_pane(ani_files[test->current], &test->scale);
 
     ray_ani_files_get_textures(test->ani_files, test->current);
+    ray_textures *texts = &test->ani_files->textures[test->current];
 
-    for (int i = 0; i < test->ani_files->ani[test->current].count; i++) {
-        ray_single_texture *ani_text = ray_ani_files_get_textures(test->ani_files, test->current);
-        dbg_image_list_show_image(i, &ani_text[i].texture, test->scale);
+    for (int i = 0; i < texts->count; i++) {
+        dbg_image_list_show_image(i, &texts->textures[i], test->scale);
     }
 
     dbg_image_list_end();
@@ -3821,13 +3817,13 @@ void ray_gameloop_player_draw(ray_gameloop *ray_loop, tr_gameloop *tr_loop, tr_p
         switch (cmd->type) {
             case tr_pla_player_command_type_render_ani: {
                 tr_render_ani_command *render_ani = &cmd->command.render_ani;
-                ray_single_texture *texts = ray_ani_files_get_textures(&ray_loop->ani_files, render_ani->ani_idx);
+                ray_textures *texts = ray_ani_files_get_textures(&ray_loop->ani_files, render_ani->ani_idx);
 
-                DrawTextureScaled(texts[render_ani->frame_idx].texture,
+                DrawTextureScaled(texts->textures[render_ani->frame_idx],
                                   render_ani->x,
                                   render_ani->y,
-                                  texts[render_ani->frame_idx].texture.width,
-                                  texts[render_ani->frame_idx].texture.height,
+                                  texts->textures[render_ani->frame_idx].width,
+                                  texts->textures[render_ani->frame_idx].height,
                                   false);
                 break;
             }
