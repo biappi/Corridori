@@ -210,17 +210,46 @@ typedef struct {
 // - //
 
 typedef struct {
+    enum {
+        tr_resource_type_ele,
+        tr_resource_type_ani,
+    } type;
+
+    union {
+        struct {
+            tr_ele_kind ele_kind;
+            int ele_idx;
+        } ele;
+
+        struct {
+            int ani_idx;
+            int frame_idx;
+        } ani;
+    } res;
+} tr_graphics_resource;
+
+typedef struct {
     int frame;
     int countdown;
 } tr_bg;
 
 typedef enum {
-    tr_render_command_type_render_ani,
+    tr_render_command_graphics,
     tr_render_command_type_render_box_text,
     tr_render_command_arcade_background,
-    tr_render_command_arcade_bob,
     tr_render_command_arcade_types,
 } tr_render_command_type;
+
+typedef struct {
+    int x;
+    int y;
+    tr_graphics_resource res;
+    bool flip;
+    bool center_bottom_anchor;
+
+    int palette_start; // still todo
+    int color;         // still todo
+} tr_render_graphics_command;
 
 typedef struct {
     int x;
@@ -244,17 +273,16 @@ typedef struct {
     int y;
     tr_ele_kind ele;
     int ele_idx;
-    int palette_start;
     int flip;
+    int palette_start;
     int color;
 } tr_render_arcade_bob_command;
 
 typedef struct {
     tr_render_command_type type;
     union {
-        tr_render_ani_command render_ani;
+        tr_render_graphics_command render_graphics;
         tr_render_box_text_command render_box_text;
-        tr_render_arcade_bob_command render_arcade_bob;
     } command;
 } tr_render_command;
 
@@ -275,7 +303,7 @@ tr_render_command *tr_renderer_add_command(tr_renderer *renderer) {
 
 typedef struct {
     int count;
-    Texture2D *textures;
+    Texture *textures;
     uint32_t  **data;
 } ray_textures;
 
@@ -286,7 +314,7 @@ typedef struct {
     tr_resources *resources;
     tr_palette   *palette;
     tr_tilesets  *tilesets;
-    Texture2D     texture;
+    Texture      texture;
 } ray_bg_renderer;
 
 // - //
@@ -554,15 +582,19 @@ void add_bob_per_background(
     int flip,
     int color
 ) {
+
     tr_render_command *cmd = tr_renderer_add_command(renderer);
-    cmd->type = tr_render_command_arcade_bob;
-    cmd->command.render_arcade_bob.x = x;
-    cmd->command.render_arcade_bob.y = y;
-    cmd->command.render_arcade_bob.ele = ele;
-    cmd->command.render_arcade_bob.ele_idx = ele_idx;
-    cmd->command.render_arcade_bob.palette_start = palette_start;
-    cmd->command.render_arcade_bob.flip = flip;
-    cmd->command.render_arcade_bob.color = color;
+    cmd->type = tr_render_command_graphics;
+
+    cmd->command.render_graphics.x = x;
+    cmd->command.render_graphics.y = y;
+    cmd->command.render_graphics.palette_start = palette_start;
+    cmd->command.render_graphics.flip = flip;
+    cmd->command.render_graphics.color = color;
+    cmd->command.render_graphics.center_bottom_anchor = true;
+
+    cmd->command.render_graphics.res.res.ele.ele_kind = ele;
+    cmd->command.render_graphics.res.res.ele.ele_idx = ele_idx;
 }
 
 void tr_render_ele_ani(uint8_t *ele_data, tr_image_8bpp *dst_item) {
@@ -722,7 +754,7 @@ void tr_graphics_to_textures(ray_textures *texts,
                              int col)
 {
     texts->count    = tr->count;
-    texts->textures = calloc(texts->count, sizeof(Texture2D));
+    texts->textures = calloc(texts->count, sizeof(Texture));
     texts->data     = calloc(texts->count, sizeof(uint32_t*));
 
     for (int image = 0; image < tr->count; image++) {
@@ -2951,20 +2983,26 @@ void tr_pla_player__load_ani(tr_pla_player *player) {
 
 void tr_pla_player__render_ani(tr_pla_player *player) {
     tr_render_command *command = tr_renderer_add_command(player->renderer);
-    tr_render_ani_command *render_ani = &command->command.render_ani;
+    tr_render_graphics_command *render_ani = &command->command.render_graphics;
 
-    command->type = tr_render_command_type_render_ani;
+    command->type = tr_render_command_graphics;
     render_ani->x         = tr_pla_iterator_next_16(&player->it);
     render_ani->y         = tr_pla_iterator_next_16(&player->it);
     /* unused */            tr_pla_iterator_next_16(&player->it);
-    render_ani->frame_idx = tr_pla_iterator_next_16(&player->it);
-    render_ani->ani_idx   = tr_pla_iterator_next_16(&player->it);
 
-    if (render_ani->ani_idx != 0) {
+    render_ani->res.type              = tr_resource_type_ani;
+    render_ani->res.res.ani.frame_idx = tr_pla_iterator_next_16(&player->it);
+    render_ani->res.res.ani.ani_idx   = tr_pla_iterator_next_16(&player->it);
+    render_ani->flip                  = false;
+    render_ani->color                 = 0;
+    render_ani->palette_start         = 0;
+    render_ani->center_bottom_anchor  = false;
+
+    if (render_ani->res.res.ani.ani_idx != 0) {
         printf("bad ani idx!\n");
     }
 
-    render_ani->ani_idx   = player->ani_file_index;
+    render_ani->res.res.ani.ani_idx = player->ani_file_index;
 }
 
 void tr_pla_player__opcode_0006(tr_pla_player *player) {
@@ -3490,7 +3528,7 @@ void ray_arcade_gameloop_tick(ray_gameloop *ray_loop, tr_gameloop *tr_loop, tr_r
 
 typedef struct {
     struct ImGuiIO *io;
-    Texture2D font_texture;
+    Texture font_texture;
     bool show_imgui_demo;
 
     tr_pla_player *player;
@@ -3739,21 +3777,39 @@ bool ray_framerate_do_frame(ray_framerate *framerate) {
     return framerate->do_frame;
 }
 
+Texture ray_texture_for_resource(tr_graphics_resource resource, ray_gameloop *ray_loop) {
+    switch (resource.type) {
+        case tr_resource_type_ele: {
+            return ray_loop
+                ->ele_textures[resource.res.ele.ele_kind]
+                ->textures[resource.res.ele.ele_idx];
+        }
+        case tr_resource_type_ani: {
+            return ray_ani_files_get_textures(&ray_loop->ani_files,
+                                              resource.res.ani.ani_idx)
+                ->textures[resource.res.ani.frame_idx];
+        }
+    }
+}
+
 void ray_renderer_draw(ray_gameloop *ray_loop, tr_gameloop *tr_loop, tr_pla_player *player, tr_renderer *renderer) {
 
     for (int i = 0; i < renderer->count; i++) {
         tr_render_command *cmd = &renderer->commands[i];
         switch (cmd->type) {
-            case tr_render_command_type_render_ani: {
-                tr_render_ani_command *render_ani = &cmd->command.render_ani;
-                ray_textures *texts = ray_ani_files_get_textures(&ray_loop->ani_files, render_ani->ani_idx);
+            case tr_render_command_graphics: {
+                tr_render_graphics_command *g = &cmd->command.render_graphics;
+                Texture texture = ray_texture_for_resource(g->res, ray_loop);
 
-                DrawTextureScaled(texts->textures[render_ani->frame_idx],
-                                  render_ani->x,
-                                  render_ani->y,
-                                  texts->textures[render_ani->frame_idx].width,
-                                  texts->textures[render_ani->frame_idx].height,
-                                  false);
+                int delta_x = !g->center_bottom_anchor ? 0 : texture.width / 2;
+                int delta_y = !g->center_bottom_anchor ? 0 : texture.height;
+
+                DrawTextureScaled(texture,
+                                  g->x - delta_x,
+                                  g->y - delta_y,
+                                  texture.width,
+                                  texture.height,
+                                  g->flip);
                 break;
             }
 
@@ -3779,18 +3835,6 @@ void ray_renderer_draw(ray_gameloop *ray_loop, tr_gameloop *tr_loop, tr_pla_play
                                   GAME_SIZE_WIDTH,
                                   GAME_SIZE_HEIGHT,
                                   false);
-                break;
-            }
-
-            case tr_render_command_arcade_bob: {
-                tr_render_arcade_bob_command *bob = &cmd->command.render_arcade_bob;
-                Texture texture = ray_loop->ele_textures[bob->ele]->textures[bob->ele_idx];
-                DrawTextureScaled(texture,
-                                  bob->x - texture.width / 2,
-                                  bob->y - texture.height,
-                                  texture.width,
-                                  texture.height,
-                                  bob->flip);
                 break;
             }
 
