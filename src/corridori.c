@@ -113,21 +113,6 @@ typedef enum {
     tr_ele_count,
 } tr_ele_kind;
 
-typedef struct {
-    int x;
-    int y;
-    tr_ele_kind ele;
-    int ele_idx;
-    int palette_start;
-    int flip;
-    int color;
-} tr_bob;
-
-typedef struct {
-    size_t count;
-    tr_bob bobs[0x32];
-} tr_bobs;
-
 typedef struct PACKED {
     uint16_t x1;
     uint16_t y1;
@@ -212,9 +197,6 @@ typedef struct {
 
     void *swi_elements[0x40];
 
-    tr_bobs bobs;
-
-
     tr_ele_kind current_ucci;
     uint8_t wanted_ucci_nr;
     uint8_t current_ucci_nr;
@@ -225,10 +207,69 @@ typedef struct {
 
 }  tr_game;
 
+// - //
+
 typedef struct {
     int frame;
     int countdown;
 } tr_bg;
+
+typedef enum {
+    tr_render_command_type_render_ani,
+    tr_render_command_type_render_box_text,
+    tr_render_command_arcade_background,
+    tr_render_command_arcade_bob,
+    tr_render_command_arcade_types,
+} tr_render_command_type;
+
+typedef struct {
+    int x;
+    int y;
+    int ani_idx;
+    int frame_idx;
+} tr_render_ani_command;
+
+typedef struct {
+    int x;
+    int y;
+    int width;
+    int height;
+    uint32_t color;
+    const char *text;
+    int slot;
+} tr_render_box_text_command;
+
+typedef struct {
+    int x;
+    int y;
+    tr_ele_kind ele;
+    int ele_idx;
+    int palette_start;
+    int flip;
+    int color;
+} tr_render_arcade_bob_command;
+
+typedef struct {
+    tr_render_command_type type;
+    union {
+        tr_render_ani_command render_ani;
+        tr_render_box_text_command render_box_text;
+        tr_render_arcade_bob_command render_arcade_bob;
+    } command;
+} tr_render_command;
+
+typedef struct {
+    tr_render_command commands[0x100];
+    int count;
+} tr_renderer;
+
+void tr_renderer_clear(tr_renderer *renderer) {
+    renderer->count = 0;
+}
+
+tr_render_command *tr_renderer_add_command(tr_renderer *renderer) {
+    return &renderer->commands[renderer->count++];
+}
 
 // - //
 
@@ -503,12 +544,8 @@ void render_background_layer(uint8_t *room_file, int room, tr_tilesets *sets, ui
     }
 }
 
-void tr_bobs_reset(tr_bobs *bobs) {
-    bobs->count = 0;
-}
-
 void add_bob_per_background(
-    tr_bobs *bobs,
+    tr_renderer *renderer,
     int x,
     int y,
     tr_ele_kind ele,
@@ -517,22 +554,15 @@ void add_bob_per_background(
     int flip,
     int color
 ) {
-    size_t i = bobs->count;
-
-    if (bobs->count == 0x32) {
-        /* bobs overflow error */
-        return;
-    }
-
-    bobs->bobs[i].x = x;
-    bobs->bobs[i].y = y;
-    bobs->bobs[i].ele = ele;
-    bobs->bobs[i].ele_idx = ele_idx;
-    bobs->bobs[i].palette_start = palette_start;
-    bobs->bobs[i].flip = flip;
-    bobs->bobs[i].color = color;
-
-    bobs->count = i + 1;
+    tr_render_command *cmd = tr_renderer_add_command(renderer);
+    cmd->type = tr_render_command_arcade_bob;
+    cmd->command.render_arcade_bob.x = x;
+    cmd->command.render_arcade_bob.y = y;
+    cmd->command.render_arcade_bob.ele = ele;
+    cmd->command.render_arcade_bob.ele_idx = ele_idx;
+    cmd->command.render_arcade_bob.palette_start = palette_start;
+    cmd->command.render_arcade_bob.flip = flip;
+    cmd->command.render_arcade_bob.color = color;
 }
 
 void tr_render_ele_ani(uint8_t *ele_data, tr_image_8bpp *dst_item) {
@@ -1936,8 +1966,8 @@ void update_pupo(tr_game *game, tr_resources *resources, uint8_t direction, int 
     }
 }
 
-void add_pupo_to_bobs(tr_game *game) {
-    add_bob_per_background(&game->bobs,
+void add_pupo_to_bobs(tr_game *game, tr_renderer *renderer) {
+    add_bob_per_background(renderer,
                            game->x + game->x_delta,
                            game->y + game->y_delta,
                            tr_ele_tr,
@@ -1950,7 +1980,7 @@ void add_pupo_to_bobs(tr_game *game) {
     // *bob_to_hit_mouse_3 = *bobs_count;
 }
 
-void add_enemy_to_bobs(tr_game *game, tr_resources *resources, int enemy_id) {
+void add_enemy_to_bobs(tr_game *game, tr_resources *resources, tr_renderer *renderer, int enemy_id) {
     tr_pu_item *pu_item = pu_item_get(resources,
                                       game->current_room,
                                       enemy_id);
@@ -1960,7 +1990,7 @@ void add_enemy_to_bobs(tr_game *game, tr_resources *resources, int enemy_id) {
     int y = from_big_endian(pu_item->y1) + from_big_endian(pu_item->y2);
 
     if (!pu_item->bool1 || x < 320) {
-        add_bob_per_background(&game->bobs,
+        add_bob_per_background(renderer,
                                x,
                                y,
                                game->current_ucci,
@@ -1972,15 +2002,15 @@ void add_enemy_to_bobs(tr_game *game, tr_resources *resources, int enemy_id) {
 
 }
 
-void draw_pupi(tr_game *game, tr_resources *resources) {
+void draw_pupi(tr_game *game, tr_resources *resources, tr_renderer *renderer) {
     /* sort not implemented */
 
-    add_enemy_to_bobs(game, resources, 0);
-    add_enemy_to_bobs(game, resources, 1);
-    add_pupo_to_bobs(game);
+    add_enemy_to_bobs(game, resources, renderer, 0);
+    add_enemy_to_bobs(game, resources, renderer, 1);
+    add_pupo_to_bobs(game, renderer);
 }
 
-void draw_stars_and_check(tr_game *game, tr_resources *resources) {
+void draw_stars_and_check(tr_game *game, tr_resources *resources, tr_renderer *renderer) {
     game->stars_countdown--;
 
     if (game->stars_countdown == 0) {
@@ -2008,7 +2038,7 @@ void draw_stars_and_check(tr_game *game, tr_resources *resources) {
         uint16_t y     = from_big_endian(read16_unaligned(pn + 6));
 
         if (room == game->current_room) {
-            add_bob_per_background(&game->bobs,
+            add_bob_per_background(renderer,
                                    x,
                                    y - 0x1e,
                                    tr_ele_k,
@@ -2077,7 +2107,7 @@ bool bg_step(tr_bg *bg) {
     return  ret;
 }
 
-void draw_faccia(tr_game *game) {
+void draw_faccia(tr_game *game, tr_renderer *renderer) {
     if (game->faccia_countdown == 0) {
         return;
     }
@@ -2087,11 +2117,11 @@ void draw_faccia(tr_game *game) {
     int y = game->y < 0x64 ? 0xc3 : 0x34;
     int boh = y - 7 - ((0x800 - game->vita) / 0x31); boh = boh;
 
-    add_bob_per_background(&game->bobs, 0x123, y,      tr_ele_status, 1, 0xfff0, 0, 0);
-    add_bob_per_background(&game->bobs, 0x123, y + 50, tr_ele_status, 0, 0xfff0, 0, 0);
+    add_bob_per_background(renderer, 0x123, y,      tr_ele_status, 1, 0xfff0, 0, 0);
+    add_bob_per_background(renderer, 0x123, y + 50, tr_ele_status, 0, 0xfff0, 0, 0);
 }
 
-void draw_punti(tr_game *game) {
+void draw_punti(tr_game *game, tr_renderer *renderer) {
     if (game->punti_countdown == 0) {
         return;
     }
@@ -2102,7 +2132,7 @@ void draw_punti(tr_game *game) {
     int len = snprintf(punti, sizeof(punti), "%d", game->score);
 
     for (int i = len - 1; i >= 0; i--) {
-        add_bob_per_background(&game->bobs,
+        add_bob_per_background(renderer,
                                319 - (len << 4) - 8 + (i << 4),
                                game->y > 0x64 ? 0x1a : 0x3c,
                                tr_ele_numeri,
@@ -2113,22 +2143,24 @@ void draw_punti(tr_game *game) {
     }
 }
 
-void draw_punti_faccia_pistolina(tr_game *game) {
-    draw_faccia(game);
-    draw_punti(game);
-}
+void tr_arcade_gameloop_tick(tr_renderer *renderer,
+                             tr_game *game,
+                             tr_resources *resources,
+                             uint8_t direction) {
+    tr_renderer_clear(renderer);
 
-void tr_arcade_gameloop_tick(tr_game *game, tr_resources *resources, uint8_t direction) {
-    tr_bobs_reset(&game->bobs);
-    // animate & render background
-    draw_punti_faccia_pistolina(game);
-    draw_stars_and_check(game, resources);
+    tr_render_command *bg = tr_renderer_add_command(renderer);
+    bg->type = tr_render_command_arcade_background;
+
+    draw_faccia(game, renderer);
+    draw_punti(game, renderer);
+    draw_stars_and_check(game, resources, renderer);
     update_pupo(game, resources, direction, 0);
     // check gsa & exit
     // load & update ucci 0
     // load & update ucci 1
     // clear bob mouse
-    draw_pupi(game, resources);
+    draw_pupi(game, resources, renderer);
     // check mouse
     // draw mouse
     // reset bobs
@@ -2824,49 +2856,6 @@ typedef enum {
 
 static const char *tr_player_state_strings[] = { "ok", "stopped", "ended", "change pla", "ko" };
 
-typedef enum {
-    tr_render_command_type_render_ani,
-    tr_render_command_type_render_box_text,
-} tr_render_command_type;
-
-typedef struct {
-    int x;
-    int y;
-    int ani_idx;
-    int frame_idx;
-} tr_render_ani_command;
-
-typedef struct {
-    int x;
-    int y;
-    int width;
-    int height;
-    uint32_t color;
-    const char *text;
-    int slot;
-} tr_render_box_text_command;
-
-typedef struct {
-    tr_render_command_type type;
-    union {
-        tr_render_ani_command render_ani;
-        tr_render_box_text_command render_box_text;
-    } command;
-} tr_render_command;
-
-typedef struct {
-    tr_render_command commands[0x100];
-    int count;
-} tr_renderer;
-
-void tr_renderer_clear(tr_renderer *renderer) {
-    renderer->count = 0;
-}
-
-tr_render_command *tr_renderer_add_command(tr_renderer *renderer) {
-    return &renderer->commands[renderer->count++];
-}
-
 typedef struct {
     tr_game *game;
     tr_resources *resources;
@@ -3475,7 +3464,7 @@ void ray_gameloop_update(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
     }
 }
 
-void ray_arcade_gameloop_tick(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
+void ray_arcade_gameloop_tick(ray_gameloop *ray_loop, tr_gameloop *tr_loop, tr_renderer *renderer) {
     char direction = tr_keys_to_direction(
         IsKeyDown(KEY_DOWN),
         IsKeyDown(KEY_UP),
@@ -3484,7 +3473,7 @@ void ray_arcade_gameloop_tick(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
         IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)
     );
 
-    tr_arcade_gameloop_tick(&tr_loop->game, &tr_loop->resources, direction);
+    tr_arcade_gameloop_tick(renderer, &tr_loop->game, &tr_loop->resources, direction);
 
     bool redraw_bg = bg_step(&tr_loop->bg);
 
@@ -3492,26 +3481,11 @@ void ray_arcade_gameloop_tick(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
         ray_bg_render_room(&ray_loop->bg_renderer, tr_loop->game.current_room, tr_loop->bg.frame);
         ray_loop->rendered_room = tr_loop->game.current_room;
     }
-}
 
-void ray_gameloop_arcade_draw(ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
-    DrawTextureScaled(ray_loop->bg_renderer.texture, 0, 0, GAME_SIZE_WIDTH, GAME_SIZE_HEIGHT, false);
-
-    for (int i = 0; i < tr_loop->game.bobs.count; i++) {
-        tr_bob *bob = &(tr_loop->game.bobs.bobs[i]);
-
-        Texture texture = ray_loop->ele_textures[bob->ele]->textures[bob->ele_idx];
-
-        DrawTextureScaled(texture,
-                          bob->x - texture.width / 2,
-                          bob->y - texture.height,
-                          texture.width,
-                          texture.height,
-                          bob->flip);
+    if (ray_loop->show_types) {
+        tr_render_command *cmd = tr_renderer_add_command(renderer);
+        cmd->type = tr_render_command_arcade_types;
     }
-
-    if (ray_loop->show_types)
-        DrawTileTypes(&tr_loop->resources, tr_loop->game.current_room);
 }
 
 typedef struct {
@@ -3795,12 +3769,44 @@ void ray_renderer_draw(ray_gameloop *ray_loop, tr_gameloop *tr_loop, tr_pla_play
                          text_cmd->y * GAME_SIZE_SCALE,
                          20,
                          GetColor(text_cmd->color));
+                break;
+            }
+
+            case tr_render_command_arcade_background: {
+                DrawTextureScaled(ray_loop->bg_renderer.texture,
+                                  0,
+                                  0,
+                                  GAME_SIZE_WIDTH,
+                                  GAME_SIZE_HEIGHT,
+                                  false);
+                break;
+            }
+
+            case tr_render_command_arcade_bob: {
+                tr_render_arcade_bob_command *bob = &cmd->command.render_arcade_bob;
+                Texture texture = ray_loop->ele_textures[bob->ele]->textures[bob->ele_idx];
+                DrawTextureScaled(texture,
+                                  bob->x - texture.width / 2,
+                                  bob->y - texture.height,
+                                  texture.width,
+                                  texture.height,
+                                  bob->flip);
+                break;
+            }
+
+            case tr_render_command_arcade_types: {
+                DrawTileTypes(&tr_loop->resources, tr_loop->game.current_room);
+                break;
             }
         }
     }
 
-    if (ray_loop->resume_countdown && player->state == tr_player_state_stopped)
+    if (!ray_loop->show_arcade &&
+        ray_loop->resume_countdown &&
+        player->state == tr_player_state_stopped)
+    {
         DrawText(TextFormat("%d", ray_loop->resume_countdown), 0, 0, 40, ORANGE);
+    }
 }
 
 void ray_player_gameloop_tick(ray_gameloop *ray_loop, tr_gameloop *tr_loop, tr_pla_player *player) {
@@ -3823,16 +3829,6 @@ void ray_player_gameloop_tick(ray_gameloop *ray_loop, tr_gameloop *tr_loop, tr_p
         ray_loop->running = false;
     }
 }
-
-void ray_gameloop_tick(ray_gameloop *ray_loop, tr_gameloop *tr_loop, tr_pla_player *player) {
-    if (ray_loop->show_arcade) {
-        ray_arcade_gameloop_tick(ray_loop, tr_loop);
-    }
-    else {
-        ray_player_gameloop_tick(ray_loop, tr_loop, player);
-    }
-}
-
 
 int main() {
     InitWindow(GAME_SIZE_WIDTH  * GAME_SIZE_SCALE + DEBUG_PANE_WIDTH,
@@ -3866,16 +3862,18 @@ int main() {
         ray_gameloop_update(&ray_loop, &tr_loop);
 
         if (ray_framerate_do_frame(&framerate)) {
-            ray_gameloop_tick(&ray_loop, &tr_loop, &player);
+            if (ray_loop.show_arcade) {
+                ray_arcade_gameloop_tick(&ray_loop, &tr_loop, &renderer);
+            }
+            else {
+                ray_player_gameloop_tick(&ray_loop, &tr_loop, &player);
+            }
         }
 
         BeginDrawing();
         ClearBackground(BLACK);
 
-        if (ray_loop.show_arcade)
-            ray_gameloop_arcade_draw(&ray_loop, &tr_loop);
-        else
-            ray_renderer_draw(&ray_loop, &tr_loop, &player, &renderer);
+        ray_renderer_draw(&ray_loop, &tr_loop, &player, &renderer);
 
         dbg_ui_render();
 
