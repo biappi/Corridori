@@ -2298,7 +2298,7 @@ void tr_gameloop_init(tr_gameloop *loop) {
 const int tr_wdw_image_count = 9;
 
 typedef struct {
-    tr_image_8bpp images[tr_wdw_image_count];
+    tr_graphics images;
     tr_palette palette;
 } tr_wdw;
 
@@ -2316,9 +2316,12 @@ void tr_wdw_init_palette(tr_palette *palette, uint8_t *data) {
 }
 
 void tr_wdw_init(tr_wdw *wdw, uint8_t *wdw_file) {
+    wdw->images.count = tr_wdw_image_count;
+    wdw->images.items = calloc(tr_wdw_image_count, sizeof(tr_image_8bpp));
+
     for (int i = 0; i < tr_wdw_image_count; i++) {
         uint16_t ele_offset = *((uint16_t *)(wdw_file + i * 2));
-        tr_render_ele(wdw_file + ele_offset, &wdw->images[i]);
+        tr_render_ele(wdw_file + ele_offset, &wdw->images.items[i]);
     }
 
     uint16_t palette_offset = *((uint16_t *)(wdw_file + 18));
@@ -2336,50 +2339,16 @@ const int wdw_files_count = sizeof(wdw_files) / sizeof(char *);
 
 typedef struct {
     int current;
-    int current_col;
-
-    int prev_current;
-    int prev_current_col;
-
     int scale;
 
     bool inited[wdw_files_count];
     tr_wdw wdws[wdw_files_count];
-    ray_single_texture *textures[wdw_files_count];
-
-    tr_wdw wdw;
-    ray_single_texture wdw1;
+    ray_textures textures[wdw_files_count];
 } dbg_wdw;
 
 void dbg_wdw_init(dbg_wdw *test) {
     memset(test, 0, sizeof(dbg_wdw));
-
     test->scale = 1;
-    test->current_col = 0xf1;
-    uint8_t *wdw_file = load_file("GAME_DIR/PLR/WDW/TR.TIL");
-    tr_wdw_init(&test->wdw, wdw_file);
-    ray_texture_from_image(&test->wdw1, &test->wdw.images[0], &test->wdw.palette, 0xf1);
-}
-
-ray_single_texture *dbg_wdw_get_texture(dbg_wdw *test, int idx) {
-    if (test->inited[idx]) {
-        return test->textures[idx];
-    }
-
-    const char *file_path = TextFormat("GAME_DIR/PLR/WDW/%s", wdw_files[idx]);
-    uint8_t *wdw_file = load_file(file_path);
-    tr_wdw_init(&test->wdws[idx], wdw_file);
-    test->textures[idx] = calloc(tr_wdw_image_count, sizeof(ray_single_texture));
-
-    for (int i = 0; i < tr_wdw_image_count; i++) {
-        ray_texture_from_image(&test->textures[idx][i],
-                               &test->wdws[idx].images[i],
-                               &test->wdws[idx].palette,
-                               0xf1);
-    }
-
-    test->inited[idx] = true;
-    return test->textures[idx];
 }
 
 typedef struct {
@@ -2659,9 +2628,24 @@ void dbg_wdw_show(dbg_wdw *wdw, bool *show) {
 
     dbg_image_list_prepare_right_pane("xx", &wdw->scale);
 
-    for (int i = 0; i < tr_wdw_image_count; i++) {
-        ray_single_texture *text = dbg_wdw_get_texture(wdw, wdw->current);
-        dbg_image_list_show_image(i, &text[i].texture, wdw->scale);
+    if (!wdw->inited[wdw->current]) {
+        const char *file_path = TextFormat("GAME_DIR/PLR/WDW/%s", wdw_files[wdw->current]);
+        uint8_t *wdw_file = load_file(file_path);
+
+
+        tr_wdw_init(&wdw->wdws[wdw->current], wdw_file);
+
+        tr_graphics_to_textures(&wdw->textures[wdw->current],
+                                &wdw->wdws[wdw->current].images,
+                                &wdw->wdws[wdw->current].palette,
+                                0xf1);
+
+        wdw->inited[wdw->current] = true;
+    }
+
+    ray_textures *texts = &wdw->textures[wdw->current];
+    for (int i = 0; i < texts->count; i++) {
+        dbg_image_list_show_image(i, &texts->textures[i], wdw->scale);
     }
 
     dbg_image_list_end();
