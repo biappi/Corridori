@@ -2884,6 +2884,7 @@ typedef enum {
     tr_player_state_ended,
     tr_player_state_change_pla,
     tr_player_state_swivar_if_debug,
+    tr_player_state_choice,
     tr_player_state_ko,
 } tr_pla_player_state;
 
@@ -2893,6 +2894,7 @@ static const char *tr_player_state_strings[] = {
     "ended",
     "change pla",
     "if debug",
+    "choice",
     "ko",
 };
 
@@ -2933,6 +2935,10 @@ typedef struct {
         uint16_t value;
         uint16_t offset;
     } if_swivar_debug;
+
+    struct {
+        uint16_t code_offset;
+    } choice_debug;
 } tr_pla_player;
 
 void tr_pla_player_init(tr_pla_player *player, tr_game *game, tr_resources *resources, tr_renderer *renderer) {
@@ -3080,15 +3086,18 @@ void tr_pla_player__fade_out(tr_pla_player *player) {
 }
 
 void tr_pla_player__choice(tr_pla_player *player) {
-    uint16_t field1 = tr_pla_iterator_next_16(&player->it);
-    uint16_t field2 = tr_pla_iterator_next_16(&player->it);
-    uint16_t field3 = tr_pla_iterator_next_16(&player->it);
-    uint16_t field4 = tr_pla_iterator_next_16(&player->it);
-    uint16_t field5 = tr_pla_iterator_next_16(&player->it);
-    uint16_t data_offset = tr_pla_iterator_next_16(&player->it);
-    uint16_t field7 = tr_pla_iterator_next_16(&player->it);
-    uint16_t field8 = tr_pla_iterator_next_16(&player->it);
-    uint16_t code_offset = tr_pla_iterator_next_16(&player->it);
+    /*uint16_t field1 =      */ tr_pla_iterator_next_16(&player->it);
+    /*uint16_t field2 =      */ tr_pla_iterator_next_16(&player->it);
+    /*uint16_t field3 =      */ tr_pla_iterator_next_16(&player->it);
+    /*uint16_t field4 =      */ tr_pla_iterator_next_16(&player->it);
+    /*uint16_t field5 =      */ tr_pla_iterator_next_16(&player->it);
+    /*uint16_t data_offset = */ tr_pla_iterator_next_16(&player->it);
+    /*uint16_t field7 =      */ tr_pla_iterator_next_16(&player->it);
+    /*uint16_t field8 =      */ tr_pla_iterator_next_16(&player->it);
+    uint16_t code_offset      = tr_pla_iterator_next_16(&player->it);
+
+    player->state = tr_player_state_choice;
+    player->choice_debug.code_offset = code_offset;
 }
 
 void tr_pla_player__goto_pla(tr_pla_player *player) {
@@ -3702,7 +3711,6 @@ void dbg_ui_pla_controls(dbg_ui *ui) {
 
     if (igButton("resume", zero)) {
         tr_pla_player_resume(pla->player);
-
     }
 }
 
@@ -3718,11 +3726,30 @@ void dbg_if_swivar(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
         igText(TextFormat("offset:     %04x", ui->player->if_swivar_debug.offset));
 
         if (igButton("do it", zero)) {
-            ui->player->it.current = ui->player->it.content + ui->player->if_swivar_debug.offset;
+            tr_pla_iterator_set_offset(&ui->player->it, ui->player->if_swivar_debug.offset);
             ui->player->state = tr_player_state_ok;
         }
 
         if (igButton("dont do it", zero)) {
+            ui->player->state = tr_player_state_ok;
+        }
+
+        igEnd();
+    }
+}
+
+void dbg_choice(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
+    if (ui->player->state == tr_player_state_choice) {
+        ui->show_script = true;
+
+        igBegin("choice debug", NULL, 0);
+
+        if (igButton("next", zero)) {
+            ui->player->state = tr_player_state_ok;
+        }
+
+        if (igButton("jump", zero)) {
+            tr_pla_iterator_set_offset(&ui->player->it, ui->player->choice_debug.code_offset);
             ui->player->state = tr_player_state_ok;
         }
 
@@ -3802,6 +3829,7 @@ void dbg_ui_update(dbg_ui *ui, ray_gameloop *ray_loop, tr_gameloop *tr_loop) {
     igEnd();
 
     dbg_if_swivar(ui, ray_loop, tr_loop);
+    dbg_choice(ui, ray_loop, tr_loop);
 
     if (ui->show_imgui_demo) igShowDemoWindow(NULL);
 
