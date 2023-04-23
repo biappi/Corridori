@@ -729,7 +729,7 @@ static void DrawTileTypes(const tr_resources *resources, int the_room) {
                                                   t_y * GAME_TILES_WIDTH + t_x);
 
             char str[0x100];
-            sprintf(str, "%2x", type.value);
+            snprintf(str, sizeof(str), "%2x", type.value);
 
             if (type.value != 0)
                 DrawText(str, x, y, 20, GREEN);
