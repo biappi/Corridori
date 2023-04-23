@@ -3908,10 +3908,13 @@ void ray_renderer_draw(ray_gameloop *ray_loop, tr_gameloop *tr_loop, tr_pla_play
     }
 }
 
+//#define RESUME_COUNTDOWN 20
+#define RESUME_COUNTDOWN 5
+
 void ray_player_gameloop_tick(ray_gameloop *ray_loop, tr_gameloop *tr_loop, tr_pla_player *player) {
     if ((player->state == tr_player_state_ok) && !ray_loop->did_autoplay) {
         tr_pla_player_resume(player);
-        ray_loop->resume_countdown = 20;
+        ray_loop->resume_countdown = RESUME_COUNTDOWN;
         ray_loop->running = true;
     }
 
@@ -3921,7 +3924,7 @@ void ray_player_gameloop_tick(ray_gameloop *ray_loop, tr_gameloop *tr_loop, tr_p
     if (player->state == tr_player_state_stopped) {
         if (ray_loop->resume_countdown-- == 0) {
             tr_pla_player_resume(player);
-            ray_loop->resume_countdown = 20;
+            ray_loop->resume_countdown = RESUME_COUNTDOWN;
         }
     }
     else {
