@@ -2523,31 +2523,31 @@ ray_textures *ray_ani_files_get_textures(ray_ani_files *ani_test, int ani_idx) {
 
 typedef struct {
     tr_palette palette;
-    tr_image_8bpp image1;
-    tr_image_8bpp image2;
+    tr_graphics images;
 } tr_ptr;
 
 void tr_ptr_init(tr_ptr *ptr, uint8_t *data) {
+    ptr->images.count = 2;
+    ptr->images.items = calloc(2, sizeof(tr_image_8bpp));
+
     uint16_t data1   = read16_unaligned(data + 0);
     uint16_t data2   = read16_unaligned(data + 2);
     uint16_t palette = read16_unaligned(data + 4);
 
     tr_wdw_init_palette(&ptr->palette, data + palette);
-    tr_render_ele(data + data1, &ptr->image1);
-    tr_render_ele(data + data2, &ptr->image2);
+    tr_render_ele(data + data1, &ptr->images.items[0]);
+    tr_render_ele(data + data2, &ptr->images.items[1]);
 }
 
 typedef struct {
     tr_ptr ptr;
-    ray_single_texture tex1;
-    ray_single_texture tex2;
+    ray_textures texts;
 } dbg_ptr;
 
 void dbg_ptr_init(dbg_ptr *dbg, const char *file) {
     uint8_t *pmouse = load_file(file);
     tr_ptr_init(&dbg->ptr, pmouse);
-    ray_texture_from_image(&dbg->tex1, &dbg->ptr.image1, &dbg->ptr.palette, 0xf1);
-    ray_texture_from_image(&dbg->tex2, &dbg->ptr.image2, &dbg->ptr.palette, 0xf1);
+    tr_graphics_to_textures(&dbg->texts, &dbg->ptr.images, &dbg->ptr.palette, 0xf1);
 }
 
 void dbg_image_list_show_image(int i, Texture *texture, int scale);
@@ -2557,8 +2557,8 @@ void dbg_ptr_show(dbg_ptr *dbg, bool *show) {
 
     igBegin("PTRs", show, 0);
 
-    dbg_image_list_show_image(0, &dbg->tex1.texture, 10);
-    dbg_image_list_show_image(0, &dbg->tex2.texture, 10);
+    dbg_image_list_show_image(0, &dbg->texts.textures[0], 10);
+    dbg_image_list_show_image(0, &dbg->texts.textures[1], 10);
 
     igEnd();
 }
