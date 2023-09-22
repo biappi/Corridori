@@ -1,0 +1,46 @@
+name: Make wasm
+
+on:
+  push:
+    branches: [raylib]
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  make-wasm:
+    runs-on: ubuntu-latest
+    container:
+      image: emscripten/emsdk
+      volumes:
+        - ${{ github.workspace }}:/src
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Build
+        run: wasm/actual-build.sh
+      - name: Setup
+        uses: actions/configure-pages@v3
+      - name: Upload
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: 'src'
+
+  deploy:
+    needs: make-wasm
+    runs-on: ubuntu-latest
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v2
